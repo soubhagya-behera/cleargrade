@@ -1,13 +1,13 @@
 # ClearGrade — Development Plan
 
-Status: **Planning document — application implementation has not started.** Owner decisions ratified 2026-11-19 (DECISIONS.md §1).
+Status: **Phase 2B application foundation scaffolded and verified.** The remaining phases below are still planned. Owner decisions ratified 2026-11-19 (DECISIONS.md §1).
 
 ## 1. Planned development sequence
 
 | Phase | Scope | Exit criterion |
 |---|---|---|
 | 0 — Specification & design | PDF/CSV analysis, documentation, owner ratification | **G0→G1 passed (§6)** |
-| 1 — Foundation | Maven/Spring Boot bootstrap, Docker Compose + Postgres (port `8080:8080`), profile-based configuration (§3), Flyway `V1`, injected `Clock` (I-04), configurable 10 MiB limit (U-06) | App starts in Docker and via local profile; schema migrates through Flyway; `/actuator/health` answers |
+| 1 — Foundation **(scaffolded, no migrations yet)** | Maven/Spring Boot bootstrap (Java 21, Spring Boot 4.1.2, `mvnw`), Docker Compose + Postgres, profile-based configuration (§3), injected `Clock` (I-04), configurable 10 MiB limit (U-06) | Skeleton starts with the local profile; `/actuator/health` answers; minimal context/health verification test green. **Flyway migrations and the app Docker image remain for later phases.** |
 | 2 — Domain | Pure model with `BigDecimal` marks (C-3), validation, grading (D-07), error-code vocabulary | Domain tests green; no framework imports in `domain`; **C-4 spike attempted** |
 | 3 — Ingestion | CSV adapter, ports, import use case, digest reservation + partial unique index (C-1/C-2), accepted-only upsert (U-02), new/changed/unchanged counters, persistence | **C-4 spike PASSED**; idempotency/concurrency tests green; benchmarks 16/9 and 4,685/315/348 with fixed clock |
 | 4 — REST API | Controllers, DTOs, global error handler, `201/200/409/413` upload paths, management-path separation (T-5) | API contract tests green; no entity leakage; Actuator health-only |
@@ -19,7 +19,7 @@ Phases are sequential; a failed gate stops the next phase. Bonus work starts onl
 
 ## 2. Code conventions
 
-- **Java 21**, package root `com.esmagico.cleargrade`; layers `domain`, `application` (use cases, ports, **separate transaction service beans / `TransactionTemplate`**), `adapter/in/rest`, `adapter/out/csv`, `adapter/out/persistence`, `config` (ARCHITECTURE.md §8). **No `REQUIRES_NEW` self-invocation.**
+- **Java 21**, package root `dev.cleargrade`; layers `domain`, `application` (use cases, ports, **separate transaction service beans / `TransactionTemplate`**), `adapters.in.web`, `adapters.in.csv`, `adapters.out.persistence`, `configuration` (the boundary names mandated for Phase 2B; ARCHITECTURE.md §8 is the earlier proposed naming). **No `REQUIRES_NEW` self-invocation.**
 - Domain has no Spring/JPA/Commons CSV imports. Marks use `BigDecimal`; no silent rounding (C-3). Adapters depend inward on ports.
 - Controllers accept/return DTOs only. Validation returns a complete error-occurrence list; never fail fast on the first field error.
 - Use injected `Clock` everywhere (I-04). No `LocalDate.now()` in domain/application.
@@ -28,7 +28,7 @@ Phases are sequential; a failed gate stops the next phase. Bonus work starts onl
 
 ## 3. Configuration strategy (profile-based local, environment-based deployment)
 
-Decisions D-19 (profile strategy) and D-20 (external location correction). Files are **planned for Phase 1 scaffolding and not yet created**; only documentation and ignore rules are in place now.
+Decisions D-19 (profile strategy) and D-20 (external location correction). The shared defaults file, the committed example, the git-ignored private local file and the root `.env` are now created; the private files are never committed.
 
 Required structure:
 
@@ -66,6 +66,7 @@ Rules:
 
    Copy `config/application-local.example.properties` to `config/application-local.properties` and fill in local values first. The JVM equivalent is `-Dspring.profiles.active=local`.
 9. The `local` profile is **never active by default**: Docker Compose, images and deployment do not set `SPRING_PROFILES_ACTIVE=local`. Credentials there come solely from environment variables.
+10. The Compose host port is configurable via `POSTGRES_PORT` in the root `.env`. Keep the datasource URL in `backend/config/application-local.properties` on the same port. This avoids conflicts with any PostgreSQL already listening on host port 5432.
 
 ## 4. Git workflow
 
@@ -73,18 +74,21 @@ Rules:
 - No build output, `.env`, `backend/config/application-local.properties` or other credentials committed. Access shared with reviewers at handover.
 - Git was initialized during Phase 2A and the documentation blueprint committed; no application code has been committed.
 
-## 5. Testing commands (planned — not yet runnable)
+## 5. Commands
 
-| Intent | Command (planned) |
-|---|---|
-| Backend unit + integration tests | `mvn test` |
-| Full backend verification | `mvn verify` |
-| Frontend unit tests | `npm --prefix frontend test` |
-| Frontend typecheck + build | `npm --prefix frontend run build` |
-| Single-command full test | `./scripts/test.sh` (phase 7) |
-| Run whole app (Docker) | `docker compose up --build` then `http://localhost:8080` |
-| Run locally with private profile | `Set-Location backend` → `$env:SPRING_PROFILES_ACTIVE = "local"` → `mvn spring-boot:run` (§3) |
-| Seed messy data | script posts generated CSV to `POST /api/imports` (phase 6) |
+| Intent | Command | Status |
+|---|---|---|
+| Backend compile + tests | `cd backend; .\mvnw.cmd -B test` | Runnable |
+| Full backend verification | `cd backend; .\mvnw.cmd -B verify` | Runnable |
+| Frontend dependency install | `cd frontend; npm ci` | Runnable |
+| Frontend typecheck | `cd frontend; npm run typecheck` | Runnable |
+| Frontend production build | `cd frontend; npm run build` | Runnable |
+| Compose config check | `docker compose config --quiet` | Runnable |
+| Start PostgreSQL | `docker compose up -d` | Runnable |
+| Run locally with private profile | `Set-Location backend` → `$env:SPRING_PROFILES_ACTIVE = "local"` → `.\mvnw.cmd spring-boot:run` (§3) | Runnable |
+| Frontend unit tests | `npm test` | Planned |
+| Single-command full test | `./scripts/test.sh` | Planned (phase 7) |
+| Seed messy data | script posts generated CSV to `POST /api/imports` | Planned (phase 6) |
 
 Exact script names may change once the build exists; the final README is authoritative.
 

@@ -2,7 +2,7 @@
 
 **Student Results & Data Quality Portal** — planned take-home implementation for the Es Magico Full-stack Intern assignment.
 
-> Status: **Phase 1.6 — specification, architecture and owner-ratified design complete. No application code, build files, migrations or dependencies have been created.** Run instructions will be added when implementation is complete.
+> Status: **Phase 2B — application foundation in place.** The Spring Boot backend, React shell and local PostgreSQL Compose service are scaffolded. Business functionality (CSV import, domain rules, REST API, real screens) is **not implemented yet** and is explicitly listed as unfinished below.
 
 ## What the product will do
 
@@ -16,16 +16,16 @@ An administrator uploads a messy CSV of student results. ClearGrade will:
 
 The source format has no term/year field, so the portal deliberately models a **current-result snapshot** rather than inventing history.
 
-## Planned stack
+## Stack
 
-| Layer | Technology |
-|---|---|
-| Backend | Java 21, Spring Boot, Maven |
-| Persistence | PostgreSQL, Spring Data JPA, Flyway |
-| CSV | Apache Commons CSV |
-| Frontend | React, React Router, TanStack Query, TypeScript, Tailwind CSS |
-| Testing | JUnit 5, Mockito |
-| Delivery | Multi-stage Dockerfile, Docker Compose (`8080:8080`) |
+| Layer | Technology | Status |
+|---|---|---|
+| Backend | Java 21, Spring Boot 4.1.2, Maven (wrapper 3.9.14) | Scaffolded |
+| Persistence | PostgreSQL 16, Spring Data JPA, Flyway (enabled, `ddl-auto=validate`) | Scaffolded; no migrations yet |
+| CSV | Apache Commons CSV | Planned (phase 3) |
+| Frontend | React 19, TypeScript 5.9, Vite 7, Tailwind CSS 4, React Router 7, TanStack Query 5, Lucide React | Scaffolded |
+| Testing | JUnit 5, Mockito | Backend context/health test in place |
+| Delivery | Docker Compose for PostgreSQL; multi-stage app Dockerfile | Compose scaffolded; app image planned |
 
 Architecture: a **modular monolith** — framework-free domain, application use cases/ports, CSV and persistence adapters, REST API and one React SPA served from the same origin. No microservices, message brokers, caches or AI features. Actuator exposes health only, on a separate management path.
 
@@ -54,8 +54,65 @@ Full rationale, alternatives and superseded identifiers are in [DECISIONS.md](DE
 - [Development](DEVELOPMENT.md) — phases, conventions, gates (including C-4)
 - [Project Status](PROJECT_STATUS.md) — current state, spike, risks, next actions
 
-## Running it
+## Current foundation layout
 
-**Pending.** Final instructions will document prerequisites, `docker compose up --build`, `http://localhost:8080`, the seed command (which posts generated CSV through the import API) and the one-command test script. The supplied sample CSVs and assignment PDF are intentionally not included here.
+```text
+backend/    Spring Boot modular-monolith skeleton (Java 21, Maven wrapper)
+frontend/   React + TypeScript + Vite shell (feature-oriented src/)
+docker-compose.yml   Local PostgreSQL 16 with named volume and pg_isready healthcheck
+.github/workflows/ci.yml   Maven build/tests + frontend typecheck/build
+```
 
-`NOTES.md`, required by the assignment, is reserved for the final submission.
+Backend packages are rooted at `dev.cleargrade`: `domain`, `application`, `adapters.in.web`, `adapters.in.csv`, `adapters.out.persistence`, `configuration`. Only `application.properties` lives under Maven resources; the private local profile file lives in `backend/config/` (D-20).
+
+## Running the foundation locally
+
+Prerequisites: Java 21, Node.js 20.19+ / 22.12+, Docker with Compose.
+
+```powershell
+# 1. Local secrets (never committed): generate a local password and place the
+#    SAME value in .env (POSTGRES_PASSWORD) and
+#    backend/config/application-local.properties (spring.datasource.password).
+#    See DEVELOPMENT.md §3. Copy the committed examples first.
+
+# 2. Start PostgreSQL
+docker compose up -d
+docker compose ps        # status should be "healthy"
+
+# 3. Backend (from backend/)
+$env:SPRING_PROFILES_ACTIVE = "local"
+.\mvnw.cmd spring-boot:run
+# GET http://localhost:8080/actuator/health
+
+# 4. Frontend (from frontend/)
+npm ci
+npm run dev              # dev server proxies /api and /actuator/health to :8080
+```
+
+If host port 5432 is already in use, set `POSTGRES_PORT` in the git-ignored root `.env` and the datasource URL in `backend/config/application-local.properties` to the same free port.
+
+## Verification
+
+```powershell
+# Backend
+cd backend; .\mvnw.cmd -B verify
+
+# Frontend
+cd frontend; npm ci; npm run typecheck; npm run build
+
+# Database / config
+docker compose config --quiet
+```
+
+Full evidence and the exact commands used are recorded in [PROJECT_STATUS.md](PROJECT_STATUS.md).
+
+## Explicitly unfinished
+
+- No CSV parsing, validation, grading or domain model.
+- No Flyway migrations, JPA entities or repository adapters.
+- No import REST API, DTOs, pagination or error handling.
+- Frontend screens are honest placeholders; the sidebar's Student Report entry is disabled until a student is selected.
+- No multi-stage application Dockerfile, seed script, `NOTES.md` or one-command test script.
+- No authentication by design (U-03): local/trusted evaluation only; do not publicly expose.
+
+The supplied sample CSVs and assignment PDF are intentionally not included here. `NOTES.md`, required by the assignment, is reserved for the final submission.
