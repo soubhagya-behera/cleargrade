@@ -12,7 +12,7 @@ Status: **Proposed controls — none implemented.** No authentication is impleme
 | SQL injection | Dynamic search/sort | Bound JPA parameters; `sort` allowlist |
 | XSS | Names/emails rendered in SPA | React escaping; ban `dangerouslySetInnerHTML` |
 | Mass assignment | Extra client fields | Explicit DTOs; never bind JPA entities |
-| Secret leakage | Credentials in repo/image | Env-injected secrets; git-ignored `.env`; placeholders only |
+| Secret leakage | Credentials in repo/image/JAR | Env-injected secrets; git-ignored `.env`; private local config in `backend/config/` outside Maven resources; `.dockerignore` excludes it; placeholders only (D-19, D-20) |
 | Unauthorised access | No login | Local/trusted deployment only (U-03) |
 | Duplicate-resource race | Concurrent identical uploads | Partial unique index + digest reservation (DATA_MODEL.md §5) |
 
@@ -51,7 +51,7 @@ Names, emails and dates of birth are personal data even though the supplied samp
 
 ## 6. Database and secrets
 
-- Least-privilege application role (CRUD on app tables); DDL via Flyway only. Credentials from environment variables; no credentials in source, images or documentation.
+- Least-privilege application role (CRUD on app tables); DDL via Flyway only; `ddl-auto=validate`. Docker/deployment credentials come from environment variables supplied via the git-ignored root `.env`. For local IDE runs, credentials live only in the git-ignored `backend/config/application-local.properties` (D-20). No credentials in committed source, images or documentation.
 - Secrets are rotatable by environment change (T-6); no secret values in logs, error responses or Docker layers.
 - Bound parameters and sort allowlist; DB CHECK constraints backstop domain validation (DATA_MODEL.md §3).
 
@@ -60,7 +60,8 @@ Names, emails and dates of birth are personal data even though the supplied samp
 - Multi-stage build; small runtime JRE image; no build tools or source in the final layer.
 - Non-root user; no `--privileged`; drop capabilities where practical; read-only root filesystem with an explicitly writable temp directory.
 - Healthchecks, resource limits, named DB volume. Only host port `8080` → container `8080` is published; PostgreSQL `5432` remains internal (ARCHITECTURE.md §7).
-- No secrets baked into layers. Optional image scanning in CI.
+- Root `.dockerignore` excludes `.env`, `reference/`, `backend/config/application-local.*` and local secrets/artifacts from the build context (D-20); credentials are injected as environment variables at runtime, never through private property files.
+- The `local` profile is not active in images or deployment; no credentials are baked into layers. Optional image scanning in CI.
 
 ## 8. Security test cases (planned)
 
@@ -75,6 +76,8 @@ Names, emails and dates of birth are personal data even though the supplied samp
 | Failing row with invalid email | Logs contain code/line only — no email, no message body |
 | Concurrent identical uploads | One `201`, other `409`/`200`; only one import performed |
 | Actuator probe | `/actuator/health` available; `/actuator/env` and others disabled/absent |
+| JAR packaging check | `application-local.properties` absent from built JAR (D-20) |
+| Docker context check | `.env` and `backend/config/application-local.properties` not in build context |
 | Container user check | Process runs as non-root |
 
 Frontend/API security behaviour is verified in TEST_STRATEGY.md §5–6; these are the security-focused cases.

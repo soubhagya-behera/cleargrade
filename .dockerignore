@@ -1,0 +1,42 @@
+# Never send real credentials or local-only files into the Docker build context
+.env
+.env.*
+reference/
+backend/config/application-local.properties
+backend/config/application-local.yml
+backend/config/application-local.yaml
+
+# Local secrets and key material
+*.pem
+*.key
+*.p12
+*.pfx
+*.jks
+id_rsa*
+
+# VCS and local tooling metadata
+.git
+.gitignore
+.editorconfig
+.gitattributes
+.idea/
+.vscode/
+*.iml
+
+# Build output and caches — rebuilt inside the image
+target/
+**/target/
+node_modules/
+**/node_modules/
+dist/
+**/dist/
+build/
+**/build/
+*.log
+logs/
+coverage/
+test-results/
+.DS_Store
+Thumbs.db
+*.tmp
+*.swp

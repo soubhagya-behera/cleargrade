@@ -1,13 +1,13 @@
 # ClearGrade — Development Plan
 
-Status: **Planning document — implementation has not started.** Owner decisions ratified 2026-11-19 (DECISIONS.md §1).
+Status: **Planning document — application implementation has not started.** Owner decisions ratified 2026-11-19 (DECISIONS.md §1).
 
 ## 1. Planned development sequence
 
 | Phase | Scope | Exit criterion |
 |---|---|---|
-| 0 — Specification & design | PDF/CSV analysis, documentation, owner ratification | **G0→G1 passed (§5)** |
-| 1 — Foundation | Maven/Spring Boot bootstrap, Docker Compose + Postgres (port `8080:8080`), Flyway `V1`, config, injected `Clock` (I-04), configurable 10 MiB limit (U-06) | App starts in Docker; schema migrates; `/actuator/health` answers |
+| 0 — Specification & design | PDF/CSV analysis, documentation, owner ratification | **G0→G1 passed (§6)** |
+| 1 — Foundation | Maven/Spring Boot bootstrap, Docker Compose + Postgres (port `8080:8080`), profile-based configuration (§3), Flyway `V1`, injected `Clock` (I-04), configurable 10 MiB limit (U-06) | App starts in Docker and via local profile; schema migrates through Flyway; `/actuator/health` answers |
 | 2 — Domain | Pure model with `BigDecimal` marks (C-3), validation, grading (D-07), error-code vocabulary | Domain tests green; no framework imports in `domain`; **C-4 spike attempted** |
 | 3 — Ingestion | CSV adapter, ports, import use case, digest reservation + partial unique index (C-1/C-2), accepted-only upsert (U-02), new/changed/unchanged counters, persistence | **C-4 spike PASSED**; idempotency/concurrency tests green; benchmarks 16/9 and 4,685/315/348 with fixed clock |
 | 4 — REST API | Controllers, DTOs, global error handler, `201/200/409/413` upload paths, management-path separation (T-5) | API contract tests green; no entity leakage; Actuator health-only |
@@ -26,13 +26,54 @@ Phases are sequential; a failed gate stops the next phase. Bonus work starts onl
 - **TypeScript strict mode**; `src/types` for API types, `src/api` for the client; **React Router** routing, **TanStack Query** for server state, local component state for UI; **no Redux** without justification. Tailwind utilities with UX_SPEC tokens.
 - Conventional commits (`feat:`, `fix:`, `docs:`, `test:`, `refactor:`). No secrets, sample CSV data or PDF in the repo.
 
-## 3. Git workflow
+## 3. Configuration strategy (profile-based local, environment-based deployment)
+
+Decisions D-19 (profile strategy) and D-20 (external location correction). Files are **planned for Phase 1 scaffolding and not yet created**; only documentation and ignore rules are in place now.
+
+Required structure:
+
+```text
+backend/
+├── src/main/resources/
+│   └── application.properties                  # committed, non-secret shared defaults
+└── config/
+    ├── application-local.properties            # PRIVATE — git-ignored, never packaged
+    └── application-local.example.properties    # committed template, placeholders only
+```
+
+| File | Committed? | Contents |
+|---|---|---|
+| `backend/src/main/resources/application.properties` | Yes | Shared, **non-secret** defaults only: server port, Flyway enabled, `spring.jpa.hibernate.ddl-auto=validate`, upload limit default |
+| `backend/config/application-local.example.properties` | Yes | Placeholder datasource URL/username/password only — template, never real values |
+| `backend/config/application-local.properties` | **No — git-ignored** | Operator's actual local PostgreSQL URL/username/password |
+
+Rules:
+
+1. `application.properties` holds shared non-secret defaults **only** — never actual credentials.
+2. The private `application-local.properties` lives in **`backend/config/`**, outside `src/main/resources`, so Maven's default resource packaging cannot copy it into the JAR.
+3. `backend/config/application-local.properties` is git-ignored; the sibling `.example` file is committed with placeholders only.
+4. Docker Compose receives database credentials through the **git-ignored root `.env`** as environment variables — never through private property files.
+5. `.dockerignore` excludes root `.env`, `reference/` and `backend/config/application-local.*` from the Docker build context; no credentials are baked into images.
+6. Flyway manages all schema changes; Hibernate stays at `ddl-auto=validate` so the application never mutates schema.
+7. **Spring Boot discovery:** when the process working directory is `backend/`, Spring Boot's default config-data search includes `file:./config/`. With the `local` profile active, it loads `backend/config/application-local.properties` from there; the file is external to the classpath and is not part of the packaged application. No `spring.config.import` of a private file is needed.
+8. **Local activation (Windows PowerShell):**
+
+   ```powershell
+   Set-Location backend
+   $env:SPRING_PROFILES_ACTIVE = "local"
+   mvn spring-boot:run
+   ```
+
+   Copy `config/application-local.example.properties` to `config/application-local.properties` and fill in local values first. The JVM equivalent is `-Dspring.profiles.active=local`.
+9. The `local` profile is **never active by default**: Docker Compose, images and deployment do not set `SPRING_PROFILES_ACTIVE=local`. Credentials there come solely from environment variables.
+
+## 4. Git workflow
 
 - `main` protected baseline; short-lived feature branches; one reviewed PR per phase with tests passing.
-- No generated files, build output or `.env` committed. Access shared with reviewers at handover.
-- Git is not initialized in this documentation phase.
+- No build output, `.env`, `backend/config/application-local.properties` or other credentials committed. Access shared with reviewers at handover.
+- Git was initialized during Phase 2A and the documentation blueprint committed; no application code has been committed.
 
-## 4. Testing commands (planned — not yet runnable)
+## 5. Testing commands (planned — not yet runnable)
 
 | Intent | Command (planned) |
 |---|---|
@@ -41,17 +82,18 @@ Phases are sequential; a failed gate stops the next phase. Bonus work starts onl
 | Frontend unit tests | `npm --prefix frontend test` |
 | Frontend typecheck + build | `npm --prefix frontend run build` |
 | Single-command full test | `./scripts/test.sh` (phase 7) |
-| Run whole app | `docker compose up --build` then `http://localhost:8080` |
+| Run whole app (Docker) | `docker compose up --build` then `http://localhost:8080` |
+| Run locally with private profile | `Set-Location backend` → `$env:SPRING_PROFILES_ACTIVE = "local"` → `mvn spring-boot:run` (§3) |
 | Seed messy data | script posts generated CSV to `POST /api/imports` (phase 6) |
 
 Exact script names may change once the build exists; the final README is authoritative.
 
-## 5. Verification gates (T-2, C-4)
+## 6. Verification gates (T-2, C-4)
 
 | Gate | Check |
 |---|---|
 | **G0 → G1** | **All blocking decisions approved** — D-07, U-01, U-02, U-03, U-04, U-06, I-01, I-02, I-03, I-04, D-17 — **wherever they appear in DECISIONS.md (§1 and §2), not only §2**. No active superseded identifiers. C-4 recorded as a tracked spike. |
-| G1 → G2 | Docker boot + migration + health check succeed; port `8080:8080` reachable; Actuator exposes health only |
+| G1 → G2 | Docker boot + migration + health check succeed; port `8080:8080` reachable; Actuator exposes health only; external local config verified (§3): private file outside `src/main/resources`, excluded from Git and Docker context, not activated in Docker |
 | **G2 → G3** | Domain tests green; architecture boundary test green; **C-4 physical-line-number spike PASSED** (TEST_STRATEGY.md §2.2) — otherwise phase 3 is blocked |
 | G3 → G4 | Benchmarks green with fixed clock; error occurrence counts correct; idempotency (`200`/`409`/retry), partial-unique concurrency and new/changed/unchanged counters green |
 | G4 → G5 | API contract, security and management-path tests green |
@@ -61,6 +103,6 @@ Exact script names may change once the build exists; the final README is authori
 
 C-4 is a hard blocker: if the spike cannot prove physical line numbering, phase 3 must redesign the approach before proceeding.
 
-## 6. Definition of done
+## 7. Definition of done
 
 Three screens end to end, graceful bad-file/bad-row handling, one-command tests, Dockerfile + Compose, seed script through the import API, honest README and one-page `NOTES.md`, clean history, no committed secrets. Bonus features remain optional (D-17).

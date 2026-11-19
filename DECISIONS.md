@@ -69,6 +69,32 @@ Status: **Design documentation only — no implementation.** Owner approvals rec
 **Chosen (owner-approved):** **Defer all optional bonus features until core requirements are completed.**
 **Consequences:** Phase 6 starts only after phase 5 gates pass (DEVELOPMENT.md).
 
+### D-19 — Profile-based configuration `[OWNER-DIRECTED; APPROVED]`
+**Context:** Local development and Docker/deployment need different credential sources; committed configuration must stay secret-free.
+**Chosen (owner-directed):** Spring Boot **profile-based configuration locally** and **environment variables for Docker/deployment**.
+- `application.properties` (committed): shared non-secret defaults only.
+- `application-local.example.properties` (committed): placeholders only.
+- `application-local.properties` (**git-ignored**): real local PostgreSQL credentials; activated with `SPRING_PROFILES_ACTIVE=local`.
+- Root `.env` (git-ignored) supplies Compose credentials; root `.env.example` is committed with placeholders.
+- Flyway manages schema; `spring.jpa.hibernate.ddl-auto=validate` is mandatory. No credentials in images.
+
+**Alternatives considered:** a single committed `application.properties` containing credentials (unsafe); committing a real local profile file (unsafe); environment-only for local IDE runs (less convenient, owner preferred profiles locally).
+**Consequences:** No secrets in the repository or images; local setup requires copying the example file and filling values; profile activation must be documented (DEVELOPMENT.md §3). These files are **planned for Phase 1 scaffolding — not yet created**.
+**Location correction:** D-20 changes where the private local profile file lives. The profile/env strategy above remains in force; only the file location is revised.
+
+### D-20 — External local configuration directory `[OWNER-DIRECTED; APPROVED]`
+**Context:** Git-ignore rules do not prevent Maven from packaging files under `src/main/resources` into the application JAR. A private local properties file there could leak into a build artifact even though it is untracked.
+**Chosen (owner-directed):** Keep the private local profile configuration in **`backend/config/`**, outside the Maven resources tree.
+- `backend/src/main/resources/application.properties` — committed, non-secret shared defaults only.
+- `backend/config/application-local.example.properties` — committed, placeholders only.
+- `backend/config/application-local.properties` — private, git-ignored, created locally.
+- `.dockerignore` excludes root `.env`, `reference/` and `backend/config/application-local.*` from the build context.
+- Docker/deployment credentials come only from environment variables; the `local` profile is never active by default in production.
+- Local runs use PowerShell: `Set-Location backend`; `$env:SPRING_PROFILES_ACTIVE = "local"`; `mvn spring-boot:run`. Spring Boot finds the external file via its default `file:./config/` config-data location when run from `backend/`.
+
+**Alternatives considered:** keeping the private file under `src/main/resources` with a git-ignore rule (rejected — packaging risk); committing real local values (rejected — secret leakage).
+**Consequences:** The private file cannot be included in Maven resource packaging; it is excluded from both Git and the Docker build context. These files are **planned for Phase 1 scaffolding — not yet created**.
+
 ## 2. Active engineering decisions (no owner ratification required)
 
 - **D-01 — Modular monolith.** Single Spring Boot deployable with enforced internal boundaries; no microservices. Alternative: microservices/serverless (unnecessary at ~5,000 rows).
