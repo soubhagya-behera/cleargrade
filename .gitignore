@@ -15,10 +15,12 @@ backend/config/application-local.yaml
 # Java / Maven build output
 target/
 *.class
-*.jar
 *.war
 *.ear
 *.log
+
+# Maven Wrapper (3.3.4) — required at runtime for distributionType=script
+!.mvn/wrapper/maven-wrapper.jar
 
 # Node / frontend build output
 node_modules/

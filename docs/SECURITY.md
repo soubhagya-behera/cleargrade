@@ -59,7 +59,7 @@ Names, emails and dates of birth are personal data even though the supplied samp
 
 - Multi-stage build; small runtime JRE image; no build tools or source in the final layer.
 - Non-root user; no `--privileged`; drop capabilities where practical; read-only root filesystem with an explicitly writable temp directory.
-- Healthchecks, resource limits, named DB volume. Only host port `8080` → container `8080` is published; PostgreSQL `5432` remains internal (ARCHITECTURE.md §7).
+- Healthchecks, resource limits, named DB volume. Only host port `8080` → container `8080` is published. PostgreSQL `5432` is reachable internally over the Compose network and, for local development, is published on the **host loopback interface only** (`127.0.0.1:${POSTGRES_PORT}:5432`); it is not bound to LAN interfaces (ARCHITECTURE.md §7).
 - Root `.dockerignore` excludes `.env`, `reference/`, `backend/config/application-local.*` and local secrets/artifacts from the build context (D-20); credentials are injected as environment variables at runtime, never through private property files.
 - The `local` profile is not active in images or deployment; no credentials are baked into layers. Optional image scanning in CI.
 

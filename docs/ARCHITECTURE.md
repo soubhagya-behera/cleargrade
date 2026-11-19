@@ -27,10 +27,10 @@ The SPA is served as static assets by the same Spring Boot process (one origin, 
 |---|---|---|
 | `domain` | Value objects, **pure** validation, grading policy, error-code vocabulary; `BigDecimal` marks | Import Spring, JPA, Commons CSV or any I/O |
 | `application` | Use-case orchestration, inbound/outbound ports, transaction demarcation | Contain parsing logic or SQL |
-| `adapter/in/rest` | Controllers, DTO mapping, status codes, multipart handling | Contain business rules |
-| `adapter/out/csv` | BOM/line-ending handling, header mapping, quoted fields, **physical line numbers (C-4 spike)** | Decide validity beyond structural shape |
-| `adapter/out/persistence` | JPA entities, repositories, Flyway migrations | Expose entities beyond this adapter |
-| `config` | Bean wiring, injected `Clock` (I-04), properties, CORS | Contain business logic |
+| `adapters.in.web` | Controllers, DTO mapping, status codes, multipart handling | Contain business rules |
+| `adapters.in.csv` | BOM/line-ending handling, header mapping, quoted fields, **physical line numbers (C-4 spike)** | Decide validity beyond structural shape |
+| `adapters.out.persistence` | JPA entities, repositories, Flyway migrations | Expose entities beyond this adapter |
+| `configuration` | Bean wiring, injected `Clock` (I-04), properties, CORS | Contain business logic |
 | `frontend` | Three screens, states, API client, typed models | Duplicate validation rules |
 
 Dependencies point inward: `adapters → application → domain`. Domain depends on nothing (plain Java 21). Enforced by package discipline plus an architecture test (G2→G3). No Maven multi-module split initially (D-01, D-02). `[REC]`
@@ -129,7 +129,7 @@ flowchart TB
 ```
 
 - Multi-stage `Dockerfile`: Node build stage (React) + Maven build stage; small runtime JRE image containing both artifacts.
-- **Port mapping: host `8080` → container `8080`** (`8080:8080`). PostgreSQL listens on container `5432` internally and is **not published** to the host by default.
+- **Port mapping: host `8080` → container `8080`** (`8080:8080`). PostgreSQL listens on container `5432` internally and is reachable container-to-container over the Compose network. For local development it is published on the **host loopback interface only** as `127.0.0.1:${POSTGRES_PORT}:5432`; it is never bound to LAN interfaces.
 - Compose provides healthchecks, a named DB volume, resource limits and a non-root app user. No reverse proxy, message broker or cache (D-01).
 - **Actuator:** only `/actuator/health` is exposed; all other management endpoints are disabled (SECURITY.md). It is a management path, **not** under `/api` (T-5).
 
@@ -149,13 +149,13 @@ cleargrade/
       application-local.example.properties    # placeholders only (committed)
       application-local.properties            # real local credentials (GIT-IGNORED, never packaged)
     src/
-      main/java/com/esmagico/cleargrade/
+      main/java/dev/cleargrade/
         domain/                # pure Java (BigDecimal marks; NO framework imports)
         application/           # usecase, port.in, port.out, tx service beans
-        adapter/in/rest/       # controllers, dto, exception handler
-        adapter/out/csv/       # parser, header mapper, physical-line strategy (C-4)
-        adapter/out/persistence/ # entities, repositories, mappers
-        config/                # Clock, CORS, properties
+        adapters/in/web/       # controllers, dto, exception handler
+        adapters/in/csv/       # parser, header mapper, physical-line strategy (C-4)
+        adapters/out/persistence/ # entities, repositories, mappers
+        configuration/         # Clock, CORS, properties
       main/resources/
         application.properties                  # shared non-secret defaults (committed)
         db/migration/                           # Flyway SQL (created in implementation phase)
