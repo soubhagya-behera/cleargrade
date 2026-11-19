@@ -6,6 +6,12 @@
 .env.*
 !.env.example
 
+# Local private Spring profile configuration — real local PostgreSQL credentials.
+# Kept OUTSIDE src/main/resources so Maven cannot package it into the JAR (D-20).
+backend/config/application-local.properties
+backend/config/application-local.yml
+backend/config/application-local.yaml
+
 # Java / Maven build output
 target/
 *.class

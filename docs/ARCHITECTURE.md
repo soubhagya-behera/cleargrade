@@ -144,21 +144,29 @@ cleargrade/
   docs/
     ARCHITECTURE.md  DATA_MODEL.md  API_CONTRACT.md
     UX_SPEC.md  SECURITY.md  TEST_STRATEGY.md
-  backend/src/
-    main/java/com/esmagico/cleargrade/
-      domain/                  # pure Java (BigDecimal marks; NO framework imports)
-      application/             # usecase, port.in, port.out, tx service beans
-      adapter/in/rest/         # controllers, dto, exception handler
-      adapter/out/csv/         # parser, header mapper, physical-line strategy (C-4)
-      adapter/out/persistence/ # entities, repositories, mappers
-      config/                  # Clock, CORS, properties
-    main/resources/db/migration/   # Flyway SQL (created in implementation phase)
-    test/java/...              # mirrors main packages
+  backend/
+    config/                                  # EXTERNAL to Maven resources (D-20)
+      application-local.example.properties    # placeholders only (committed)
+      application-local.properties            # real local credentials (GIT-IGNORED, never packaged)
+    src/
+      main/java/com/esmagico/cleargrade/
+        domain/                # pure Java (BigDecimal marks; NO framework imports)
+        application/           # usecase, port.in, port.out, tx service beans
+        adapter/in/rest/       # controllers, dto, exception handler
+        adapter/out/csv/       # parser, header mapper, physical-line strategy (C-4)
+        adapter/out/persistence/ # entities, repositories, mappers
+        config/                # Clock, CORS, properties
+      main/resources/
+        application.properties                  # shared non-secret defaults (committed)
+        db/migration/                           # Flyway SQL (created in implementation phase)
+      test/java/...              # mirrors main packages
   frontend/
     package.json  tsconfig.json  ...
     src/
       api/  pages/  components/  types/  styles/
 ```
+
+**Configuration boundary (D-20):** only `application.properties` and Flyway migrations live under `src/main/resources`. Private local profile configuration lives in `backend/config/`, outside the classpath; Spring Boot discovers it via its default `file:./config/` location when run from `backend/`, and it is excluded from Git and the Docker build context. Docker uses environment variables from root `.env`; the `local` profile is never active in production.
 
 **Seed script (T-1):** a top-level `scripts/` generator produces a realistic messy CSV and **submits it through `POST /api/imports`**, exercising the real upload, validation, dedup and persistence pipeline — never a direct DB write.
 
