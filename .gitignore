@@ -1,0 +1,58 @@
+# Supplied assignment materials — never commit
+/reference/
+
+# Environment and credentials
+.env
+.env.*
+!.env.example
+
+# Java / Maven build output
+target/
+*.class
+*.jar
+*.war
+*.ear
+*.log
+
+# Node / frontend build output
+node_modules/
+dist/
+build/
+.vite/
+*.tsbuildinfo
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# IDE and editor files
+.idea/
+*.iml
+*.ipr
+*.iws
+.vscode/
+.project
+.classpath
+.settings/
+.factorypath
+
+# Logs
+logs/
+*.log
+
+# Operating system temporary files
+.DS_Store
+Thumbs.db
+desktop.ini
+*.tmp
+*.swp
+*~
+
+# Test and coverage artifacts
+coverage/
+*.lcov
+test-results/
+playwright-report/
+surefire-reports/
+failsafe-reports/
+jacoco.exec
