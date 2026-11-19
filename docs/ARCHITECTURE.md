@@ -129,7 +129,7 @@ flowchart TB
 ```
 
 - Multi-stage `Dockerfile`: Node build stage (React) + Maven build stage; small runtime JRE image containing both artifacts.
-- **Port mapping: host `8080` → container `8080`** (`8080:8080`). PostgreSQL listens on container `5432` internally and is **not published** to the host by default.
+- **Port mapping: host `8080` → container `8080`** (`8080:8080`). PostgreSQL listens on container `5432` internally and is reachable container-to-container over the Compose network. For local development it is published on the **host loopback interface only** as `127.0.0.1:${POSTGRES_PORT}:5432`; it is never bound to LAN interfaces.
 - Compose provides healthchecks, a named DB volume, resource limits and a non-root app user. No reverse proxy, message broker or cache (D-01).
 - **Actuator:** only `/actuator/health` is exposed; all other management endpoints are disabled (SECURITY.md). It is a management path, **not** under `/api` (T-5).
 
