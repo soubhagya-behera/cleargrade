@@ -42,7 +42,7 @@
 			<scope>runtime</scope>
 		</dependency>
 
-		<!-- Flyway database support (PostgreSQL) + Flyway -->
+		<!-- Flyway database support (PostgreSQL) + Flyway + Spring Boot auto-configuration -->
 		<dependency>
 			<groupId>org.flywaydb</groupId>
 			<artifactId>flyway-database-postgresql</artifactId>
@@ -50,6 +50,10 @@
 		<dependency>
 			<groupId>org.flywaydb</groupId>
 			<artifactId>flyway-core</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-flyway</artifactId>
 		</dependency>
 
 		<!-- Spring Boot Actuator (health only exposed) -->
