@@ -1,6 +1,6 @@
 # ClearGrade — Data Model
 
-Status: **Design documentation only — no schema or migration has been created.** Decision IDs follow DECISIONS.md (superseded IDs are listed there).
+Status: **Pure domain rules implemented (Phase 3B.1); no schema or migration has been created.** Decision IDs follow DECISIONS.md (superseded IDs are listed there).
 
 ## 1. Entity definitions
 
@@ -41,7 +41,7 @@ One row per accepted student identity; re-imports update it.
 | `last_updated_batch_id` | `BIGINT` | FK → `import_batch.id`; **updated on accepted change** (U-02) |
 | `created_at`, `updated_at` | `TIMESTAMPTZ` | Audit |
 
-Derived total/percentage/grade/pass are **not stored**; computed on read by the domain grading policy (D-07). Display percentage is rounded to one decimal (HALF_UP); **stored marks are never rounded** (C-3). `NUMERIC` without precision/scale preserves submitted decimal precision within the domain-enforced digit limit (proposed: max 10 fractional digits, range 0–100).
+Derived total/percentage/grade/pass are **not stored**; computed on read by the domain grading policy (D-07). Display percentage is rounded to one decimal (HALF_UP); **stored marks are never rounded** (C-3). `NUMERIC` without precision/scale preserves submitted decimal precision: the domain enforces only the inclusive range 0–100 and imposes **no arbitrary fractional-digit limit**.
 
 ### `import_row_error`
 One row **per validation error occurrence**, not per rejected row (D-10).

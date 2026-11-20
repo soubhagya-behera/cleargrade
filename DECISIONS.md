@@ -1,6 +1,6 @@
 # ClearGrade — Engineering Decisions
 
-Status: **Design documentation only — no implementation.** Owner approvals recorded 2026-11-19. `[REQ]` = assignment requirement; `[REC]` = engineering choice; `[INF]` = inference confirmed by supplied data.
+Status: **Owner approvals recorded 2026-11-19.** Pure domain rules are implemented (Phase 3B.1); persistence, CSV ingestion, REST APIs and the SPA remain unimplemented. `[REQ]` = assignment requirement; `[REC]` = engineering choice; `[INF]` = inference confirmed by supplied data.
 
 ## 1. Owner-approved decisions (canonical, active)
 
@@ -8,7 +8,10 @@ Status: **Design documentation only — no implementation.** Owner approvals rec
 **Context:** The report must show total, percentage, grade and pass/fail; the assignment requires the scheme to be chosen and stated.
 **Chosen (owner-approved):** A ≥ 80, B ≥ 70, C ≥ 60, D ≥ 50, F < 50. **PASS when overall percentage ≥ 50.** There is **no individual-subject passing threshold**. This is a deliberately **simplified chosen scheme**, not a claim of any official board standard. Percentage for display is `round(total / 500 × 100, 1)` using HALF_UP; rounding applies only to the derived display value, never to stored marks.
 **Alternatives considered:** pass at 35/40 with a separate F band; grade on raw total; relative grading; subject-wise minimums (explicitly excluded by owner).
+
 **Consequences:** Deterministic and easy to explain. Freeze before phase 2; changes are test-visible (band boundaries 80/70/60/50).
+
+**Implementation note (Phase 3B.1):** exact `BigDecimal` percentage drives both grade and pass; only the displayed percentage is rounded (HALF_UP, 1 dp). Submitted marks keep their precision — no arbitrary fractional-digit cap is imposed.
 
 ### U-01 — Email validation `[APPROVED]`
 **Context:** "Valid email address" has no formal grammar in the brief; the unseen file may contain unusual but valid forms.

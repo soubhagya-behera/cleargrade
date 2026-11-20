@@ -1,6 +1,6 @@
 # ClearGrade — Development Plan
 
-Status: **Phase 2B application foundation scaffolded and verified.** The remaining phases below are still planned. Owner decisions ratified 2026-11-19 (DECISIONS.md §1).
+Status: **Phase 3B.1 framework-free domain model implemented and verified.** Persistence, CSV ingestion, REST APIs and the SPA remain planned. Owner decisions ratified 2026-11-19 (DECISIONS.md §1).
 
 ## 1. Planned development sequence
 
@@ -8,7 +8,7 @@ Status: **Phase 2B application foundation scaffolded and verified.** The remaini
 |---|---|---|
 | 0 — Specification & design | PDF/CSV analysis, documentation, owner ratification | **G0→G1 passed (§6)** |
 | 1 — Foundation **(scaffolded, no migrations yet)** | Maven/Spring Boot bootstrap (Java 21, Spring Boot 4.1.2, `mvnw`), Docker Compose + Postgres, profile-based configuration (§3), injected `Clock` (I-04), configurable 10 MiB limit (U-06) | Skeleton starts with the local profile; `/actuator/health` answers; minimal context/health verification test green. **Flyway migrations and the app Docker image remain for later phases.** |
-| 2 — Domain | Pure model with `BigDecimal` marks (C-3), validation, grading (D-07), error-code vocabulary | Domain tests green; no framework imports in `domain`; **C-4 spike attempted** |
+| 2 — Domain **(3B.1 implemented)** | Pure model with `BigDecimal` marks (C-3), validation, grading (D-07), error-code vocabulary | Domain tests green; source-scanning framework-independence test green; **C-4 spike evidence on `main` (PR #3)** |
 | 3 — Ingestion | CSV adapter, ports, import use case, digest reservation + partial unique index (C-1/C-2), accepted-only upsert (U-02), new/changed/unchanged counters, persistence | **C-4 spike PASSED**; idempotency/concurrency tests green; benchmarks 16/9 and 4,685/315/348 with fixed clock |
 | 4 — REST API | Controllers, DTOs, global error handler, `201/200/409/413` upload paths, management-path separation (T-5) | API contract tests green; no entity leakage; Actuator health-only |
 | 5 — Frontend | React Router + TanStack Query, three screens, all states, design tokens (UX_SPEC §2) | Build + typecheck pass; screens work end to end |
