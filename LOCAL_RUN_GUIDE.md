@@ -35,7 +35,7 @@ Both processes bind to `127.0.0.1` only.
 | Server | Native PostgreSQL 18, `localhost:5432`, Windows service `postgresql-x64-18` (Automatic) |
 | Database | `cleargrade` (created by you; never dropped or recreated by setup) |
 | Application role | `cleargrade_local` — least privilege: CONNECT on the database plus USAGE/CREATE on `public`, CRUD on application tables/sequences and default privileges for future objects |
-| Passwords | Stored only in the ignored root `.env` as `NATIVE_PG_SUPERUSER_PASSWORD` and `CLEARGRADE_LOCAL_DB_PASSWORD`; never displayed or committed |
+| Passwords | The application password lives only in the ignored root `.env` as `CLEARGRADE_LOCAL_DB_PASSWORD`; the temporary provisioning superuser password is no longer needed and was removed. Never displayed or committed. |
 | Schema | Managed by Flyway; migration version `1` (`flyway_schema_history`, `student`, `import_batch`, `import_row_error`) |
 | pgAdmin | Locally installed pgAdmin 4 (under `C:\Program Files\PostgreSQL\18\pgAdmin 4`) |
 
@@ -45,29 +45,22 @@ No password is saved in pgAdmin — enter the application password (from `.env`)
 `postgres` login to inspect everything. You can browse Databases → cleargrade → Schemas → public → Tables and
 query records with the Query Tool.
 
-## How secrets and local settings reach Spring Boot
+## Configuration responsibilities
 
-The root `.env` is git-ignored and is imported by Spring Boot via
-`spring.config.import=optional:file:../.env[.properties]` in `application.properties`. It is resolved relative to
-the `backend` directory, so no environment variables need to be exported manually.
+| File | Purpose |
+|---|---|
+| `application.properties` (committed) | All non-secret defaults: app name, port `8080`, loopback bind, native JDBC URL `jdbc:postgresql://localhost:5432/cleargrade`, username `cleargrade_local`, Flyway/Hibernate settings, Gemini model/endpoint/timeouts, Ollama URL/model, cache limits. |
+| Root `.env` (git-ignored) | Secrets only: `CLEARGRADE_LOCAL_DB_PASSWORD`, optional `GEMINI_API_KEY`, plus Docker-only `POSTGRES_PASSWORD` / port overrides and host-Ollama URL/model. |
+| `.env.example` (committed) | Documented placeholder template for new clones. No real values. |
 
-Relevant keys in `.env` (values never shown here):
+Spring Boot imports the root `.env` via `spring.config.import=optional:file:../.env[.properties]` relative to the
+`backend` directory, so no environment variables need to be exported manually. Only the secret placeholders in
+`application.properties` read from it: `${CLEARGRADE_LOCAL_DB_PASSWORD:}` and `${GEMINI_API_KEY:}`.
 
-```dotenv
-GEMINI_API_KEY=                                  # optional; add your key here, then restart backend
-GEMINI_MODEL=gemini-3.8-flash
-NATIVE_PG_SUPERUSER_PASSWORD=...                  # your postgres password
-CLEARGRADE_LOCAL_DB_URL=jdbc:postgresql://localhost:5432/cleargrade
-CLEARGRADE_LOCAL_DB_USER=cleargrade_local
-CLEARGRADE_LOCAL_DB_PASSWORD=...                  # generated application password
-CLEARGRADE_LOCAL_SERVER_ADDRESS=127.0.0.1
-CLEARGRADE_LOCAL_OLLAMA_BASE_URL=http://127.0.0.1:11434
-OLLAMA_BASE_URL=http://host.docker.internal:11434  # used only by Docker Compose
-```
-
-To change the Gemini key, edit only `GEMINI_API_KEY` in `.env` and restart the backend terminal. Do not put the
-key in Vite, `VITE_*`, Java source, committed properties, Docker build arguments or image layers. AI is optional;
-with no key the app still starts and uses Ollama or the rule engine.
+The native database URL, username, ports and model URLs are **not** duplicated in `.env` — they are defaults in
+`application.properties`. To change the Gemini key, edit only `GEMINI_API_KEY` in `.env` and restart the backend.
+Do not put the key in Vite, `VITE_*`, Java source, committed properties, Docker build arguments or image layers.
+AI is optional; with no key the app still starts and uses Ollama or the rule engine.
 
 ## Provider behaviour
 
@@ -75,7 +68,7 @@ with no key the app still starts and uses Ollama or the rule engine.
 - Ollama unavailable → **Rule-based**; UI shows "Rule-based analysis — AI providers are currently unavailable."
 - Valid key → **Gemini** (`gemini-3.8-flash`) primary; quota/timeout/5xx falls to Ollama, then rules.
 - Invalid key → controlled `503 AI_CONFIGURATION_ERROR`; never treated as quota.
-- `CLEARGRADE_AI_ENABLED=false` in `.env` + backend restart → both AI providers off; rule-based still available.
+- Set `CLEARGRADE_AI_ENABLED=false` in `.env` (or environment) + backend restart → both AI providers off; rule-based still available.
 
 Check with `Invoke-RestMethod http://localhost:5173/api/ai/status`.
 
@@ -91,8 +84,10 @@ Invoke-RestMethod http://127.0.0.1:11434/api/tags
 
 ## Optional Docker Compose environment (release/demo)
 
-Docker Compose is preserved unchanged as an alternative. It uses its **own** PostgreSQL on
-`127.0.0.1:55432` with a separate named volume; it does not touch the native database.
+Docker Compose is preserved as an alternative. It uses its **own** PostgreSQL on the host port set by
+`POSTGRES_PORT` in `.env` (default 5432; this machine uses a non-default port) with a separate named volume; it
+does not touch the native database. The Compose backend receives `SERVER_ADDRESS=0.0.0.0` so nginx can proxy to it
+inside the Compose network.
 
 ```powershell
 # stop native processes first (Ctrl+C in both terminals), then:
@@ -122,11 +117,11 @@ No other setup step requires administrator rights.
 
 | Symptom | Fix |
 |---|---|
-| Backend fails to connect | Confirm `postgresql-x64-18` is running and `.env` has the correct `CLEARGRADE_LOCAL_DB_*` values. |
+| Backend fails to connect | Confirm `postgresql-x64-18` is running and `.env` has the correct `CLEARGRADE_LOCAL_DB_PASSWORD`. The URL/username are defaults in `application.properties`. |
 | Port 8080/5173 busy | Stop the other workflow (Docker containers or native terminals) before starting this one. |
 | `ollamaAvailable: false` | Start `ollama serve`, confirm `/api/tags` lists `llama3.2:1b`, restart backend. |
 | Rule-based despite Ollama available | Small model returned output that failed strict validation; safe fallback. Retry or configure a larger installed model. |
-| `AI_CONFIGURATION_ERROR` | Check `GEMINI_API_KEY` and `GEMINI_MODEL` in `.env` and restart backend. |
+| `AI_CONFIGURATION_ERROR` | Check `GEMINI_API_KEY` in `.env`; the model default is in `application.properties` (override with `GEMINI_MODEL` if needed). Restart backend. |
 | pgAdmin connection prompt | Enter the `cleargrade_local` password from `.env`, or connect with your `postgres` login. |
 
 **Security note:** authentication is still absent. Keep everything on loopback/local/trusted networks only.
