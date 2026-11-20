@@ -1,6 +1,6 @@
 # ClearGrade — Project Status
 
-Last updated: 2026-11-20 · **Current phase: Phase 3B.2.2 JPA persistence foundation implemented and verified against real PostgreSQL.** PR #5 (V1 schema) is merged on `main`. No application ports/services, CSV ingestion, REST APIs or frontend business logic is implemented.
+Last updated: 2026-11-20 · **Current phase: application output ports and T1–T4 transaction/digest/upsert services implemented and verified against real PostgreSQL.** PR #5 (V1 schema) and PR #6 (persistence foundation) are merged on `main`. No CSV ingestion, REST APIs or frontend business logic is implemented.
 
 ## 1. Completed
 
@@ -18,6 +18,10 @@ Last updated: 2026-11-20 · **Current phase: Phase 3B.2.2 JPA persistence founda
  - Phase 3B.2.1 merged on `main` via PR #5 as squash commit `6cf4a4f`.
  - Phase 3B.2.2: JPA entities for `import_batch`, `student` and `import_row_error` mapped to V1 (BIGINT ids, `CHAR` JDBC codes, unconstrained `NUMERIC`, `TIMESTAMPTZ`→`Instant`, `DATE`→`LocalDate`, enum statuses); focused Spring Data repositories; explicit reflection-free mappers; `spring-boot-flyway` added because Spring Boot 4.1 moved Flyway auto-configuration out of `spring-boot-autoconfigure`, so `spring.flyway.enabled=true` was previously inert. No application output ports exist, so no port-implementing adapter was invented.
  - Phase 3B.2.2 verification: real Testcontainers PostgreSQL test proves Flyway migration, Hibernate `validate`, repository beans and save/find round trips (45-decimal marks, Unicode names, nullable counts, enum representation, FK rejection).
+ - Phase 3B.2.2 merged on `main` via PR #6 as squash commit `dce122f`.
+ - Owner decision 2026-11-20: G2→G3 gate passed, and the D-25/D-26 transaction boundary resolved as T1 `RECEIVED` reservation, T2 `PROCESSING`, T3 atomic upserts/errors/counts/`COMPLETED`, T4 separate `FAILED`; duplicate recovery outside the failed transaction on the exact active-digest `23505` (DECISIONS.md §2 owner resolution).
+ - Application services slice: narrow output ports (`ImportBatchOutputPort`, `StudentOutputPort`, `ImportRowErrorOutputPort`), application-owned input/result types, adapters implementing the ports, and four distinct proxied `REQUIRES_NEW` transaction beans plus a fresh-transaction digest lookup. D-28 upsert uses sorted `INSERT … ON CONFLICT DO NOTHING`, `SELECT … FOR UPDATE` on conflict, normalized-field comparison, and no update for unchanged rows.
+ - `ClearGradeApplicationHealthTest` now starts the full context against real PostgreSQL (Flyway + Hibernate `validate`) instead of excluding datasource auto-configuration.
 
 ## 2. Owner-ratified decisions (recorded in DECISIONS.md §1)
 
@@ -27,17 +31,18 @@ Last updated: 2026-11-20 · **Current phase: Phase 3B.2.2 JPA persistence founda
 
 | Spike | Status | Gate |
 |---|---|---|
-| **C-4 physical line numbers** — prove the chosen CSV library reports the physical starting line with header = 1 across embedded newlines, blank lines, a malformed row after the newline and a subsequent valid row; counting `Reader` not accepted untested | **EVIDENCE MERGED on `main` (PR #3: 18 spike tests green); formal G2→G3 sign-off pending** | G2→G3 (phase 3 blocked until signed off) |
+| **C-4 physical line numbers** — prove the chosen CSV library reports the physical starting line with header = 1 across embedded newlines, blank lines, a malformed row after the newline and a subsequent valid row; counting `Reader` not accepted untested | **EVIDENCE APPROVED by owner 2026-11-20** (PR #3 `e5181c1`: 18 spike tests green); all documented spike limitations carried forward into production CSV implementation | **G2→G3 PASSED 2026-11-20** (phase 3 unblocked) |
 
 ## 4. Verification evidence (executed 2026-11-20)
 
 | Check | Command | Result |
 |---|---|---|
 | Spring Boot / Java compatibility | Spring Initializr metadata + Maven Central | `4.1.2` GA; Java `21` supported |
-| Backend compile + tests | `.\mvnw.cmd -B test` (JDK 21) | 137 tests, 0 failures/errors (88 domain, 20 CSV spike, 9 migration, 2 health, 10 mapper, 8 persistence integration) |
+| Backend compile + tests | `.\mvnw.cmd -B test` (JDK 21) | 159 tests, 0 failures/errors (88 domain, 20 CSV spike, 9 migration, 2 health, 10 mapper, 8 persistence integration, 18 application services, 4 digest classifiers) |
 | PostgreSQL migration integration | `.\mvnw.cmd -B -Dtest=CoreSchemaMigrationTest test` (JDK 21, `postgres:16-alpine`) | 9 tests, 0 failures/errors against a real Testcontainer, including status/count and SHA-256 SQLSTATE assertions |
 | Persistence integration | `.\mvnw.cmd -B "-Dtest=PersistenceMapperTest,PersistenceIntegrationTest" test` (JDK 21, `postgres:16-alpine`) | 18 tests, 0 failures/errors; Flyway + Hibernate `validate` + repository round trips |
-| Backend full verify | `.\mvnw.cmd -B verify` | Passed, 137 tests green |
+| Application transaction integration | `.\mvnw.cmd -B "-Dtest=ApplicationTransactionIntegrationTest,ImportApplicationServiceUnitTest,DigestViolationClassificationTest" test` (JDK 21, `postgres:16-alpine`) | 17 tests, 0 failures/errors; T1–T4 boundaries, exact digest index, upsert counts, concurrency and suppressed failure-finalisation error |
+| Backend full verify | `.\mvnw.cmd -B verify` | Passed, 159 tests green |
 | Packaged JAR config safety | `jar tf` on built JAR | Only `application.properties` packaged; no local profile |
 | Application startup + DB connection | `java -jar … --spring.profiles.active=local` | `/actuator/health` → `200`, status `UP` |
 | Actuator restriction | HTTP probes of `/actuator/env`, `/actuator/beans`, `/actuator/info` | All `404`; only health exposed |
@@ -66,12 +71,12 @@ Toolchain: JDK `21.0.10` (installed at `C:\Program Files\Java\jdk-21.0.10`, sele
 
 ## 6. Next actions
 
-1. Phase 3B.2.1 schema slice is merged on `main` via PR #5; Phase 3B.2.2 awaits review on `feat/database-persistence-adapters`.
-2. Formally sign off **G2→G3** using the merged PR #3 C-4 spike evidence before starting ingestion work.
-3. Define application output ports and the transaction/digest/upsert services per D-23–D-28 (no schema changes expected in this slice).
-4. Implement CSV ingestion, REST API, then the three real screens; application services and ports are still required.
+1. Phase 3B.2.1 schema slice is merged on `main` via PR #5; Phase 3B.2.2 is merged on `main` via PR #6 (`dce122f`).
+2. **G2→G3 formally passed by owner 2026-11-20** on the merged PR #3 C-4 evidence, with all documented spike limitations carried forward.
+3. Application output ports and T1–T4 transaction/digest/upsert services are implemented per D-23–D-28; no schema changes were needed.
+4. Implement the production CSV adapter adopting the approved C-4 mechanism and limitations, then the import use case, REST API and three screens.
 5. Add the multi-stage app Dockerfile, seed script, one-command test script and `NOTES.md`.
 
 ## 7. Scope notes
 
-Current-result snapshot only (no term/year invented, D-11). Benchmark numbers are regression fixtures, never application logic (D-12). `NOTES.md` is reserved for final assignment submission. No sample CSV data or PDF content is reproduced in documentation. Domain business rules, the V1 schema migration and JPA entities/repositories/mappers are implemented; application ports/services, CSV ingestion, APIs and real credentials are not committed.
+Current-result snapshot only (no term/year invented, D-11). Benchmark numbers are regression fixtures, never application logic (D-12). `NOTES.md` is reserved for final assignment submission. No sample CSV data or PDF content is reproduced in documentation. Domain business rules, the V1 schema migration, JPA entities/repositories/mappers and application output ports with T1–T4 services are implemented; production CSV ingestion, REST APIs and real credentials are not committed.

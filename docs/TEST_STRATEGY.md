@@ -29,14 +29,14 @@ Tests assert the complete error list per row, covering multi-error behaviour (D-
 - Header-only and completely empty files → clean file-level failure.
 - Case-variant IDs; first occurrence reserves ID even when that row has other errors (I-02).
 
-### 2.2 C-4 — PHYSICAL LINE NUMBER VERIFICATION GATE (UNRESOLVED SPIKE)
-**Status: not solved; must pass before production ingestion (gate G2→G3).** CSV record numbers are not physical line numbers. A spike must verify the **chosen Commons CSV version** with a fixture containing, in order:
+### 2.2 C-4 — PHYSICAL LINE NUMBER VERIFICATION GATE (EVIDENCE APPROVED; G2→G3 PASSED)
+**Status: evidence approved by owner 2026-11-20 (gate G2→G3 passed).** CSV record numbers are not physical line numbers. The merged PR #3 spike verified the **chosen Commons CSV version** with fixtures containing, in order:
 1. a quoted field with an **embedded newline**;
 2. **blank physical lines**;
 3. a **malformed row after** the embedded newline;
 4. a **subsequent valid row**.
 
-Acceptance: the reported source line is the **physical starting line of the problematic record**, with **header = 1** and blank lines counted. A simple counting `Reader` is **not acceptable** without testing parser buffering/read-ahead. If the spike cannot prove the approach, the design must be revised before phase 3 completes and C-4 remains an open blocker.
+Acceptance: the reported source line is the **physical starting line of the problematic record**, with **header = 1** and blank lines counted. A simple counting `Reader` is **not acceptable** without testing parser buffering/read-ahead. All documented spike limitations are carried forward into production CSV implementation, which remains future work.
 
 ## 3. Import integration tests
 
@@ -57,7 +57,7 @@ Benchmark numbers are **regression fixtures only**, never parameters to validati
 - Unique `student_id` and normalized CHECK; upsert behaviour; partial unique index on active `sha256`; excluded FAILED digest permits retry.
 - `NUMERIC` columns preserve decimal precision with **no rounding** (C-3); `DATE`/`TIMESTAMPTZ` mappings; `TEXT` raw identifier column.
 - Index-usage check via query plan for directory search and error lookup (or migration assertion).
-- Transaction test: rollback of Tx2 leaves no students but retains FAILED batch; `REQUIRES_NEW` executes in an independent transaction (proves no self-invocation bug).
+- Transaction test: rollback of T3 leaves no students, no error occurrences, no `COMPLETED` status and no partial counts; T4 separately commits `FAILED`; `REQUIRES_NEW` executes in an independent transaction (proves no self-invocation bug).
 - Flyway migration from empty schema and idempotent second startup.
 
 ## 5. API tests

@@ -49,7 +49,7 @@ flowchart TD
     D -- unique violation --> C
     D --> E[Tx2: persist PROCESSING; parse BOM/header/rows]
     E --> F{Required columns present?}
-    F -- No --> G[Fatal: rollback Tx2; Tx3 status FAILED; 400]
+    F -- No --> G[Fatal: rollback T3; T4 status FAILED; 400]
     F -- Yes --> H{Blank / all-empty?}
     H -- Yes --> I[Skip; physical line number still consumed - C-4 spike]
     H -- No --> J{Wrong field count?}
@@ -64,7 +64,7 @@ flowchart TD
     H --> Q[Tx3: counts + COMPLETED]
 ```
 
-Row numbers must be **physical file line numbers, header = 1, blank lines counted** `[REQ]`; the mechanism is the open C-4 spike (§9).
+Row numbers must be **physical file line numbers, header = 1, blank lines counted** `[REQ]`; the C-4 spike (§9) is approved and its mechanism/limitations carry into the future production CSV adapter.
 
 ## 4. Import lifecycle and identical-file idempotency (C-1, C-2)
 
@@ -73,7 +73,7 @@ stateDiagram-v2
     [*] --> RECEIVED: Tx1 reserved batch via partial unique index
     RECEIVED --> PROCESSING: Tx2 persists status explicitly
     PROCESSING --> COMPLETED: Tx3 writes counts + status
-    PROCESSING --> FAILED: fatal error; Tx3 marks FAILED
+    PROCESSING --> FAILED: fatal error; T4 marks FAILED after T3 rollback
     RECEIVED --> FAILED: crash/recovery sweep timeout
     COMPLETED --> [*]
     FAILED --> [*]
@@ -103,16 +103,17 @@ A row-level error never moves the batch to `FAILED` `[REQ]`. Successful row vali
 | Non-UTF-8 decodable content | `400 INVALID_ENCODING`; batch `FAILED`; no student writes |
 | Unexpected I/O or runtime exception | `500` with correlation id; batch `FAILED`; no partial student writes |
 | Oversized upload | `413` before parsing; limit configurable, default 10 MiB `[U-06]` |
-| Physical line number unverified | Ingestion must not go live until C-4 spike passes (§9) |
+| Physical line number | C-4 spike evidence approved (§9); production CSV adapter must adopt the mechanism and its documented limitations before ingestion goes live |
 
 ## 6. Transaction strategy
 
-Four distinct transactional steps, using **separate transaction service beans or `TransactionTemplate`** for each requires-new step — **no `REQUIRES_NEW` self-invocation** inside one Spring bean:
+Distinct transactional steps, using **separate transaction service beans or `TransactionTemplate`** for each requires-new step — **no `REQUIRES_NEW` self-invocation** inside one Spring bean. The numbering follows the owner resolution in DECISIONS.md (2026-11-20):
 
-1. **Lookup (read-only).** Digest query; decide dedup/conflict/retry before any write.
-2. **Tx1 (`REQUIRES_NEW`).** Insert `import_batch` as `RECEIVED` inside a savepoint-style conflict handler; catch unique violation (SQLSTATE `23505`) and return existing batch state.
-3. **Tx2 (single transaction).** Persist `status = PROCESSING` explicitly, stream rows, upsert accepted students and insert all error occurrences. Any fatal error rolls Tx2 back completely.
-4. **Tx3 (`REQUIRES_NEW`).** Finalise `counts + status = COMPLETED`, or `status = FAILED` on fatal error. FAILED survives Tx2 rollback; a FAILED batch has no student writes.
+1. **Lookup (read-only, fresh transaction).** Decide dedup/conflict/retry before any write. On the exact active-digest `ux_import_batch_active_sha256` violation (SQLSTATE `23505`), re-read the digest after the failed reservation transaction has rolled back.
+2. **T1 (`REQUIRES_NEW`).** Independently commit `import_batch` as `RECEIVED` with its digest.
+3. **T2 (`REQUIRES_NEW`).** Independently commit the explicit `PROCESSING` transition.
+4. **T3 (`REQUIRES_NEW`).** One atomic transaction for accepted student upserts, `import_row_error` occurrences, final counts and `COMPLETED`. Any failure rolls all of them back.
+5. **T4 (`REQUIRES_NEW`).** Only after T3 has rolled back, independently commit `FAILED`; a FAILED batch has no student writes.
 
 Single transaction for all rows is appropriate at ~5,000 rows; chunking would require explicit progress state. `[REC]`
 
@@ -172,7 +173,7 @@ cleargrade/
 
 ## 9. Open verification gate — physical line numbers (C-4)
 
-**Status: UNRESOLVED pre-implementation spike. No solution is claimed here.** CSV record numbers are **not** physical line numbers. Before production ingestion the chosen Commons CSV version must be tested with: (a) a quoted field containing an embedded newline; (b) blank physical lines; (c) a malformed row after the embedded newline; (d) a subsequent valid row. The reported source line must be the **physical starting line** of the problematic record, with the header as line 1. A simple counting `Reader` is **not** acceptable without testing parser buffering/read-ahead. If the spike cannot prove the approach, the line-number feature must be redesigned before phase 3 is complete. See TEST_STRATEGY.md §2 and DEVELOPMENT.md gate G2→G3.
+**Status: spike evidence approved; G2→G3 passed by owner 2026-11-20.** The merged PR #3 spike proves the approach against the chosen Commons CSV version; all documented limitations (`backend/src/test/resources/csv-spike/README.md`) are carried forward into production CSV implementation, which remains future work. CSV record numbers are **not** physical line numbers. The spike verified: (a) a quoted field containing an embedded newline; (b) blank physical lines; (c) a malformed row after the embedded newline; (d) a subsequent valid row. The reported source line is the **physical starting line** of the problematic record, with the header as line 1. A simple counting `Reader` is **not** acceptable without testing parser buffering/read-ahead. See TEST_STRATEGY.md §2 and DEVELOPMENT.md gate G2→G3.
 
 ## 10. Traceability to assignment requirements
 

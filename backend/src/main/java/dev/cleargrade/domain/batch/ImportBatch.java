@@ -10,9 +10,7 @@ public record ImportBatch(String sha256, ImportStatus status, ImportCounts count
 	private static final Pattern SHA256_HEX = Pattern.compile("[0-9a-f]{64}");
 
 	public ImportBatch {
-		if (sha256 == null || !SHA256_HEX.matcher(sha256).matches()) {
-			throw new DomainValidationException("A lowercase SHA-256 digest is required");
-		}
+		requireValidSha256(sha256);
 		if (status == null) {
 			throw new DomainValidationException("Import status is required");
 		}
@@ -21,6 +19,12 @@ public record ImportBatch(String sha256, ImportStatus status, ImportCounts count
 		}
 		if (status != ImportStatus.COMPLETED && counts != null) {
 			throw new DomainValidationException("Only a completed import may carry counts");
+		}
+	}
+
+	public static void requireValidSha256(String sha256) {
+		if (sha256 == null || !SHA256_HEX.matcher(sha256).matches()) {
+			throw new DomainValidationException("A lowercase SHA-256 digest is required");
 		}
 	}
 
