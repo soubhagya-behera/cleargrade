@@ -21,6 +21,10 @@
 
    Health: <http://localhost:8080/actuator/health> · API: <http://localhost:8080/api>
 
+   All published ports are bound to **127.0.0.1 only** (frontend 3000, backend 8080, PostgreSQL 55432,
+   Ollama 11434). There is no `0.0.0.0` or IPv6 `::` listener, so the unauthenticated app cannot be reached
+   from another machine. Use `localhost` or `127.0.0.1` from this PC.
+
 ## What is already prepared
 
 | Item | Value |
@@ -28,6 +32,8 @@
 | OS | Windows 11 Home x64 |
 | Java | JDK 21.0.10 (`C:\Program Files\Java\jdk-21.0.10`) — builds use `JAVA_HOME` pointing here |
 | Docker | Docker Desktop 29.9.3, Compose v5.7.0; stack leaves three healthy containers running |
+| Frontend | `127.0.0.1:3000` (nginx, loopback-only host binding) |
+| Backend | `127.0.0.1:8080` (API/health, loopback-only host binding) |
 | PostgreSQL | `127.0.0.1:55432` (host port from `.env`), data in named volume `cleargrade_postgres-data` |
 | Ollama | Official winget install `Ollama.Ollama` v0.40.16, service `ollama.exe serve`, loopback `127.0.0.1:11434` |
 | Ollama model | `llama3.2:1b` (1.23 GB, ~2 GB RAM). Only this model is installed. |

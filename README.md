@@ -136,6 +136,9 @@ Then:
 - Backend health: <http://localhost:8080/actuator/health>
 - API base: <http://localhost:8080/api>
 
+Published host ports are bound to `127.0.0.1` only (frontend, backend and PostgreSQL), so the unauthenticated
+app is not reachable from another machine.
+
 Stop with `docker compose down`; delete the named PostgreSQL volume with `docker compose down -v` for a clean database.
 
 ## Local run guide (Windows PowerShell)
