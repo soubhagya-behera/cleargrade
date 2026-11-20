@@ -46,6 +46,10 @@ services:
       CLEARGRADE_AI_ENABLED: ${CLEARGRADE_AI_ENABLED:-true}
       CLEARGRADE_AI_DETERMINISTIC_ENABLED: ${CLEARGRADE_AI_DETERMINISTIC_ENABLED:-true}
       CLEARGRADE_AI_COOLDOWN_SECONDS: ${CLEARGRADE_AI_COOLDOWN_SECONDS:-0}
+    # Lets the backend reach a Windows/macOS host Ollama at host.docker.internal.
+    # On Linux this maps the special name to the host gateway.
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     ports:
       - "${APP_PORT:-8080}:8080"
     healthcheck:

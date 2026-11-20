@@ -95,32 +95,37 @@ the privacy contract in §4.
 | Variable | Default | Purpose |
 |---|---|---|
 | `OLLAMA_BASE_URL` | *(blank)* | Optional base URL, e.g. `http://localhost:11434`. |
-| `OLLAMA_MODEL` | *(blank)* | Optional installed model name, e.g. `llama3.2`. |
+| `OLLAMA_MODEL` | *(blank)* | Optional installed model name, e.g. `llama3.2:1b`. |
 | `OLLAMA_TIMEOUT_READ_MS` | `60000` | Response timeout. Connect timeout is 5 s. |
 
-Setup (choose a model that fits your machine; nothing is downloaded by ClearGrade):
+### Installed on this machine (verified)
 
-```bash
-# Install Ollama from https://ollama.com, then pull a model yourself:
-ollama pull llama3.2
-ollama serve                       # usually already running after installation
-curl http://localhost:11434/api/tags
+- Official distribution: `winget install --id Ollama.Ollama --exact` — **Ollama 0.40.16**, installed to
+  `%LOCALAPPDATA%\Programs\Ollama`.
+- Selected model: **`llama3.2:1b`** (1.2 B parameters, 1.23 GB download, ~2 GB RAM recommended). It supports
+  Ollama's JSON-schema `format` output and fits this 15.7 GB machine alongside Docker Desktop.
+- Service: `ollama.exe serve`, verified on `127.0.0.1:11434` only — never publicly bound.
+- The backend uses `OLLAMA_BASE_URL=http://host.docker.internal:11434` from the ignored root `.env`.
+  `docker-compose.yml` maps `host.docker.internal` to `host-gateway`, which also works on Linux.
+- If Ollama is not running after a reboot, start it with
+  `& "$env:LOCALAPPDATA\Programs\Ollama\ollama.exe" serve` or launch the Ollama app. No model is downloaded by
+  ClearGrade at startup or during image builds; Ollama is not a Compose service.
+
+To verify manually:
+
+```powershell
+Invoke-RestMethod http://127.0.0.1:11434/api/tags
+Invoke-RestMethod http://localhost:3000/api/ai/status
 ```
 
-Then set `OLLAMA_BASE_URL=http://localhost:11434` and `OLLAMA_MODEL=llama3.2` in the ignored root `.env` (or
-the external local profile for IDE runs). If the model has not been pulled, the status endpoint reports
-`ollamaAvailable: false` and the router uses the rule engine; nothing is installed or downloaded at startup.
-Docker images never download a model.
+The first shows the installed model; the second reports `ollamaAvailable: true`, `ollamaModel: llama3.2:1b`
+and `defaultEngine: OLLAMA` while `GEMINI_API_KEY` is blank. If the model has not been pulled, readiness is
+`false` and the rule engine is used. A configured URL alone never counts as availability.
 
-Docker host access is explicit and opt-in:
-
-- **Windows / macOS:** `OLLAMA_BASE_URL=http://host.docker.internal:11434`
-- **Linux:** `OLLAMA_BASE_URL=http://host.docker.internal:11434` with Compose `extra_hosts:
-  ["host.docker.internal:host-gateway"]`, or the host gateway address such as `http://172.17.0.1:11434`,
-  or run Ollama reachable on your own network. Ollama is **not** a mandatory Compose service.
-
-Binding Ollama to a loopback-only interface keeps it local. Use the documented `OLLAMA_BASE_URL` override rather
-than adding a multi-gigabyte model layer to an image.
+**Observed behaviour:** the 1 B model occasionally returns text that fails ClearGrade's strict evidence/schema
+validation (for example on a clean import with all-zero counters). The router then safely labels the report
+`RULE_BASED` with reason `OLLAMA_UNAVAILABLE`; no fabricated AI text is shown. Retrying or configuring a larger
+installed model resolves it. Only one model is installed; no unnecessary downloads were performed.
 
 ## 4. Privacy data contract
 
@@ -189,3 +194,28 @@ return a controlled `503 ANALYSIS_UNAVAILABLE`.
 **Authentication is still absent.** This application remains for local/trusted evaluation only and must not be
 publicly exposed without an authentication layer and network controls. The AI feature adds no write path of any
 kind: providers cannot modify data or trigger imports/retries. See [SECURITY.md](SECURITY.md).
+
+## 10. Local acceptance evidence (Windows, 2026-11-20)
+
+Routing was exercised against the running Compose stack and isolated backend instances using a **local mock
+Gemini server**; no real Gemini request was made and no key value was read or displayed.
+
+| Scenario | Observed result |
+|---|---|
+| No key, Ollama available | `/api/ai/status` → `defaultEngine: OLLAMA`, routing `OLLAMA_THEN_RULE_BASED`; analysis → `engine: OLLAMA`, `llama3.2:1b`, fresh and cached paths both verified |
+| No key, Ollama unreachable | isolated backend with unreachable `OLLAMA_BASE_URL` → `engine: RULE_BASED`, `NO_AI_PROVIDERS_AVAILABLE` |
+| Mock Gemini 200 with valid structured output | `engine: GEMINI`, model `gemini-3.8-flash`; outbound body had `store:false`, no PII, no `previous_interaction_id` |
+| Mock Gemini 429 | one provider call only → `engine: OLLAMA`, `GEMINI_UNAVAILABLE` (no cloud retries) |
+| Mock Gemini 500 + Ollama down | `engine: RULE_BASED`, safe fallback reason |
+| Mock Gemini 401 | `503 AI_CONFIGURATION_ERROR`, message "Gemini rejected the configured credentials" — **not** classified as quota |
+| `CLEARGRADE_AI_ENABLED=false` | status `AI_DISABLED_DETERMINISTIC_ONLY`; analysis `RULE_BASED` / `AI_DISABLED`; upload and directory APIs still work |
+| Unusable model JSON / evidence mismatch | provider output rejected by the parser → Ollama or rule-based fallback; no fabricated insight rendered |
+
+Browser acceptance was genuinely executed in headless Chrome via Playwright against `http://localhost:3000`,
+including upload, analysis, directory search/filter/pagination, student report, and desktop/tablet/mobile
+viewports; zero console errors and no key/PII in API responses. Genuine screenshots are in
+`C:\Users\Asus\AppData\Local\Temp\opencode\screenshots\` (import, Ollama report, rule-based report, directory,
+report, mobile and tablet).
+
+A real Gemini primary call remains **awaiting the user-supplied key**; it is deliberately not simulated as a real
+cloud result. See [LOCAL_RUN_GUIDE.md](../LOCAL_RUN_GUIDE.md) for the exact one-line `.env` entry.
