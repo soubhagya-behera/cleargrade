@@ -78,7 +78,7 @@ Rules:
 
 | Intent | Command | Status |
 |---|---|---|
-| Backend compile + tests | `cd backend; .\mvnw.cmd -B test` | Runnable (115 tests) |
+| Backend compile + tests | `cd backend; .\mvnw.cmd -B test` | Runnable (117 tests) |
 | PostgreSQL migration integration tests | `cd backend; .\mvnw.cmd -B -Dtest=CoreSchemaMigrationTest test` | Runnable (Testcontainers `postgres:16-alpine`, Docker daemon required) |
 | Full backend verification | `cd backend; .\mvnw.cmd -B verify` | Runnable |
 | Frontend dependency install | `cd frontend; npm ci` | Runnable |

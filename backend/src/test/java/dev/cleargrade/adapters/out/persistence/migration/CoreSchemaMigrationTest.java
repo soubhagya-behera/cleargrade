@@ -253,6 +253,21 @@ class CoreSchemaMigrationTest {
 			}
 			assertEquals(Set.of("RECEIVED", "PROCESSING", "FAILED", "COMPLETED"), statuses);
 		}
+
+		insertBatchWithDuration(hexDigest('1'), "RECEIVED", 100L);
+		insertBatchWithDuration(hexDigest('2'), "PROCESSING", 101L);
+		insertBatchWithDuration(hexDigest('3'), "FAILED", 102L);
+
+		try (Connection connection = connection(); Statement statement = connection.createStatement();
+				ResultSet rows = statement.executeQuery("SELECT COUNT(*) FROM import_batch "
+						+ "WHERE duration_ms IS NOT NULL "
+						+ "AND status IN ('RECEIVED', 'PROCESSING', 'FAILED') "
+						+ "AND rows_read IS NULL AND imported_count IS NULL AND new_count IS NULL "
+						+ "AND changed_count IS NULL AND unchanged_count IS NULL "
+						+ "AND rejected_count IS NULL AND error_count IS NULL")) {
+			assertTrue(rows.next());
+			assertEquals(3, rows.getInt(1));
+		}
 	}
 
 	@Test
@@ -358,6 +373,18 @@ class CoreSchemaMigrationTest {
 				assertTrue(rows.next());
 				return rows.getLong(1);
 			}
+		}
+	}
+
+	private static void insertBatchWithDuration(String digest, String status, long durationMs) throws SQLException {
+		try (Connection connection = connection();
+				PreparedStatement insert = connection.prepareStatement("INSERT INTO import_batch "
+						+ "(filename, file_size_bytes, sha256, status, started_at, duration_ms) "
+						+ "VALUES ('batch.csv', 100, ?, ?, now(), ?)")) {
+			insert.setString(1, digest);
+			insert.setString(2, status);
+			insert.setLong(3, durationMs);
+			insert.executeUpdate();
 		}
 	}
 
