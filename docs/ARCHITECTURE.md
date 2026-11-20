@@ -64,7 +64,7 @@ flowchart TD
     H --> Q[Tx3: counts + COMPLETED]
 ```
 
-Row numbers must be **physical file line numbers, header = 1, blank lines counted** `[REQ]`; the mechanism is the open C-4 spike (§9).
+Row numbers must be **physical file line numbers, header = 1, blank lines counted** `[REQ]`; the C-4 spike (§9) is approved and its mechanism/limitations carry into the future production CSV adapter.
 
 ## 4. Import lifecycle and identical-file idempotency (C-1, C-2)
 
@@ -103,7 +103,7 @@ A row-level error never moves the batch to `FAILED` `[REQ]`. Successful row vali
 | Non-UTF-8 decodable content | `400 INVALID_ENCODING`; batch `FAILED`; no student writes |
 | Unexpected I/O or runtime exception | `500` with correlation id; batch `FAILED`; no partial student writes |
 | Oversized upload | `413` before parsing; limit configurable, default 10 MiB `[U-06]` |
-| Physical line number unverified | Ingestion must not go live until C-4 spike passes (§9) |
+| Physical line number | C-4 spike evidence approved (§9); production CSV adapter must adopt the mechanism and its documented limitations before ingestion goes live |
 
 ## 6. Transaction strategy
 
@@ -172,7 +172,7 @@ cleargrade/
 
 ## 9. Open verification gate — physical line numbers (C-4)
 
-**Status: UNRESOLVED pre-implementation spike. No solution is claimed here.** CSV record numbers are **not** physical line numbers. Before production ingestion the chosen Commons CSV version must be tested with: (a) a quoted field containing an embedded newline; (b) blank physical lines; (c) a malformed row after the embedded newline; (d) a subsequent valid row. The reported source line must be the **physical starting line** of the problematic record, with the header as line 1. A simple counting `Reader` is **not** acceptable without testing parser buffering/read-ahead. If the spike cannot prove the approach, the line-number feature must be redesigned before phase 3 is complete. See TEST_STRATEGY.md §2 and DEVELOPMENT.md gate G2→G3.
+**Status: spike evidence approved; G2→G3 passed by owner 2026-11-20.** The merged PR #3 spike proves the approach against the chosen Commons CSV version; all documented limitations (`backend/src/test/resources/csv-spike/README.md`) are carried forward into production CSV implementation, which remains future work. CSV record numbers are **not** physical line numbers. The spike verified: (a) a quoted field containing an embedded newline; (b) blank physical lines; (c) a malformed row after the embedded newline; (d) a subsequent valid row. The reported source line is the **physical starting line** of the problematic record, with the header as line 1. A simple counting `Reader` is **not** acceptable without testing parser buffering/read-ahead. See TEST_STRATEGY.md §2 and DEVELOPMENT.md gate G2→G3.
 
 ## 10. Traceability to assignment requirements
 

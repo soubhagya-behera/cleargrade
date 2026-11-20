@@ -50,7 +50,7 @@ One row **per validation error occurrence**, not per rejected row (D-10).
 |---|---|---|
 | `id` | `BIGSERIAL` | PK |
 | `batch_id` | `BIGINT` | FK → `import_batch.id`, indexed |
-| `line_number` | `INTEGER` | Physical file line; header = 1, blank lines counted — **C-4 spike unresolved** |
+| `line_number` | `INTEGER` | Physical file line; header = 1, blank lines counted — **C-4 spike evidence approved; limitations carried forward** |
 | `raw_student_id` | **`TEXT`** | Raw ID as supplied; `TEXT` avoids silent truncation of pathological values |
 | `field_name` | `VARCHAR(32)` | Canonical column name or `(whole row)` |
 | `error_code` | `VARCHAR(24)` | `MISSING_REQUIRED / INVALID_FORMAT / OUT_OF_RANGE / DUPLICATE_ID / WRONG_FIELD_COUNT` `[REQ]` |
@@ -162,7 +162,7 @@ Batch row exists before parsing so fatal errors can be recorded. `PROCESSING` is
 
 ## 8. Physical line numbers (C-4)
 
-`line_number` semantics are specified but the **implementation mechanism is an unresolved pre-implementation spike**. No solution is claimed. Must be proven against the chosen Commons CSV version before ingestion goes live (ARCHITECTURE.md §9, TEST_STRATEGY.md §2).
+`line_number` semantics are specified and the C-4 spike evidence was approved by the owner on 2026-11-20 (G2→G3 passed). The documented spike limitations are carried forward into the production CSV adapter, which remains future work (ARCHITECTURE.md §9, TEST_STRATEGY.md §2).
 
 ## 9. Traceability
 
