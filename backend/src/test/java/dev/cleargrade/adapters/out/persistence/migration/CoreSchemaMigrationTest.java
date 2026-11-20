@@ -230,6 +230,28 @@ class CoreSchemaMigrationTest {
 	}
 
 	@Test
+	void negativeCountIsRejectedByNonnegativeCheck() throws SQLException {
+		String receivedInsert = "INSERT INTO import_batch "
+				+ "(filename, file_size_bytes, sha256, status, started_at, rows_read) "
+				+ "VALUES ('x.csv', 1, ?, 'RECEIVED', now(), -1)";
+		SQLException receivedError = assertThrows(SQLException.class,
+				() -> execute(receivedInsert, hexDigest('a')));
+		assertEquals("23514", receivedError.getSQLState(), receivedError.getMessage());
+		assertTrue(receivedError.getMessage().contains("ck_import_batch_non_completed_no_counts"),
+				receivedError.getMessage());
+
+		String completedInsert = "INSERT INTO import_batch "
+				+ "(filename, file_size_bytes, sha256, status, started_at, rows_read, imported_count, "
+				+ "new_count, changed_count, unchanged_count, rejected_count, error_count) "
+				+ "VALUES ('x.csv', 1, ?, 'COMPLETED', now(), -1, 0, 0, 0, 0, 0, 0)";
+		SQLException completedError = assertThrows(SQLException.class,
+				() -> execute(completedInsert, hexDigest('b')));
+		assertEquals("23514", completedError.getSQLState(), completedError.getMessage());
+		assertTrue(completedError.getMessage().contains("ck_import_batch_rows_read_nonnegative"),
+				completedError.getMessage());
+	}
+
+	@Test
 	void finalCountsAreAllowedOnlyForCompletedBatches() throws SQLException {
 		String withCounts = "INSERT INTO import_batch "
 				+ "(filename, file_size_bytes, sha256, status, started_at, rows_read, imported_count, "
