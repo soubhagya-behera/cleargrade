@@ -12,8 +12,8 @@
 - [ClearGrade Intelligence](#cleargrade-intelligence)
 - [Architecture and tech stack](#architecture-and-tech-stack)
 - [Prerequisites](#prerequisites)
-- [One-command startup](#one-command-startup)
-- [Local run guide (Windows PowerShell)](#local-run-guide-windows-powershell)
+- [Everyday native development (recommended)](#everyday-native-development-recommended)
+- [Optional Docker Compose environment](#optional-docker-compose-environment)
 - [Environment configuration](#environment-configuration)
 - [Seed workflow](#seed-workflow)
 - [API endpoints](#api-endpoints)
@@ -101,13 +101,45 @@ The SPA and API are served from one origin in containers: nginx proxies `/api` a
 
 Detailed decisions: [ARCHITECTURE.md](docs/ARCHITECTURE.md), [DATA_MODEL.md](docs/DATA_MODEL.md), [DECISIONS.md](DECISIONS.md), [API_CONTRACT.md](docs/API_CONTRACT.md), [UX_SPEC.md](docs/UX_SPEC.md), [SECURITY.md](docs/SECURITY.md), [TEST_STRATEGY.md](docs/TEST_STRATEGY.md), [NOTES.md](NOTES.md).
 
+## Everyday native development (recommended)
+
+Native PostgreSQL 18 is installed as the Windows service `postgresql-x64-18` (Automatic), with the `cleargrade`
+database and the least-privilege role `cleargrade_local`. Spring Boot reads the ignored root `.env` automatically,
+so no environment variables need to be exported manually.
+
+**Terminal 1 — backend**
+
+```powershell
+cd backend
+mvn spring-boot:run
+```
+
+**Terminal 2 — frontend**
+
+```powershell
+cd frontend
+npm run dev
+```
+
+Open <http://localhost:5173>. Health: <http://localhost:8080/actuator/health>. API: <http://localhost:8080/api>.
+Both processes bind to `127.0.0.1`. Set `JAVA_HOME=C:\Program Files\Java\jdk-21.0.10` in the backend terminal if
+your default `java` is version 17.
+
+Manage data in the locally installed pgAdmin 4: connect to `127.0.0.1:5432`, database `cleargrade`, user
+`cleargrade_local` (or your `postgres` login). A server entry **ClearGrade Local (cleargrade)** was added for you;
+no password is saved there. Full details are in [LOCAL_RUN_GUIDE.md](LOCAL_RUN_GUIDE.md).
+
+To change the Gemini key, edit `GEMINI_API_KEY` in the ignored root `.env` and restart the backend. The key is
+optional and never reaches Vite or the browser. AI providers route Gemini → Ollama (`llama3.2:1b` on
+`127.0.0.1:11434`) → rule-based, and any report labels the engine that produced it.
+
 ## Prerequisites
 
-- Docker Engine 24+ with Compose v2 (one-command path — **this is the recommended path**).
-- For local IDE development only: JDK 21, Node.js 22+, Maven wrapper and npm are included/pinned.
-- Ports `3000` (frontend), `8080` (backend) and `5432` (PostgreSQL, loopback only) available, or override them in `.env`.
+- JDK 21, Node.js 22+ and npm for the native workflow; Maven wrapper is also included/pinned.
+- Docker Engine 24+ with Compose v2 only for the optional release/demo stack.
+- Ports `5173` (native Vite), `8080` (backend), `5432` (native PostgreSQL) or `3000`/`55432` (Docker) available.
 
-## One-command startup
+## Optional Docker Compose environment
 
 Windows (PowerShell):
 
@@ -141,14 +173,13 @@ app is not reachable from another machine.
 
 Stop with `docker compose down`; delete the named PostgreSQL volume with `docker compose down -v` for a clean database.
 
-## Local run guide (Windows PowerShell)
+### Docker notes and troubleshooting
 
-This machine is already prepared, so the normal workflow is:
+To use the alternative container stack:
 
-1. **(Optional)** Paste your existing Gemini key into the ignored root `.env` on the line
-   `# GEMINI_API_KEY=`. Remove the leading `#` and leave no spaces around `=`.
-   Nothing else needs to change; the key is never required for startup.
-2. Start from the repository root:
+1. Stop the native backend/frontend terminals (Ctrl+C). The native PostgreSQL service may remain running; Docker
+   uses its own database on `127.0.0.1:55432`.
+2. Start the containers from the repository root:
 
    ```powershell
    docker compose up -d --build

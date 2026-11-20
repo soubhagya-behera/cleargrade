@@ -1,94 +1,132 @@
-# ClearGrade — local run guide (Windows PowerShell)
+# ClearGrade — everyday local development (Windows PowerShell)
 
-## Three steps
+## Start in two terminals
 
-1. **(Optional)** In the git-ignored root `.env`, replace the line `# GEMINI_API_KEY=` with your existing key:
+Prerequisite: native PostgreSQL 18 service `postgresql-x64-18` is running (it is set to Automatic). If it is
+stopped after a reboot, start it from `services.msc` or an elevated PowerShell:
 
-   ```dotenv
-   GEMINI_API_KEY=<paste your existing key here>
-   ```
+```powershell
+Start-Service postgresql-x64-18
+```
 
-   Do not commit `.env`, do not paste the key into chat/logs, and do not add it to Vite or Docker build arguments.
-   The key is **not required** — leave the line commented and everything still works.
+**Terminal 1 — backend**
 
-2. Start the stack from the repository root:
+```powershell
+cd backend
+mvn spring-boot:run
+```
 
-   ```powershell
-   docker compose up -d --build
-   ```
+**Terminal 2 — frontend**
 
-3. Open the app: <http://localhost:3000>
+```powershell
+cd frontend
+npm run dev
+```
 
-   Health: <http://localhost:8080/actuator/health> · API: <http://localhost:8080/api>
+Open <http://localhost:5173>. Health: <http://localhost:8080/actuator/health>. API: <http://localhost:8080/api>.
 
-   All published ports are bound to **127.0.0.1 only** (frontend 3000, backend 8080, PostgreSQL 55432,
-   Ollama 11434). There is no `0.0.0.0` or IPv6 `::` listener, so the unauthenticated app cannot be reached
-   from another machine. Use `localhost` or `127.0.0.1` from this PC.
+Set `JAVA_HOME=C:\Program Files\Java\jdk-21.0.10` for the backend terminal if your default `java` is version 17.
+Both processes bind to `127.0.0.1` only.
 
-## What is already prepared
+## Database and pgAdmin
 
 | Item | Value |
 |---|---|
-| OS | Windows 11 Home x64 |
-| Java | JDK 21.0.10 (`C:\Program Files\Java\jdk-21.0.10`) — builds use `JAVA_HOME` pointing here |
-| Docker | Docker Desktop 29.9.3, Compose v5.7.0; stack leaves three healthy containers running |
-| Frontend | `127.0.0.1:3000` (nginx, loopback-only host binding) |
-| Backend | `127.0.0.1:8080` (API/health, loopback-only host binding) |
-| PostgreSQL | `127.0.0.1:55432` (host port from `.env`), data in named volume `cleargrade_postgres-data` |
-| Ollama | Official winget install `Ollama.Ollama` v0.40.16, service `ollama.exe serve`, loopback `127.0.0.1:11434` |
-| Ollama model | `llama3.2:1b` (1.23 GB, ~2 GB RAM). Only this model is installed. |
-| Backend → Ollama | `OLLAMA_BASE_URL=http://host.docker.internal:11434` via Compose `extra_hosts` |
+| Server | Native PostgreSQL 18, `localhost:5432`, Windows service `postgresql-x64-18` (Automatic) |
+| Database | `cleargrade` (created by you; never dropped or recreated by setup) |
+| Application role | `cleargrade_local` — least privilege: CONNECT on the database plus USAGE/CREATE on `public`, CRUD on application tables/sequences and default privileges for future objects |
+| Passwords | Stored only in the ignored root `.env` as `NATIVE_PG_SUPERUSER_PASSWORD` and `CLEARGRADE_LOCAL_DB_PASSWORD`; never displayed or committed |
+| Schema | Managed by Flyway; migration version `1` (`flyway_schema_history`, `student`, `import_batch`, `import_row_error`) |
+| pgAdmin | Locally installed pgAdmin 4 (under `C:\Program Files\PostgreSQL\18\pgAdmin 4`) |
+
+A pgAdmin server entry **ClearGrade Local (cleargrade)** was added for you:
+host `127.0.0.1`, port `5432`, maintenance database `cleargrade`, username `cleargrade_local`.
+No password is saved in pgAdmin — enter the application password (from `.env`) when prompted, or use your
+`postgres` login to inspect everything. You can browse Databases → cleargrade → Schemas → public → Tables and
+query records with the Query Tool.
+
+## How secrets and local settings reach Spring Boot
+
+The root `.env` is git-ignored and is imported by Spring Boot via
+`spring.config.import=optional:file:../.env[.properties]` in `application.properties`. It is resolved relative to
+the `backend` directory, so no environment variables need to be exported manually.
+
+Relevant keys in `.env` (values never shown here):
+
+```dotenv
+GEMINI_API_KEY=                                  # optional; add your key here, then restart backend
+GEMINI_MODEL=gemini-3.8-flash
+NATIVE_PG_SUPERUSER_PASSWORD=...                  # your postgres password
+CLEARGRADE_LOCAL_DB_URL=jdbc:postgresql://localhost:5432/cleargrade
+CLEARGRADE_LOCAL_DB_USER=cleargrade_local
+CLEARGRADE_LOCAL_DB_PASSWORD=...                  # generated application password
+CLEARGRADE_LOCAL_SERVER_ADDRESS=127.0.0.1
+CLEARGRADE_LOCAL_OLLAMA_BASE_URL=http://127.0.0.1:11434
+OLLAMA_BASE_URL=http://host.docker.internal:11434  # used only by Docker Compose
+```
+
+To change the Gemini key, edit only `GEMINI_API_KEY` in `.env` and restart the backend terminal. Do not put the
+key in Vite, `VITE_*`, Java source, committed properties, Docker build arguments or image layers. AI is optional;
+with no key the app still starts and uses Ollama or the rule engine.
 
 ## Provider behaviour
 
-- No key + Ollama running → **Ollama** generates the analysis; UI shows "Generated by Ollama".
-- Ollama stopped/unreachable → **Rule-based** analysis; UI shows
-  "Rule-based analysis — AI providers are currently unavailable."
-- Valid key → **Gemini** (`gemini-3.8-flash`) is primary; quota/timeout/5xx falls to Ollama, then rules.
-- Invalid key → controlled `503 AI_CONFIGURATION_ERROR`; never misclassified as quota.
-- `CLEARGRADE_AI_ENABLED=false` in `.env` + backend recreate → both AI providers off; rule-based still available.
+- No key + Ollama running → **Ollama**; UI shows "Generated by Ollama".
+- Ollama unavailable → **Rule-based**; UI shows "Rule-based analysis — AI providers are currently unavailable."
+- Valid key → **Gemini** (`gemini-3.8-flash`) primary; quota/timeout/5xx falls to Ollama, then rules.
+- Invalid key → controlled `503 AI_CONFIGURATION_ERROR`; never treated as quota.
+- `CLEARGRADE_AI_ENABLED=false` in `.env` + backend restart → both AI providers off; rule-based still available.
 
-Check at any time:
+Check with `Invoke-RestMethod http://localhost:5173/api/ai/status`.
 
-```powershell
-Invoke-RestMethod http://localhost:3000/api/ai/status
-```
+## Ollama
 
-## Start / stop / inspect
-
-```powershell
-docker compose ps                       # container status
-docker compose logs -f backend          # backend logs
-docker compose logs -f frontend         # nginx logs
-docker compose stop                     # stop, keep containers and data
-docker compose up -d                    # start again
-docker compose down                     # remove containers, keep database volume
-docker compose down -v                  # DESTROYS database data — only if a clean DB is wanted
-```
-
-If Ollama is not running after a reboot:
+Ollama 0.40.16 was installed from the official winget package; model `llama3.2:1b` (1.23 GB, ~2 GB RAM).
+It runs as `ollama.exe serve` on `127.0.0.1:11434`, independently of Docker. After a reboot:
 
 ```powershell
 & "$env:LOCALAPPDATA\Programs\Ollama\ollama.exe" serve
 Invoke-RestMethod http://127.0.0.1:11434/api/tags
 ```
 
-To disable all AI providers:
+## Optional Docker Compose environment (release/demo)
+
+Docker Compose is preserved unchanged as an alternative. It uses its **own** PostgreSQL on
+`127.0.0.1:55432` with a separate named volume; it does not touch the native database.
 
 ```powershell
-# set CLEARGRADE_AI_ENABLED=false in .env, then:
-docker compose up -d --force-recreate backend
+# stop native processes first (Ctrl+C in both terminals), then:
+docker compose up -d --build
+# frontend http://localhost:3000  health http://localhost:8080/actuator/health
+docker compose stop backend frontend   # keep PostgreSQL volume intact
 ```
+
+Never run `docker compose down -v` unless you intentionally want to delete Docker database data.
+
+## Pending administrator approval (loopback for native PostgreSQL)
+
+The native PostgreSQL service currently has `listen_addresses = '*'`. Changing it requires editing a
+Program Files config file and restarting the Windows service — both need elevation. This was **not** done
+without your approval. To finish that hardening from an elevated PowerShell:
+
+```powershell
+# 1) edit C:\Program Files\PostgreSQL\18\data\postgresql.conf:
+#    listen_addresses = 'localhost'
+# 2) restart the service:
+Restart-Service postgresql-x64-18
+```
+
+No other setup step requires administrator rights.
 
 ## Troubleshooting
 
 | Symptom | Fix |
 |---|---|
-| `ollamaAvailable: false` | Start `ollama serve`; confirm `/api/tags` lists `llama3.2:1b`; recreate backend. |
-| Rule-based despite Ollama available | Small model returned output that failed strict validation. Retry, or set `OLLAMA_MODEL` to a larger installed model. Safe fallback, not an app failure. |
-| `AI_CONFIGURATION_ERROR` | Check the key and `GEMINI_MODEL` in `.env`; authentication errors never fall back. |
-| Port conflict | Change `APP_PORT` / `FRONTEND_PORT` / `POSTGRES_PORT` in `.env`, then recreate. |
-| No console access | `docker compose logs --tail=100 backend` |
+| Backend fails to connect | Confirm `postgresql-x64-18` is running and `.env` has the correct `CLEARGRADE_LOCAL_DB_*` values. |
+| Port 8080/5173 busy | Stop the other workflow (Docker containers or native terminals) before starting this one. |
+| `ollamaAvailable: false` | Start `ollama serve`, confirm `/api/tags` lists `llama3.2:1b`, restart backend. |
+| Rule-based despite Ollama available | Small model returned output that failed strict validation; safe fallback. Retry or configure a larger installed model. |
+| `AI_CONFIGURATION_ERROR` | Check `GEMINI_API_KEY` and `GEMINI_MODEL` in `.env` and restart backend. |
+| pgAdmin connection prompt | Enter the `cleargrade_local` password from `.env`, or connect with your `postgres` login. |
 
-**Security note:** authentication is still absent. This stack is for local/trusted evaluation only; do not expose
-ports publicly. PostgreSQL and Ollama are bound to loopback; the API key never reaches the browser.
+**Security note:** authentication is still absent. Keep everything on loopback/local/trusted networks only.
