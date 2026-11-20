@@ -1,6 +1,6 @@
 # ClearGrade — Development Plan
 
-Status: **G2→G3 gate passed; application output ports and T1–T4 transaction/digest/upsert services implemented and verified against real PostgreSQL.** Production CSV ingestion, REST APIs and the SPA remain planned. Owner decisions ratified 2026-11-19, transaction boundary resolved 2026-11-20 (DECISIONS.md §1/§2).
+Status: **G3→G4 gate passed; production CSV adapter, import use-case wiring and benchmark/idempotency/concurrency acceptance implemented and verified against real PostgreSQL.** REST APIs and the SPA remain planned. Owner decisions ratified 2026-11-19, transaction boundary resolved 2026-11-20 (DECISIONS.md §1/§2).
 
 ## 1. Planned development sequence
 
@@ -9,7 +9,7 @@ Status: **G2→G3 gate passed; application output ports and T1–T4 transaction/
 | 0 — Specification & design | PDF/CSV analysis, documentation, owner ratification | **G0→G1 passed (§6)** |
 | 1 — Foundation **(scaffolded, no migrations yet)** | Maven/Spring Boot bootstrap (Java 21, Spring Boot 4.1.2, `mvnw`), Docker Compose + Postgres, profile-based configuration (§3), injected `Clock` (I-04), configurable 10 MiB limit (U-06) | Skeleton starts with the local profile; `/actuator/health` answers; minimal context/health verification test green. **Flyway migrations and the app Docker image remain for later phases.** |
 | 2 — Domain **(3B.1 implemented + reviewed)** | Pure model with `BigDecimal` marks (C-3), validation, grading (D-07), error-code vocabulary; review remediation for count overflow, row-error line, batch/outcome construction and documentation | Domain tests green; source-scanning framework-independence test green; **C-4 spike evidence approved and G2→G3 passed by owner 2026-11-20** |
-| 3 — Ingestion **(schema + persistence + application services implemented)** | Flyway V1 schema, JPA entities/repositories/mappers, application output ports, T1–T4 transaction services, exact digest recovery and D-28 upsert done; production CSV adapter and import use-case wiring still planned | Migration, persistence and application transaction tests green; **C-4 gate passed (owner 2026-11-20), limitations carried forward**; idempotency/concurrency tests green; benchmarks 16/9 and 4,685/315/348 with fixed clock |
+| 3 — Ingestion **(schema + persistence + application services + production CSV + import use case implemented; G3→G4 passed)** | Flyway V1 schema, JPA entities/repositories/mappers, application output ports, T1–T4 transaction services, exact digest recovery, D-28 upsert, C-4 physical-line CSV adapter, domain-backed row validation/error occurrences and cohesive import use case | Migration, persistence and application transaction tests green; **C-4 gate passed (owner 2026-11-20), all six limitations carried forward**; idempotency/concurrency tests green; benchmarks 16/9 and 4,685/315/348 with fixed clock — **achieved 2026-11-20** |
 | 4 — REST API | Controllers, DTOs, global error handler, `201/200/409/413` upload paths, management-path separation (T-5) | API contract tests green; no entity leakage; Actuator health-only |
 | 5 — Frontend | React Router + TanStack Query, three screens, all states, design tokens (UX_SPEC §2) | Build + typecheck pass; screens work end to end |
 | 6 — Seed & bonus | Seed generator posting CSV via `POST /api/imports` (T-1); bonus features only if owner requests (D-17) | Seed works through real pipeline; core not regressed |
@@ -23,6 +23,7 @@ Phases are sequential; a failed gate stops the next phase. Bonus work starts onl
 - Domain has no Spring/JPA/Commons CSV imports. Marks use `BigDecimal`; no silent rounding (C-3). Adapters depend inward on ports. Flyway owns the schema (`V1__create_core_schema.sql`); Hibernate remains `ddl-auto=validate`. Mark columns are unconstrained `NUMERIC` (D-24). Final count columns must be NULL unless batch status is `COMPLETED`, matching `ImportBatch`. Migration integration tests use a shared Testcontainers `postgres:16-alpine` container with explicit table truncation.
 - JPA entities, repositories and explicit mappers live under `adapters.out.persistence.{entity,repository,mapper}`; `CHAR` columns use `@JdbcTypeCode(SqlTypes.CHAR)` so Hibernate `validate` matches PostgreSQL `bpchar`. Spring Boot 4.1 Flyway auto-configuration requires `spring-boot-flyway`.
 - Application output ports live under `application.port.out`; adapters in `adapters.out.persistence` implement them and never expose entities. T1/T2/T3/T4 are distinct proxied `@Transactional(REQUIRES_NEW)` beans (`application.service.*Tx`) so no self-invocation bypasses a boundary; duplicate recovery re-reads the digest in a separate fresh-transaction bean. D-28 upsert uses sorted `INSERT … ON CONFLICT DO NOTHING` plus `SELECT … FOR UPDATE` on conflict. The full Spring context startup test runs against real PostgreSQL.
+- CSV ingestion: `adapters.in.csv.CommonsCsvFileParser` implements the application-owned `port.in.CsvFileParser` with explicit `CSVFormat`, BOM stripping, header mapping and the C-4 physical-line map; it returns only application-owned `ParsedCsv` types and performs no business validation or transaction handling. `CsvRowValidator` (application) reuses domain value objects and returns application-owned `ValidatedRows`; `ImportApplicationService` owns the T1→T2→parse/validate→T3 (or T4) sequence; T2 is inside the guarded path so a failed `PROCESSING` transition also routes to T4 (`RECEIVED → FAILED`), with the original exception preserved and any T4 failure suppressed. No CSV library or JPA type crosses into the domain.
 - Controllers accept/return DTOs only. Validation returns a complete error-occurrence list; never fail fast on the first field error.
 - Use injected `Clock` everywhere (I-04). No `LocalDate.now()` in domain/application.
 - **TypeScript strict mode**; `src/types` for API types, `src/api` for the client; **React Router** routing, **TanStack Query** for server state, local component state for UI; **no Redux** without justification. Tailwind utilities with UX_SPEC tokens.
@@ -80,11 +81,13 @@ Rules:
 
 | Intent | Command | Status |
 |---|---|---|
-| Backend compile + tests | `cd backend; .\mvnw.cmd -B test` | Runnable (159 tests) |
+| Backend compile + tests | `cd backend; .\mvnw.cmd -B test` | Runnable (195 tests) |
 | PostgreSQL migration integration tests | `cd backend; .\mvnw.cmd -B -Dtest=CoreSchemaMigrationTest test` | Runnable (Testcontainers `postgres:16-alpine`, Docker daemon required; 9 tests) |
 | Persistence integration tests | `cd backend; .\mvnw.cmd -B "-Dtest=PersistenceMapperTest,PersistenceIntegrationTest" test` | Runnable (18 tests; real Testcontainer, Flyway + Hibernate `validate`) |
 | Application transaction tests | `cd backend; .\mvnw.cmd -B "-Dtest=ApplicationTransactionIntegrationTest,ImportApplicationServiceUnitTest,DigestViolationClassificationTest" test` | Runnable (17 tests; real Testcontainer for T1–T4/exact digest/upsert concurrency, unit test for suppressed failure-finalisation error) |
-| Full backend verification | `cd backend; .\mvnw.cmd -B verify` | Runnable |
+| Focused CSV parser/validation tests | `cd backend; .\mvnw.cmd -B "-Dtest=CommonsCsvFileParserTest,CsvRowValidatorTest,ImportApplicationServiceUnitTest,BatchFinalisationTxTest,PhysicalLineTrackingSpikeTest" test` | Runnable (41 tests; no Docker needed) |
+| CSV import + benchmark acceptance | `cd backend; .\mvnw.cmd -B "-Dtest=CsvImportIntegrationTest,CsvImportBenchmarkTest" test` | Runnable (14 tests, 0 skipped; Testcontainers PostgreSQL; deterministic synthetic fixtures generated in test code — 25/16/9 and 5000/4685/315/348) |
+| Full backend verification | `cd backend; .\mvnw.cmd -B verify` | Runnable (195 tests green, 0 skipped) |
 | Frontend dependency install | `cd frontend; npm ci` | Runnable |
 | Frontend typecheck | `cd frontend; npm run typecheck` | Runnable |
 | Frontend production build | `cd frontend; npm run build` | Runnable |
@@ -104,7 +107,7 @@ Exact script names may change once the build exists; the final README is authori
 | **G0 → G1** | **All blocking decisions approved** — D-07, U-01, U-02, U-03, U-04, U-06, I-01, I-02, I-03, I-04, D-17 — **wherever they appear in DECISIONS.md (§1 and §2), not only §2**. No active superseded identifiers. C-4 recorded as a tracked spike. |
 | G1 → G2 | Docker boot + migration + health check succeed; port `8080:8080` reachable; Actuator exposes health only; external local config verified (§3): private file outside `src/main/resources`, excluded from Git and Docker context, not activated in Docker |
 | **G2 → G3 — PASSED 2026-11-20** | Domain tests green; architecture boundary test green; **C-4 physical-line-number spike evidence on `main` from PR #3** (TEST_STRATEGY.md §2.2) formally signed off by owner; all documented spike limitations carried forward into production CSV implementation |
-| G3 → G4 | Benchmarks green with fixed clock; error occurrence counts correct; idempotency (`200`/`409`/retry), partial-unique concurrency and new/changed/unchanged counters green |
+| **G3 → G4 — PASSED 2026-11-20** | Benchmarks green with fixed clock (25/16/9; 5000/4685/315/348); error occurrence counts correct; idempotency (completed → `200` semantics via `DigestConflictException(COMPLETED)`, active → `409` semantics, FAILED retry), real-PostgreSQL partial-unique concurrency and new/changed/unchanged counters green — **all verified on `feat/csv-import-adapter`** |
 | G4 → G5 | API contract, security and management-path tests green |
 | G5 → G6 | Three screens work end to end; all specified states present; design tokens applied |
 | G6 → G7 | Seed works through the import API; any enabled bonus does not regress core |

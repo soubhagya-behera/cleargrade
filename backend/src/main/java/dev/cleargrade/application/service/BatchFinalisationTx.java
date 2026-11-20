@@ -8,6 +8,7 @@ import dev.cleargrade.application.model.UpsertCounts;
 import dev.cleargrade.application.port.out.ImportBatchOutputPort;
 import dev.cleargrade.application.port.out.ImportRowErrorOutputPort;
 import dev.cleargrade.application.port.out.StudentOutputPort;
+import dev.cleargrade.domain.DomainValidationException;
 import dev.cleargrade.domain.batch.ImportCounts;
 import dev.cleargrade.domain.batch.RowError;
 import dev.cleargrade.domain.student.Student;
@@ -35,9 +36,13 @@ public class BatchFinalisationTx {
 			int rejectedRows, Instant finishedAt) {
 		UpsertCounts upserts = this.students.upsertAll(acceptedStudents, batchId, finishedAt);
 		int errorCount = this.rowErrors.saveAll(errors, batchId);
-		int importedCount = upserts.newCount() + upserts.changedCount() + upserts.unchangedCount();
+		long importedCount = (long) upserts.newCount() + upserts.changedCount() + upserts.unchangedCount();
+		long rowsRead = importedCount + rejectedRows;
+		if (importedCount > Integer.MAX_VALUE || rowsRead > Integer.MAX_VALUE) {
+			throw new DomainValidationException("Import count aggregate exceeds the supported integer range");
+		}
 		ImportCounts counts = new ImportCounts(
-				importedCount + rejectedRows,
+				(int) rowsRead,
 				upserts.newCount(),
 				upserts.changedCount(),
 				upserts.unchangedCount(),
