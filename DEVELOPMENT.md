@@ -1,6 +1,6 @@
 # ClearGrade — Development Plan
 
-Status: **Phase 3B.2.1 PostgreSQL schema and migration test foundation implemented and hardened after independent review; Phase 3B.1 domain model is merged on `main` via PR #4.** JPA persistence, CSV ingestion, REST APIs and the SPA remain planned. Owner decisions ratified 2026-11-19 (DECISIONS.md §1).
+Status: **Phase 3B.2.2 JPA persistence foundation implemented and verified against real PostgreSQL; PR #5 (V1 schema) is merged on `main`.** Application ports/services, CSV ingestion, REST APIs and the SPA remain planned. Owner decisions ratified 2026-11-19 (DECISIONS.md §1).
 
 ## 1. Planned development sequence
 
@@ -9,7 +9,7 @@ Status: **Phase 3B.2.1 PostgreSQL schema and migration test foundation implement
 | 0 — Specification & design | PDF/CSV analysis, documentation, owner ratification | **G0→G1 passed (§6)** |
 | 1 — Foundation **(scaffolded, no migrations yet)** | Maven/Spring Boot bootstrap (Java 21, Spring Boot 4.1.2, `mvnw`), Docker Compose + Postgres, profile-based configuration (§3), injected `Clock` (I-04), configurable 10 MiB limit (U-06) | Skeleton starts with the local profile; `/actuator/health` answers; minimal context/health verification test green. **Flyway migrations and the app Docker image remain for later phases.** |
 | 2 — Domain **(3B.1 implemented + reviewed)** | Pure model with `BigDecimal` marks (C-3), validation, grading (D-07), error-code vocabulary; review remediation for count overflow, row-error line, batch/outcome construction and documentation | Domain tests green; source-scanning framework-independence test green; **C-4 spike evidence merged on `main` (PR #3), formal G2→G3 sign-off pending** |
-| 3 — Ingestion **(3B.2.1 schema slice implemented)** | Flyway V1 schema + Testcontainers migration tests done; CSV adapter, ports, import use case, digest reservation, accepted-only upsert, counters, JPA adapters still planned | Schema/index/constraint migration tests green; **C-4 gate signed off from PR #3 evidence required**; idempotency/concurrency tests green; benchmarks 16/9 and 4,685/315/348 with fixed clock |
+| 3 — Ingestion **(3B.2.1 schema + 3B.2.2 persistence foundation implemented)** | Flyway V1 schema, Testcontainers migration tests, JPA entities/repositories/explicit mappers done; CSV adapter, application ports/use case, digest reservation, upsert, counters still planned | Migration + persistence integration tests green; **C-4 gate signed off from PR #3 evidence required**; idempotency/concurrency tests green; benchmarks 16/9 and 4,685/315/348 with fixed clock |
 | 4 — REST API | Controllers, DTOs, global error handler, `201/200/409/413` upload paths, management-path separation (T-5) | API contract tests green; no entity leakage; Actuator health-only |
 | 5 — Frontend | React Router + TanStack Query, three screens, all states, design tokens (UX_SPEC §2) | Build + typecheck pass; screens work end to end |
 | 6 — Seed & bonus | Seed generator posting CSV via `POST /api/imports` (T-1); bonus features only if owner requests (D-17) | Seed works through real pipeline; core not regressed |
@@ -20,7 +20,8 @@ Phases are sequential; a failed gate stops the next phase. Bonus work starts onl
 ## 2. Code conventions
 
 - **Java 21**, package root `dev.cleargrade`; layers `domain`, `application` (use cases, ports, **separate transaction service beans / `TransactionTemplate`**), `adapters.in.web`, `adapters.in.csv`, `adapters.out.persistence`, `configuration` (the boundary names mandated for Phase 2B; ARCHITECTURE.md §8 is the earlier proposed naming). **No `REQUIRES_NEW` self-invocation.**
-- Domain has no Spring/JPA/Commons CSV imports. Marks use `BigDecimal`; no silent rounding (C-3). Adapters depend inward on ports. Flyway owns the schema (`V1__create_core_schema.sql`); Hibernate remains `ddl-auto=validate`. Mark columns are unconstrained `NUMERIC` (D-24). Final count columns must be NULL unless batch status is `COMPLETED`, matching `ImportBatch`. Migration integration tests use a shared Testcontainers `postgres:16-alpine` container with explicit table truncation. The deferred Spring Boot repeated-context startup test is a Phase 3B.2.2 integration-test item.
+- Domain has no Spring/JPA/Commons CSV imports. Marks use `BigDecimal`; no silent rounding (C-3). Adapters depend inward on ports. Flyway owns the schema (`V1__create_core_schema.sql`); Hibernate remains `ddl-auto=validate`. Mark columns are unconstrained `NUMERIC` (D-24). Final count columns must be NULL unless batch status is `COMPLETED`, matching `ImportBatch`. Migration integration tests use a shared Testcontainers `postgres:16-alpine` container with explicit table truncation.
+- JPA entities, repositories and explicit mappers live under `adapters.out.persistence.{entity,repository,mapper}`; no application output ports exist yet, so no port-implementing adapter was added in 3B.2.2. `CHAR` columns use `@JdbcTypeCode(SqlTypes.CHAR)` so Hibernate `validate` matches PostgreSQL `bpchar`. Spring Boot 4.1 Flyway auto-configuration requires `spring-boot-flyway`; the deferred Spring Boot repeated-context startup test is now covered by `PersistenceIntegrationTest`.
 - Controllers accept/return DTOs only. Validation returns a complete error-occurrence list; never fail fast on the first field error.
 - Use injected `Clock` everywhere (I-04). No `LocalDate.now()` in domain/application.
 - **TypeScript strict mode**; `src/types` for API types, `src/api` for the client; **React Router** routing, **TanStack Query** for server state, local component state for UI; **no Redux** without justification. Tailwind utilities with UX_SPEC tokens.
@@ -72,14 +73,15 @@ Rules:
 
 - `main` protected baseline; short-lived feature branches; one reviewed PR per phase with tests passing.
 - No build output, `.env`, `backend/config/application-local.properties` or other credentials committed. Access shared with reviewers at handover.
-- Git was initialized during Phase 2A and the documentation blueprint committed; the application foundation and reviewed domain model are committed, and PR #4 was squash-merged to `main` as `a1605ec`. Phase 3B.2.1 work stays on `feat/database-persistence-foundation`.
+- Git was initialized during Phase 2A and the documentation blueprint committed; PR #4 was squash-merged to `main` as `a1605ec` and PR #5 as `6cf4a4f`. Phase 3B.2.2 work stays on `feat/database-persistence-adapters`.
 
 ## 5. Commands
 
 | Intent | Command | Status |
 |---|---|---|
-| Backend compile + tests | `cd backend; .\mvnw.cmd -B test` | Runnable (117 tests) |
-| PostgreSQL migration integration tests | `cd backend; .\mvnw.cmd -B -Dtest=CoreSchemaMigrationTest test` | Runnable (Testcontainers `postgres:16-alpine`, Docker daemon required) |
+| Backend compile + tests | `cd backend; .\mvnw.cmd -B test` | Runnable (137 tests) |
+| PostgreSQL migration integration tests | `cd backend; .\mvnw.cmd -B -Dtest=CoreSchemaMigrationTest test` | Runnable (Testcontainers `postgres:16-alpine`, Docker daemon required; 9 tests) |
+| Persistence integration tests | `cd backend; .\mvnw.cmd -B "-Dtest=PersistenceMapperTest,PersistenceIntegrationTest" test` | Runnable (18 tests; real Testcontainer, Flyway + Hibernate `validate`) |
 | Full backend verification | `cd backend; .\mvnw.cmd -B verify` | Runnable |
 | Frontend dependency install | `cd frontend; npm ci` | Runnable |
 | Frontend typecheck | `cd frontend; npm run typecheck` | Runnable |
