@@ -1,6 +1,5 @@
 package dev.cleargrade.adapters.out.persistence.mapper;
 
-import java.time.Clock;
 import java.time.Instant;
 import java.util.Map;
 
@@ -21,12 +20,12 @@ public final class StudentMapper {
 	private StudentMapper() {
 	}
 
-	public static Student toDomain(StudentEntity entity, Clock clock) {
+	public static Student toDomain(StudentEntity entity) {
 		return new Student(
 				StudentId.of(entity.getStudentId()),
 				FullName.of(entity.getFullName()),
 				EmailAddress.of(entity.getEmail()),
-				DateOfBirth.of(entity.getDateOfBirth(), clock),
+				DateOfBirth.fromPersisted(entity.getDateOfBirth()),
 				GradeLevel.of(entity.getGradeLevel()),
 				Section.of(entity.getSection()),
 				SubjectMarks.of(Map.of(

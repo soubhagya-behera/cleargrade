@@ -34,10 +34,10 @@ Last updated: 2026-11-20 · **Current phase: Phase 3B.2.2 JPA persistence founda
 | Check | Command | Result |
 |---|---|---|
 | Spring Boot / Java compatibility | Spring Initializr metadata + Maven Central | `4.1.2` GA; Java `21` supported |
-| Backend compile + tests | `.\mvnw.cmd -B test` (JDK 21) | 134 tests, 0 failures/errors (87 domain, 20 CSV spike, 9 migration, 2 health, 9 mapper, 7 persistence integration) |
+| Backend compile + tests | `.\mvnw.cmd -B test` (JDK 21) | 137 tests, 0 failures/errors (88 domain, 20 CSV spike, 9 migration, 2 health, 10 mapper, 8 persistence integration) |
 | PostgreSQL migration integration | `.\mvnw.cmd -B -Dtest=CoreSchemaMigrationTest test` (JDK 21, `postgres:16-alpine`) | 9 tests, 0 failures/errors against a real Testcontainer, including status/count and SHA-256 SQLSTATE assertions |
-| Persistence integration | `.\mvnw.cmd -B "-Dtest=PersistenceMapperTest,PersistenceIntegrationTest" test` (JDK 21, `postgres:16-alpine`) | 16 tests, 0 failures/errors; Flyway + Hibernate `validate` + repository round trips |
-| Backend full verify | `.\mvnw.cmd -B verify` | Passed, 134 tests green |
+| Persistence integration | `.\mvnw.cmd -B "-Dtest=PersistenceMapperTest,PersistenceIntegrationTest" test` (JDK 21, `postgres:16-alpine`) | 18 tests, 0 failures/errors; Flyway + Hibernate `validate` + repository round trips |
+| Backend full verify | `.\mvnw.cmd -B verify` | Passed, 137 tests green |
 | Packaged JAR config safety | `jar tf` on built JAR | Only `application.properties` packaged; no local profile |
 | Application startup + DB connection | `java -jar … --spring.profiles.active=local` | `/actuator/health` → `200`, status `UP` |
 | Actuator restriction | HTTP probes of `/actuator/env`, `/actuator/beans`, `/actuator/info` | All `404`; only health exposed |

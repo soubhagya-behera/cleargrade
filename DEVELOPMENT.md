@@ -79,9 +79,9 @@ Rules:
 
 | Intent | Command | Status |
 |---|---|---|
-| Backend compile + tests | `cd backend; .\mvnw.cmd -B test` | Runnable (134 tests) |
+| Backend compile + tests | `cd backend; .\mvnw.cmd -B test` | Runnable (137 tests) |
 | PostgreSQL migration integration tests | `cd backend; .\mvnw.cmd -B -Dtest=CoreSchemaMigrationTest test` | Runnable (Testcontainers `postgres:16-alpine`, Docker daemon required; 9 tests) |
-| Persistence integration tests | `cd backend; .\mvnw.cmd -B "-Dtest=PersistenceMapperTest,PersistenceIntegrationTest" test` | Runnable (16 tests; real Testcontainer, Flyway + Hibernate `validate`) |
+| Persistence integration tests | `cd backend; .\mvnw.cmd -B "-Dtest=PersistenceMapperTest,PersistenceIntegrationTest" test` | Runnable (18 tests; real Testcontainer, Flyway + Hibernate `validate`) |
 | Full backend verification | `cd backend; .\mvnw.cmd -B verify` | Runnable |
 | Frontend dependency install | `cd frontend; npm ci` | Runnable |
 | Frontend typecheck | `cd frontend; npm run typecheck` | Runnable |

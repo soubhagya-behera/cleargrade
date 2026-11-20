@@ -43,6 +43,17 @@ public final class DateOfBirth {
 		return new DateOfBirth(dateOfBirth);
 	}
 
+	/**
+	 * Reconstructs a date of birth that was already validated at the creation/import boundary.
+	 * Eligibility (I-03) is an input rule: a stored date does not become invalid as time passes.
+	 */
+	public static DateOfBirth fromPersisted(LocalDate value) {
+		if (value == null) {
+			throw new DomainValidationException("Date of birth is required");
+		}
+		return new DateOfBirth(value);
+	}
+
 	public LocalDate value() {
 		return this.value;
 	}

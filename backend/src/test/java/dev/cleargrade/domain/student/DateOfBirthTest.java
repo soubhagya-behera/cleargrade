@@ -76,6 +76,16 @@ class DateOfBirthTest {
 	}
 
 	@Test
+	void fromPersistedReconstructsWithoutReapplyingEligibility() {
+		Clock laterClock = Clock.fixed(Instant.parse("2027-11-20T00:00:00Z"), ZoneOffset.UTC);
+		LocalDate dateOfBirth = LocalDate.of(2001, 11, 19);
+
+		assertEquals(dateOfBirth, DateOfBirth.fromPersisted(dateOfBirth).value());
+		assertThrows(DomainValidationException.class, () -> DateOfBirth.of(dateOfBirth, laterClock));
+		assertThrows(DomainValidationException.class, () -> DateOfBirth.fromPersisted(null));
+	}
+
+	@Test
 	void rejectsNullInputs() {
 		assertThrows(DomainValidationException.class, () -> DateOfBirth.of(null, FIXED_CLOCK));
 		assertThrows(NullPointerException.class, () -> DateOfBirth.of(LocalDate.of(2001, 11, 19), null));

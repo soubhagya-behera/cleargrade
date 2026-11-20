@@ -39,6 +39,7 @@ import dev.cleargrade.adapters.out.persistence.mapper.StudentMapper;
 import dev.cleargrade.adapters.out.persistence.repository.ImportBatchRepository;
 import dev.cleargrade.adapters.out.persistence.repository.ImportRowErrorRepository;
 import dev.cleargrade.adapters.out.persistence.repository.StudentRepository;
+import dev.cleargrade.domain.DomainValidationException;
 import dev.cleargrade.domain.batch.ImportBatch;
 import dev.cleargrade.domain.batch.ImportCounts;
 import dev.cleargrade.domain.batch.ImportStatus;
@@ -179,10 +180,35 @@ class PersistenceIntegrationTest {
 		assertEquals(FINISHED, loaded.getUpdatedAt());
 		assertEquals(LocalDate.of(2001, 11, 19), loaded.getDateOfBirth());
 
-		Student domain = StudentMapper.toDomain(loaded, CLOCK);
+		Student domain = StudentMapper.toDomain(loaded);
 		assertEquals(student, domain);
 		assertEquals(precise, domain.marks().mark(Subject.MATHS));
 		assertEquals(precise.scale(), domain.marks().mark(Subject.MATHS).scale());
+	}
+
+	@Test
+	void persistedStudentLoadsAfterEnrollmentAgeHasPassed() {
+		Clock laterClock = Clock.fixed(Instant.parse("2027-11-20T00:00:00Z"), ZoneOffset.UTC);
+		LocalDate dateOfBirth = LocalDate.of(2001, 11, 19);
+		BigDecimal precise = new BigDecimal(PRECISE_MARK);
+		ImportBatchEntity batch = saveBatch(DIGEST, ImportStatus.RECEIVED, null);
+		Student student = new Student(
+				StudentId.of("stu-003"),
+				FullName.of("Test Student"),
+				EmailAddress.of("test@example.com"),
+				DateOfBirth.of(dateOfBirth, CLOCK),
+				GradeLevel.of(9),
+				Section.of('A'),
+				marks(precise));
+		this.studentRepository.saveAndFlush(
+				StudentMapper.toEntity(student, batch.getId(), batch.getId(), STARTED, FINISHED));
+
+		StudentEntity loaded = this.studentRepository.findByStudentId("STU-003").orElseThrow();
+		Student reconstructed = StudentMapper.toDomain(loaded);
+
+		assertEquals(dateOfBirth, reconstructed.dateOfBirth().value());
+		assertEquals(precise, reconstructed.marks().mark(Subject.MATHS));
+		assertThrows(DomainValidationException.class, () -> DateOfBirth.of(dateOfBirth, laterClock));
 	}
 
 	@Test

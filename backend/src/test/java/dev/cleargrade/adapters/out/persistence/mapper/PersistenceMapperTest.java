@@ -16,6 +16,7 @@ import org.junit.jupiter.api.Test;
 import dev.cleargrade.adapters.out.persistence.entity.ImportBatchEntity;
 import dev.cleargrade.adapters.out.persistence.entity.ImportRowErrorEntity;
 import dev.cleargrade.adapters.out.persistence.entity.StudentEntity;
+import dev.cleargrade.domain.DomainValidationException;
 import dev.cleargrade.domain.batch.ImportBatch;
 import dev.cleargrade.domain.batch.ImportCounts;
 import dev.cleargrade.domain.batch.ImportStatus;
@@ -114,7 +115,7 @@ class PersistenceMapperTest {
 		BigDecimal precise = new BigDecimal(PRECISE_MARK);
 		StudentEntity entity = studentEntity("Zoë O'Connor", precise);
 
-		Student domain = StudentMapper.toDomain(entity, CLOCK);
+		Student domain = StudentMapper.toDomain(entity);
 
 		assertEquals("STU-001", domain.studentId().value());
 		assertEquals("Zoë O'Connor", domain.fullName().value());
@@ -175,6 +176,22 @@ class PersistenceMapperTest {
 		assertEquals("maths", entity.getFieldName());
 		assertEquals(RowErrorCode.INVALID_FORMAT, entity.getErrorCode());
 		assertEquals("not a number", entity.getMessage());
+	}
+
+	@Test
+	void persistedStudentCanBeReconstructedAfterEligibilityAgeHasPassed() {
+		Clock laterClock = Clock.fixed(Instant.parse("2027-11-20T00:00:00Z"), ZoneOffset.UTC);
+		LocalDate dateOfBirth = LocalDate.of(2001, 11, 19);
+		BigDecimal precise = new BigDecimal(PRECISE_MARK);
+		Student student = student(precise);
+		StudentEntity persisted = StudentMapper.toEntity(student, 11L, 12L,
+				Instant.parse("2026-11-19T10:00:00Z"), Instant.parse("2026-11-19T11:00:00Z"));
+
+		Student reconstructed = StudentMapper.toDomain(persisted);
+
+		assertEquals(dateOfBirth, reconstructed.dateOfBirth().value());
+		assertEquals(precise, reconstructed.marks().mark(Subject.MATHS));
+		assertThrows(DomainValidationException.class, () -> DateOfBirth.of(dateOfBirth, laterClock));
 	}
 
 	private static ImportBatchEntity batchEntity(ImportStatus status, ImportCounts counts) {
