@@ -5,12 +5,19 @@ import { ImportPage } from './ImportPage';
 import { renderWithProviders } from '../../test/render';
 import type { ImportResponse, Page, RowError } from '../../types/api';
 
+vi.mock('../../api/ai', () => ({
+  aiKeys: { status: () => ['ai', 'status'], insights: (id: number) => ['ai', 'insights', id] },
+  getAiStatus: vi.fn(),
+  postInsights: vi.fn(),
+}));
+
 vi.mock('../../api/imports', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../../api/imports')>();
   return { ...actual, uploadCsv: vi.fn(), getBatch: vi.fn(), getBatchErrors: vi.fn() };
 });
 
 const { uploadCsv, getBatchErrors } = await import('../../api/imports');
+const { getAiStatus } = await import('../../api/ai');
 
 const batch: ImportResponse = {
   id: 7, filename: 'marks.csv', status: 'COMPLETED', rowsRead: 25, imported: 16,
@@ -28,6 +35,12 @@ beforeEach(() => {
   vi.mocked(uploadCsv).mockReset();
   vi.mocked(getBatchErrors).mockReset();
   vi.mocked(getBatchErrors).mockResolvedValue(errors);
+  vi.mocked(getAiStatus).mockReset();
+  vi.mocked(getAiStatus).mockResolvedValue({
+    enabled: true, geminiConfigured: false, geminiAvailable: false, geminiModel: '', ollamaConfigured: false,
+    ollamaAvailable: false, ollamaModel: '', deterministicAvailable: true,
+    defaultEngine: 'RULE_BASED', routing: 'RULE_BASED_ONLY', routingReasons: [],
+  });
 });
 
 describe('ImportPage', () => {

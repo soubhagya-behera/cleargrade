@@ -18,6 +18,7 @@ export class ApiError extends Error {
 
 export interface ApiClient {
   get<T>(path: string, params?: Record<string, string | number | undefined>, signal?: AbortSignal): Promise<T>;
+  post<T>(path: string, body?: unknown, signal?: AbortSignal): Promise<T>;
   upload<T>(path: string, file: File, signal?: AbortSignal): Promise<T>;
 }
 
@@ -56,6 +57,13 @@ export function createApiClient(baseUrl: string = import.meta.env.VITE_API_BASE_
       });
       const suffix = query.toString();
       return request<T>(`${path}${suffix ? `?${suffix}` : ''}`, { method: 'GET' }, signal);
+    },
+    post<T>(path: string, body?: unknown, signal?: AbortSignal) {
+      return request<T>(path, {
+        method: 'POST',
+        headers: body === undefined ? undefined : { 'Content-Type': 'application/json' },
+        body: body === undefined ? undefined : JSON.stringify(body),
+      }, signal);
     },
     upload<T>(path: string, file: File, signal?: AbortSignal) {
       const form = new FormData();

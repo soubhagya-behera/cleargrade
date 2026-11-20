@@ -1,6 +1,8 @@
 package dev.cleargrade.adapters.out.persistence;
 
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
 import dev.cleargrade.application.model.PageResult;
 import dev.cleargrade.application.model.RowErrorView;
@@ -20,6 +22,8 @@ public class ImportRowErrorPersistenceAdapter implements ImportRowErrorOutputPor
 	private static final String SELECT_PAGE_SQL = "SELECT line_number, raw_student_id, field_name, error_code, message "
 			+ "FROM import_row_error WHERE batch_id = ? ";
 	private static final String COUNT_SQL = "SELECT COUNT(*) FROM import_row_error WHERE batch_id = ? ";
+	private static final String COUNT_BY_CODE_SQL =
+			"SELECT error_code, COUNT(*) AS total FROM import_row_error WHERE batch_id = ? GROUP BY error_code";
 
 	private final JdbcTemplate jdbc;
 
@@ -59,5 +63,14 @@ public class ImportRowErrorPersistenceAdapter implements ImportRowErrorOutputPor
 		Object[] countArgs = code == null ? new Object[] { batchId } : new Object[] { batchId, code };
 		Long total = this.jdbc.queryForObject(COUNT_SQL + filter, Long.class, countArgs);
 		return PageResult.of(content, page, size, total == null ? 0 : total);
+	}
+
+	@Override
+	public Map<String, Integer> countByCode(long batchId) {
+		Map<String, Integer> counts = new LinkedHashMap<>();
+		this.jdbc.query(COUNT_BY_CODE_SQL, row -> {
+			counts.put(row.getString("error_code"), row.getInt("total"));
+		}, batchId);
+		return counts;
 	}
 }

@@ -204,3 +204,32 @@ Parsing behaviour (derived from `reference/README.md` and the C-4 spike fixtures
 - Duplicate IDs use the domain `StudentId` normalization: the first valid occurrence reserves the ID even when that row is rejected for other reasons; later occurrences get `DUPLICATE_ID` (I-02). Complete error lists yield one persisted `import_row_error` row per occurrence (D-10), each pinned to the physical starting line.
 
 All six C-4 limitations remain carried forward: (1) unterminated quotes are file-level failures; (2) comment markers stay disabled; (3) `read(Path)`/byte input strips the BOM before mapping; (4) string-based callers must strip a BOM first; (5) offsets are UTF-16 code units built from the same decoded source; (6) field-count consistency is computed against the configured/parsed header, not `isConsistent()`.
+
+## 12. ClearGrade Intelligence (post-release, implemented)
+
+The optional analysis feature keeps the same inward dependency rule. `application.port.out.ImportInsightProvider`
+is the outbound boundary; `application.service.InsightProviderRouter` owns provider order (Gemini → Ollama →
+`DeterministicInsightService`) and failure categories; `ImportQualityContextBuilder` produces the single
+privacy-safe aggregate DTO; `ImportInsightService` guards batch status, coalesces concurrent requests and owns a
+bounded TTL/LRU cache. Provider HTTP code, prompt construction and response parsing live only in
+`adapters.out.ai` (`gemini/`, `ollama/`), never in `application` or `domain`. No AI SDK, framework or agent
+runtime is added; plain Java `HttpClient` is used.
+
+```mermaid
+flowchart TD
+    UI[Intelligence panel] -->|POST insights| Web[AiController]
+    Web --> Svc[ImportInsightService: guard, cache, coalesce]
+    Svc --> Ctx[ImportQualityContextBuilder: aggregates only]
+    Svc --> Router[InsightProviderRouter]
+    Router --> G[Gemini Interactions adapter]
+    Router --> O[Ollama chat adapter]
+    Router --> R[Deterministic Java engine]
+    G --> V[Strict JSON validation]
+    O --> V
+    R --> Resp[Labelled advisory report]
+    V --> Resp
+```
+
+The router never calls both cloud and local providers concurrently and never mutates import state. The
+deterministic engine is always available unless explicitly disabled, so a no-key/no-Ollama install still
+returns a labelled `RULE_BASED` report. Details: [AI_INTELLIGENCE.md](AI_INTELLIGENCE.md).

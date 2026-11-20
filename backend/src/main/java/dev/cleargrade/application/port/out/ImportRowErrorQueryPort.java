@@ -1,5 +1,7 @@
 package dev.cleargrade.application.port.out;
 
+import java.util.Map;
+
 import dev.cleargrade.application.model.PageResult;
 import dev.cleargrade.application.model.RowErrorView;
 
@@ -7,4 +9,6 @@ import dev.cleargrade.application.model.RowErrorView;
 public interface ImportRowErrorQueryPort {
 
 	PageResult<RowErrorView> findErrors(long batchId, int page, int size, String code);
+
+	Map<String, Integer> countByCode(long batchId);
 }

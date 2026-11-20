@@ -11,6 +11,10 @@ import dev.cleargrade.application.exception.DigestConflictException;
 import dev.cleargrade.application.exception.FileTooLargeException;
 import dev.cleargrade.application.exception.InvalidEncodingException;
 import dev.cleargrade.application.exception.InvalidFileTypeException;
+import dev.cleargrade.application.exception.InsightBatchNotCompletedException;
+import dev.cleargrade.application.exception.InsightCooldownException;
+import dev.cleargrade.application.exception.InsightProviderException;
+import dev.cleargrade.application.exception.InsightUnavailableException;
 import dev.cleargrade.application.exception.InvalidParameterException;
 import dev.cleargrade.application.exception.StudentNotFoundException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -85,6 +89,33 @@ public class GlobalExceptionHandler {
 	@ExceptionHandler(StudentNotFoundException.class)
 	public ResponseEntity<ErrorResponse> studentNotFound(StudentNotFoundException error, HttpServletRequest request) {
 		return response(HttpStatus.NOT_FOUND, "STUDENT_NOT_FOUND", error.getMessage(), List.of(), request);
+	}
+
+	@ExceptionHandler(InsightBatchNotCompletedException.class)
+	public ResponseEntity<ErrorResponse> batchNotCompleted(InsightBatchNotCompletedException error,
+			HttpServletRequest request) {
+		return response(HttpStatus.CONFLICT, "BATCH_NOT_COMPLETED", error.getMessage(), List.of(), request);
+	}
+
+	@ExceptionHandler(InsightCooldownException.class)
+	public ResponseEntity<ErrorResponse> cooldown(InsightCooldownException error, HttpServletRequest request) {
+		return response(HttpStatus.TOO_MANY_REQUESTS, "ANALYSIS_COOLDOWN", error.getMessage(), List.of(), request);
+	}
+
+	@ExceptionHandler(InsightUnavailableException.class)
+	public ResponseEntity<ErrorResponse> insightUnavailable(InsightUnavailableException error,
+			HttpServletRequest request) {
+		return response(HttpStatus.SERVICE_UNAVAILABLE, "ANALYSIS_UNAVAILABLE", error.getMessage(), List.of(), request);
+	}
+
+	@ExceptionHandler(InsightProviderException.class)
+	public ResponseEntity<ErrorResponse> providerFailure(InsightProviderException error, HttpServletRequest request) {
+		if (error.category() == InsightProviderException.Category.CONFIGURATION) {
+			return response(HttpStatus.SERVICE_UNAVAILABLE, "AI_CONFIGURATION_ERROR", error.getMessage(),
+					List.of(), request);
+		}
+		return response(HttpStatus.BAD_GATEWAY, "ANALYSIS_PROVIDER_FAILED",
+				"No analysis provider could produce a usable result", List.of(), request);
 	}
 
 	@ExceptionHandler(Exception.class)

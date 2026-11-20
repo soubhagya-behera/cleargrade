@@ -5,6 +5,7 @@ import { getBatch, getBatchErrors, importKeys, uploadCsv } from '../../api/impor
 import { DataQualitySummary } from '../../components/ui/DataQualitySummary';
 import { ErrorState } from '../../components/ui/States';
 import { FileDropzone } from '../../components/ui/FileDropzone';
+import { IntelligencePanel } from '../../components/ui/IntelligencePanel';
 import { Pagination } from '../../components/ui/Pagination';
 import { ProblemTable } from '../../components/ui/ProblemTable';
 import { StatCard } from '../../components/ui/StatCard';
@@ -174,6 +175,8 @@ export function ImportPage() {
               />
             )}
           </section>
+
+          {result.status === 'COMPLETED' && <IntelligencePanel batchId={result.id} />}
         </div>
       )}
     </section>

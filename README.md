@@ -2,13 +2,14 @@
 
 **Student Results & Data Quality Portal** — upload a messy results CSV, import the valid rows, and see a plain-language explanation for every rejected row.
 
-> **Release status:** Phases 0–7 complete. Backend, REST API and the three-screen React app are implemented and tested; Docker Compose runs the full stack; seed data is imported through the real HTTP API. No authentication is implemented — see [Security and trust boundary](#security-and-trust-boundary).
+> **Release status:** Phases 0–7 remain complete and their history is unchanged. This branch adds the post-release **ClearGrade Intelligence** enhancement (AI Data Quality Copilot) on `feat/cleargrade-intelligence`. Backend, REST API and the React app are implemented and tested; Docker Compose runs the full stack. No authentication is implemented — see [Security and trust boundary](#security-and-trust-boundary).
 
 ## Contents
 
 - [Product overview](#product-overview)
 - [Screenshots](#screenshots)
 - [Features](#features)
+- [ClearGrade Intelligence](#cleargrade-intelligence)
 - [Architecture and tech stack](#architecture-and-tech-stack)
 - [Prerequisites](#prerequisites)
 - [One-command startup](#one-command-startup)
@@ -54,8 +55,32 @@ No screenshot images are committed; the above placeholders are intentionally exp
 - **Idempotency and concurrency** — partial unique index on active SHA-256 digests; `200` completed replay, `409` active digest, retry after `FAILED`, real PostgreSQL concurrency coverage.
 - **REST API** — multipart upload, batch summary, paginated row errors, paginated student directory with filters/sort, student report, consistent error envelope.
 - **Frontend** — TanStack Query state, file dropzone, upload/completion/failure states, per-code problem breakdown, physical-line problem table, batch-ID lookup, searchable directory with filters and pagination, report with derived grade and PASS/FAIL.
+- **ClearGrade Intelligence** — explicit-trigger, aggregate-only import analysis with Gemini → Ollama → deterministic routing, strict structured-output validation, bounded caching, and a separated measured-facts/interpretation/advice UI.
 
 Bonus features (error-CSV download, mark bars, print report) are deferred per D-17.
+
+## ClearGrade Intelligence
+
+A signature, advisory-only analysis panel appears on a completed import result. It is **not** a chatbot and
+never changes student data. The provider route is **Gemini Cloud AI → Ollama Local AI → deterministic Java
+rule engine**, with the actual engine labelled on every report.
+
+- Default model: `gemini-3.8-flash` (configurable via `GEMINI_MODEL`). Gemini 2.5 Flash is not the default.
+- Gemini uses the stateless Interactions REST API with `x-goog-api-key`, `store=false` and a strict JSON
+  schema; there are no automatic POST retries.
+- Ollama is optional and verified via `/api/tags`; a configured URL alone is not treated as availability.
+  No model is downloaded at startup or during image builds.
+- Providers receive **only aggregates**: counts, backend-calculated percentages/ratios, five error-code
+  counts, `allowedEvidenceValues` and static schema metadata. No names, IDs, emails, dates of birth, marks,
+  raw rows, messages or physical lines are sent. `store=false` does not remove all provider processing or
+  retention obligations; provider terms and free-vs-paid tier differences still apply.
+- An offline/no-key install still starts, imports and analyses via the rule engine labelled
+  `RULE_BASED` — never presented as AI-generated.
+- Analysis is explicit, cached with TTL/LRU bounds and coalesced per batch/context; import never calls a
+  provider. `CLEARGRADE_AI_ENABLED=false` disables both AI providers while leaving rule-based analysis.
+
+Full configuration, Ollama setup (Windows/macOS/Linux and Docker host access), privacy contract, provider
+terms guidance, fallback matrix and cost controls: [docs/AI_INTELLIGENCE.md](docs/AI_INTELLIGENCE.md).
 
 ## Architecture and tech stack
 
@@ -67,7 +92,8 @@ Modular monolith; dependencies point inward (`adapters → application → domai
 | Persistence | PostgreSQL 16, Flyway (`ddl-auto=validate`), Spring Data JPA + JdbcTemplate adapters |
 | CSV | Apache Commons CSV 1.14.1 with explicit format and BOM-aware input |
 | Frontend | React 19, TypeScript 5.9 (strict), Vite 7, Tailwind CSS 4, React Router 7, TanStack Query 5, Lucide React |
-| Tests | JUnit 5, Mockito, MockMvc, Testcontainers PostgreSQL; Vitest + Testing Library |
+| AI copilot | Application-owned provider port/router; Java `HttpClient` adapters for Gemini Interactions and Ollama chat; deterministic Java rule engine; no AI framework dependency |
+| Tests | JUnit 5, Mockito, MockMvc, Testcontainers PostgreSQL, localhost mock HTTP servers; Vitest + Testing Library |
 | Delivery | Multi-stage Dockerfiles, nginx unprivileged static host, Docker Compose v2 |
 
 The SPA and API are served from one origin in containers: nginx proxies `/api` and `/actuator/health` to the backend. Actuator exposes **health only** and is never under `/api`.
@@ -124,6 +150,16 @@ Copy `.env.example` to `.env` (git-ignored). Placeholders only are committed.
 | `APP_PORT` | `8080` | Host port for backend API/health |
 | `FRONTEND_PORT` | `3000` | Host port for the SPA |
 | `CLEARGRADE_UPLOAD_MAX_FILE_SIZE` | `10485760` | Upload cap in bytes (10 MiB); also drives Spring multipart limits |
+| `GEMINI_API_KEY` | *(blank)* | Optional Gemini key. Reuse an existing local value in the ignored `.env`; never commit or expose it |
+| `GEMINI_MODEL` | `gemini-3.8-flash` | Supported Gemini model; no 2.5 Flash default |
+| `GEMINI_ENDPOINT` | official Interactions URL | Override only for testing/proxying |
+| `GEMINI_TIMEOUT_READ_MS` | `60000` | Provider response timeout (connect is 10 s) |
+| `OLLAMA_BASE_URL` | *(blank)* | Optional local Ollama URL, e.g. `http://localhost:11434` |
+| `OLLAMA_MODEL` | *(blank)* | Model that must already be installed |
+| `OLLAMA_TIMEOUT_READ_MS` | `60000` | Ollama response timeout |
+| `CLEARGRADE_AI_ENABLED` | `true` | Set `false` to disable both AI providers |
+| `CLEARGRADE_AI_DETERMINISTIC_ENABLED` | `true` | Set `false` only if analysis should be unavailable without AI |
+| `CLEARGRADE_AI_COOLDOWN_SECONDS` | `0` | Optional per-batch analysis cooldown |
 
 For IDE-local runs without Docker, use the external profile described in [DEVELOPMENT.md](DEVELOPMENT.md) (`backend/config/application-local.properties`, git-ignored and outside Maven resources).
 
@@ -159,6 +195,8 @@ Note: dates of birth in the seed are 2010; age validation uses the real clock, s
 | GET | `/api/imports/{id}/errors?page&size&code` | Paged row problems (default size 50, max 100) |
 | GET | `/api/students?query&grade&section&page&size&sort` | Paged directory (default size 25, max 100) |
 | GET | `/api/students/{studentId}` | Student report with derived grading |
+| GET | `/api/ai/status` | Safe provider availability/routing status (no secrets) |
+| POST | `/api/imports/{id}/insights` | Explicit aggregate analysis (`200`; `404/409/429/502/503` failures) |
 | GET | `/actuator/health` | Health (outside `/api`; health only) |
 
 Full request/response examples, the error envelope and pagination contract are in [API_CONTRACT.md](docs/API_CONTRACT.md).
@@ -178,20 +216,20 @@ bash scripts/test.sh
 Individual commands:
 
 ```powershell
-cd backend; .\mvnw.cmd -B test
+cd backend; .\mvnw.cmd -B "-Dtest=ProviderHttpTest,PrivacyContractTest,InsightResponseParserTest,DeterministicInsightServiceTest,InsightProviderRouterTest,ImportInsightServiceTest,AiEndpointWebTest,AiControllerTest" test
 cd backend; .\mvnw.cmd -B verify
 cd frontend; npm ci; npm test; npm run typecheck; npm run build
 docker compose config --quiet
 git diff --check
 ```
 
-Current evidence: **206 backend tests** and **14 frontend tests**, zero failures/errors/skips.
+Current evidence: **257 backend tests** (1 opt-in live Gemini smoke test skipped without a key) and **26 frontend tests**, zero failures/errors. The original 206 backend and 14 frontend tests remain green and unchanged in scope. `./mvnw -B verify` and the frontend production build pass.
 
 ## Project structure
 
 ```text
-backend/    Java 21 Spring Boot modular monolith (domain, application, adapters.in.web/csv, adapters.out.persistence)
-frontend/   React + TypeScript SPA (api client, types, reusable components, three feature pages)
+backend/    Java 21 Spring Boot modular monolith (domain, application, adapters.in.web/csv, adapters.out.persistence/ai)
+frontend/   React + TypeScript SPA (api client, types, reusable components, three feature pages + Intelligence panel)
 scripts/    One-command startup, release checks, HTTP seed workflow and PII-free seed CSVs
 docs/       Architecture, data model, API, UX, security and test strategy
 reference/  Supplied assignment pack (git-ignored; never committed)
@@ -201,7 +239,7 @@ reference/  Supplied assignment pack (git-ignored; never committed)
 
 **There is no authentication or multi-tenancy.** This application is intended for **local/trusted evaluation only** and must not be publicly exposed without an authentication layer and network controls. Do not describe it as a secure multi-tenant SaaS.
 
-Controls that do exist: configurable 10 MiB server-side upload cap enforced by both Spring multipart settings and the controller, strict UTF-8 check, `.csv` extension/content-type validation, sanitised display filename, bounded pagination and sort allowlists, DTO-only responses (no JPA entity exposure), safe error messages, no raw CSV/PII logging, health-only Actuator, PostgreSQL bound to `127.0.0.1` for local development, non-root container users, and build contexts that exclude `.env` and local profiles. See [SECURITY.md](docs/SECURITY.md) and the audit section of [NOTES.md](NOTES.md).
+Controls that do exist: configurable 10 MiB server-side upload cap enforced by both Spring multipart settings and the controller, strict UTF-8 check, `.csv` extension/content-type validation, sanitised display filename, bounded pagination and sort allowlists, DTO-only responses (no JPA entity exposure), safe error messages, no raw CSV/PII logging, health-only Actuator, PostgreSQL bound to `127.0.0.1` for local development, non-root container users, and build contexts that exclude `.env` and local profiles. The AI feature is read-only and aggregate-only: the provider key stays server-side, is never returned by `/api/ai/status`, and no provider can change data. See [SECURITY.md](docs/SECURITY.md) and [docs/AI_INTELLIGENCE.md](docs/AI_INTELLIGENCE.md).
 
 ## Limitations
 

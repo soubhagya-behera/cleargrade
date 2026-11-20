@@ -14,6 +14,8 @@ Status: **Implemented 2026-11-20 (G4→G5).** Numeric values in examples are ill
 | GET | `/api/imports/{id}/errors.csv` | Download error report (**bonus, deferred** — D-17) | `200 text/csv` | `404` |
 | GET | `/api/students?query&grade&section&page&size&sort` | Paged directory | `200` | `400` |
 | GET | `/api/students/{studentId}` | Student report | `200` | `404` |
+| GET | `/api/ai/status` | Safe provider availability/routing snapshot | `200` | — |
+| POST | `/api/imports/{id}/insights` | Explicit aggregate analysis (no request body) | `200` | `404`, `409`, `429`, `502`, `503` |
 
 ### Management endpoints — **not** under `/api` (T-5)
 
@@ -183,3 +185,69 @@ Row-level duplicates are reported only through `DUPLICATE_ID` in `import_row_err
 All responses use UTF-8. Dates are ISO-8601 (`YYYY-MM-DD`); timestamps are UTC ISO-8601. CORS restricted to the app origin. Error bodies never include secrets or logged PII bodies (SECURITY.md §5).
 
 Implementation notes (G4→G5): the configurable limit is `cleargrade.upload.max-file-size` (default `10485760` bytes = 10 MiB); it drives both `spring.servlet.multipart.max-file-size`/`max-request-size` and a controller-side guard. Non-UTF-8 payloads are rejected before parsing. `page` is 0-based; `size` is 1–100 (defaults 50 for row errors, 25 for students). `sort` accepts only `studentId`, `fullName`, `gradeLevel` or `section` with `asc|desc`. Duplicate COMPLETED digests return `200` with `deduplicated: true`; active digests return `409 BATCH_PROCESSING`. No authentication is implemented (U-03): deployment is local/trusted only.
+
+## 10. ClearGrade Intelligence (post-release)
+
+`GET /api/ai/status` returns `enabled`, `geminiConfigured`, `geminiAvailable`, `geminiModel`, `ollamaConfigured`,
+`ollamaAvailable`, `ollamaModel`, `deterministicAvailable`, `defaultEngine` (`GEMINI|OLLAMA|RULE_BASED`),
+`routing` and safe `routingReasons`. It never contains a key, endpoint, provider body or credential.
+
+`POST /api/imports/{id}/insights` has **no request body** and never persists a report. It requires a completed
+batch, reads batch counters and persisted error-occurrence counts, builds the aggregate privacy context and
+routes it through Gemini → Ollama → deterministic rules. Example response (illustrative):
+
+```json
+{
+  "batchId": 12,
+  "engine": "OLLAMA",
+  "engineModel": "llama3.2",
+  "fallbackReason": "GEMINI_UNAVAILABLE",
+  "cached": false,
+  "measured": {
+    "rowsRead": 1000,
+    "importedCount": 952,
+    "rejectedCount": 48,
+    "newCount": 940,
+    "changedCount": 8,
+    "unchangedCount": 4,
+    "errorCount": 61,
+    "importedPercentage": "95.2",
+    "rejectedPercentage": "4.8",
+    "errorsPerRejectedRow": "1.27",
+    "errorCountsByCode": {
+      "MISSING_REQUIRED": 20, "INVALID_FORMAT": 15, "OUT_OF_RANGE": 10,
+      "DUPLICATE_ID": 10, "WRONG_FIELD_COUNT": 6
+    },
+    "schemaColumns": ["student_id", "full_name", "email", "date_of_birth", "grade_level", "section",
+      "maths", "science", "english", "social_studies", "second_language"]
+  },
+  "summary": "Most rows imported cleanly; rejected rows cluster around identifier checks.",
+  "overallAssessment": "Aggregate evidence points to source-export formatting issues.",
+  "findings": [{
+    "title": "Duplicate student identifiers",
+    "severity": "MEDIUM",
+    "evidenceMetric": "DUPLICATE_ID_COUNT",
+    "evidenceValue": "10",
+    "explanation": "Ten later occurrences of an existing identifier were rejected.",
+    "recommendedAction": "De-duplicate the source export."
+  }],
+  "recommendedActions": ["De-duplicate the source export."],
+  "limitations": "Aggregate counters only; row content was not inspected by the provider.",
+  "advisoryOnly": true
+}
+```
+
+`measured` is always Java-measured; `summary`/`findings` are the selected engine's interpretation;
+`recommendedActions` are advisory. `engine` names the actual generator. `fallbackReason` is a safe category or
+`null`. `cached` distinguishes cache hits from fresh analysis.
+
+| Code | HTTP | Meaning |
+|---|---|---|
+| `BATCH_NOT_FOUND` | 404 | Unknown batch id |
+| `BATCH_NOT_COMPLETED` | 409 | Batch has not reached `COMPLETED` |
+| `ANALYSIS_COOLDOWN` | 429 | Optional per-batch cooldown is active |
+| `ANALYSIS_PROVIDER_FAILED` | 502 | All configured external providers failed and no safe fallback was available |
+| `AI_CONFIGURATION_ERROR` | 503 | Provider authentication/configuration error (never falls back) |
+| `ANALYSIS_UNAVAILABLE` | 503 | No analysis engine is available (both AI providers and deterministic engine disabled) |
+
+Full routing, privacy and provider-term details: [AI_INTELLIGENCE.md](AI_INTELLIGENCE.md).

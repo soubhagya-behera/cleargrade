@@ -106,3 +106,38 @@ Toolchain: JDK `21.0.10` (installed at `C:\Program Files\Java\jdk-21.0.10`, sele
 ## 7. Scope notes
 
 Current-result snapshot only (no term/year invented, D-11). Benchmark numbers are regression fixtures, never application logic (D-12). `NOTES.md` is delivered as the final handover note. No supplied sample CSV data or PDF content is reproduced; the only committed CSV fixtures are deterministic synthetic seed data with no PII. Domain rules, V1 schema, JPA adapters, application ports/T1–T4 services, the production CSV adapter, import use case, REST API, real-data frontend, Docker/Compose delivery and HTTP seeding are implemented. No batch-list endpoint is documented, so the UI offers batch-id lookup plus the current session result rather than a fabricated history. Real credentials are not committed. The six C-4 limitations remain carried forward unchanged: file-level unterminated quotes, disabled comment markers, `read(Path)` BOM stripping, caller-side BOM stripping for string input, UTF-16 offset semantics and explicit header-width consistency (no `isConsistent()` reliance).
+
+## 8. Post-release enhancement — ClearGrade Intelligence (2026-11-20)
+
+The eight phases above remain complete and unchanged. This section records the new work only.
+
+| Requirement | Status | Evidence |
+|---|---|---|
+| Provider-independent architecture | Complete | `application/port/out/ImportInsightProvider`, `ImportInsightService`, `InsightProviderRouter`, `ImportQualityContextBuilder`, `DeterministicInsightService`; Gemini/Ollama wire code only in `adapters/out/ai/*`; no AI framework dependency |
+| Gemini primary | Complete | Interactions REST `POST /v1beta/interactions`, `x-goog-api-key`, `store=false`, explicit JSON schema, `Api-Revision: 2026-05-20`, 10 s connect / configurable read timeout, no POST retries/history; default `gemini-3.8-flash` via `GEMINI_MODEL` |
+| Ollama fallback | Complete | Native `/api/chat`, `stream=false`, `format` JSON schema, `/api/tags` availability verification, optional Compose/runtime config, no startup or image model download |
+| Routing and fallback | Complete | Quota/5xx/timeout/connection/unusable output → Ollama → rule engine; auth/malformed configuration remains a controlled `503`; safe reason categories and engine labels; no simultaneous provider calls |
+| Deterministic engine | Complete | Offline Java thresholds across total/imported/rejected/new/changed/unchanged rows, five error codes, errors per rejected row, duplicate share; evidence-valued findings; reproducible output; never labelled AI |
+| Privacy contract | Complete | Aggregate DTO only; PII sentinel tests capture real outbound payloads for both providers; blocked output markers; provider terms and `store=false` limits documented |
+| Validation and separation | Complete | Strict JSON schema, allowlisted metrics, exact backend evidence values, bounded text/arrays, unknown-field rejection; measured facts separate from interpretation/advice |
+| Cost control | Complete | Explicit CTA only, bounded TTL/LRU cache, context+model key, coalescing, optional cooldown, fresh/cached indicator, no insight table or migration |
+| Endpoints | Complete | `GET /api/ai/status`, `POST /api/imports/{batchId}/insights` with `200/404/409/429/502/503` mapping and safe error envelope |
+| Premium UI | Complete | Intelligence panel on completed imports: provider status, privacy disclosure, CTA, loading/error/retry, measured metrics, severity grouping, separated evidence, engine label, cache indicator, advisory disclaimer, offline state; UX_SPEC tokens |
+| Configuration and docs | Complete | Optional env vars in `.env.example`, Compose and local profile; README, NOTES, PROJECT_STATUS, API_CONTRACT, ARCHITECTURE, UX_SPEC, SECURITY, TEST_STRATEGY and [AI_INTELLIGENCE.md](docs/AI_INTELLIGENCE.md) updated |
+| Tests | Complete | Mock HTTP protocol/PII tests, routing/fallback, validation, cache/coalescing, deterministic engine, MockMvc status/error mapping, Testcontainers aggregate query, opt-in live Gemini smoke test; frontend provider/engine/state tests |
+
+Enhancement verification (JDK 21, no `GEMINI_API_KEY`, no Ollama installed):
+
+| Check | Command | Result |
+|---|---|---|
+| Focused AI suite | `.\mvnw.cmd -B "-Dtest=ProviderHttpTest,PrivacyContractTest,InsightResponseParserTest,DeterministicInsightServiceTest,InsightProviderRouterTest,ImportInsightServiceTest,AiEndpointWebTest,AiControllerTest,LiveGeminiSmokeTest" test` | 49 tests, 0 failures/errors, 1 opt-in live smoke skipped |
+| Backend complete suite | `.\mvnw.cmd -B test` | 257 tests, 0 failures/errors, 1 skipped; Testcontainers PostgreSQL green |
+| Backend verify | `.\mvnw.cmd -B verify` | Build success, JAR packaged, 257 tests green |
+| Frontend | `npm test`, `npm run typecheck`, `npm run build` | 26 tests green; typecheck and Vite production build pass |
+| Compose config | `docker compose config --quiet` | Passed with optional AI env vars empty |
+| Whitespace | `git diff --check` | No whitespace errors |
+
+Enhancement milestone completion: **100% of the specified enhancement scope**. Authentication remains absent by
+design; deployment stays local/trusted. No key, Ollama installation or live AI call is required for CI or normal
+imports. Final command evidence, branch and commit SHA are recorded in the handover report and the single local
+commit on `feat/cleargrade-intelligence`.

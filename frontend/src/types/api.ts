@@ -64,6 +64,62 @@ export interface StudentReport extends StudentSummary {
   passed: boolean;
 }
 
+export type InsightEngine = 'GEMINI' | 'OLLAMA' | 'RULE_BASED';
+export type InsightSeverity = 'INFO' | 'LOW' | 'MEDIUM' | 'HIGH';
+
+export interface AiStatusResponse {
+  enabled: boolean;
+  geminiConfigured: boolean;
+  geminiAvailable: boolean;
+  geminiModel: string;
+  ollamaConfigured: boolean;
+  ollamaAvailable: boolean;
+  ollamaModel: string;
+  deterministicAvailable: boolean;
+  defaultEngine: InsightEngine;
+  routing: string;
+  routingReasons: string[];
+}
+
+export interface InsightFindingResponse {
+  title: string;
+  severity: InsightSeverity;
+  evidenceMetric: string;
+  evidenceValue: string;
+  explanation: string;
+  recommendedAction: string;
+}
+
+export interface MeasuredMetricsResponse {
+  rowsRead: number;
+  importedCount: number;
+  rejectedCount: number;
+  newCount: number;
+  changedCount: number;
+  unchangedCount: number;
+  errorCount: number;
+  importedPercentage: string;
+  rejectedPercentage: string;
+  errorsPerRejectedRow: string;
+  errorCountsByCode: Record<string, number>;
+  schemaColumns: string[];
+}
+
+export interface InsightResponse {
+  batchId: number;
+  engine: InsightEngine;
+  engineModel: string;
+  fallbackReason: string | null;
+  cached: boolean;
+  measured: MeasuredMetricsResponse;
+  summary: string;
+  overallAssessment: string;
+  findings: InsightFindingResponse[];
+  recommendedActions: string[];
+  limitations: string;
+  advisoryOnly: boolean;
+}
+
 export interface ApiErrorBody {
   timestamp: string;
   status: number;
