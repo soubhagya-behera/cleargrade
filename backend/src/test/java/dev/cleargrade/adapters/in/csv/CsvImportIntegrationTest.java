@@ -3,11 +3,13 @@ package dev.cleargrade.adapters.in.csv;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
+import java.time.Clock;
 import java.time.Instant;
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
@@ -22,8 +24,14 @@ import dev.cleargrade.application.exception.CsvImportException;
 import dev.cleargrade.application.exception.DigestConflictException;
 import dev.cleargrade.application.model.BatchImportResult;
 import dev.cleargrade.application.model.BatchReservation;
+import dev.cleargrade.application.port.in.CsvFileParser;
+import dev.cleargrade.application.port.out.ImportBatchOutputPort;
+import dev.cleargrade.application.service.BatchDigestLookupTx;
 import dev.cleargrade.application.service.BatchFailureTx;
+import dev.cleargrade.application.service.BatchFinalisationTx;
+import dev.cleargrade.application.service.BatchProcessingTransitionTx;
 import dev.cleargrade.application.service.BatchReservationTx;
+import dev.cleargrade.application.service.CsvRowValidator;
 import dev.cleargrade.application.service.ImportApplicationService;
 import dev.cleargrade.domain.batch.ImportCounts;
 import dev.cleargrade.domain.batch.ImportStatus;
@@ -64,7 +72,19 @@ class CsvImportIntegrationTest {
 	@Autowired
 	private BatchReservationTx reservationTx;
 	@Autowired
+	private BatchDigestLookupTx digestLookupTx;
+	@Autowired
+	private BatchFinalisationTx finalisationTx;
+	@Autowired
 	private BatchFailureTx failureTx;
+	@Autowired
+	private ImportBatchOutputPort batchPort;
+	@Autowired
+	private Clock clock;
+	@Autowired
+	private CsvFileParser csvFileParser;
+	@Autowired
+	private CsvRowValidator csvRowValidator;
 
 	@DynamicPropertySource
 	static void datasource(DynamicPropertyRegistry registry) {
@@ -116,6 +136,30 @@ class CsvImportIntegrationTest {
 		Integer partial = this.jdbc.queryForObject("SELECT COUNT(*) FROM import_batch "
 				+ "WHERE rows_read IS NOT NULL OR status = 'COMPLETED'", Integer.class);
 		assertEquals(0, partial);
+		assertNotNull(this.jdbc.queryForObject("SELECT finished_at FROM import_batch WHERE id = 1", OffsetDateTime.class));
+	}
+
+	@Test
+	void t2FailureInvokesT4AndLeavesReservedBatchFailed() {
+		RuntimeException t2Failure = new IllegalStateException("T2 unavailable");
+		BatchProcessingTransitionTx failingTransition = new BatchProcessingTransitionTx(this.batchPort) {
+			@Override
+			public void markProcessing(long batchId) {
+				throw t2Failure;
+			}
+		};
+		ImportApplicationService service = new ImportApplicationService(this.clock, this.reservationTx,
+				this.digestLookupTx, failingTransition, this.finalisationTx, this.failureTx,
+				this.csvFileParser, this.csvRowValidator);
+
+		RuntimeException thrown = assertThrows(RuntimeException.class,
+				() -> service.importFile(csv(VALID_ONE), "t2-failure.csv"));
+
+		assertSame(t2Failure, thrown);
+		assertEquals("FAILED", statusOf(1L));
+		assertEquals(0, this.jdbc.queryForObject("SELECT COUNT(*) FROM student", Integer.class));
+		assertEquals(0, this.jdbc.queryForObject("SELECT COUNT(*) FROM import_row_error", Integer.class));
+		assertNull(this.jdbc.queryForObject("SELECT rows_read FROM import_batch WHERE id = 1", Integer.class));
 		assertNotNull(this.jdbc.queryForObject("SELECT finished_at FROM import_batch WHERE id = 1", OffsetDateTime.class));
 	}
 

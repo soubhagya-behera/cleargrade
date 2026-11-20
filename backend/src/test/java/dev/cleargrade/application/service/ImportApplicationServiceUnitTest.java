@@ -52,4 +52,30 @@ class ImportApplicationServiceUnitTest {
 		assertEquals(1, thrown.getSuppressed().length);
 		assertEquals(failureFinalisationError, thrown.getSuppressed()[0]);
 	}
+
+	@Test
+	void t2FailurePreservesOriginalExceptionAndSuppressesFailureFinalisationError() {
+		BatchReservationTx reservationTx = mock(BatchReservationTx.class);
+		BatchDigestLookupTx digestLookupTx = mock(BatchDigestLookupTx.class);
+		BatchProcessingTransitionTx transitionTx = mock(BatchProcessingTransitionTx.class);
+		BatchFinalisationTx finalisationTx = mock(BatchFinalisationTx.class);
+		BatchFailureTx failureTx = mock(BatchFailureTx.class);
+		IllegalStateException original = new IllegalStateException("T2 failed");
+		IllegalStateException failureFinalisationError = new IllegalStateException("T4 failed");
+		when(reservationTx.reserve(any())).thenReturn(1L);
+		doThrow(original).when(transitionTx).markProcessing(anyLong());
+		doThrow(failureFinalisationError).when(failureTx).markFailed(anyLong(), any(Instant.class));
+		ImportApplicationService service = new ImportApplicationService(
+				CLOCK, reservationTx, digestLookupTx, transitionTx, finalisationTx, failureTx,
+				mock(CsvFileParser.class), mock(CsvRowValidator.class));
+
+		IllegalStateException thrown = assertThrows(IllegalStateException.class,
+				() -> service.importBatch(new BatchSubmission(
+						new BatchReservation("a".repeat(64), "marks.csv", 10L, CLOCK.instant()),
+						List.of(), List.of(), 0)));
+
+		assertEquals(original, thrown);
+		assertEquals(1, thrown.getSuppressed().length);
+		assertEquals(failureFinalisationError, thrown.getSuppressed()[0]);
+	}
 }

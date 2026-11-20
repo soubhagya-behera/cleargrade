@@ -62,8 +62,8 @@ public class ImportApplicationService {
 
 	private BatchImportResult run(BatchReservation reservation, Supplier<BatchSubmission> submissionSupplier) {
 		long batchId = reserve(reservation);
-		this.processingTransitionTx.markProcessing(batchId);
 		try {
+			this.processingTransitionTx.markProcessing(batchId);
 			BatchSubmission submission = submissionSupplier.get();
 			Instant finishedAt = this.clock.instant();
 			return this.finalisationTx.process(batchId, submission.acceptedStudents(),

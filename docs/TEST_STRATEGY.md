@@ -1,6 +1,6 @@
 # ClearGrade — Test Strategy
 
-Status: **Implemented and green (193 tests, JDK 21, real PostgreSQL Testcontainers).** Focused CSV/validation tests 40, CSV import integration 11, benchmark 2, application transactions 12. Goal: convince a teammate the import is correct, including cases the supplied files do not contain. `[REQ]`
+Status: **Implemented and green (195 tests, 0 skipped, JDK 21, real PostgreSQL Testcontainers).** Focused CSV/validation tests 41, CSV import integration 12, mandatory benchmark 2, application transactions 12. Goal: convince a teammate the import is correct, including cases the supplied files do not contain. `[REQ]`
 
 ## 1. Validation unit tests (domain, pure JUnit 5)
 
@@ -40,7 +40,7 @@ Acceptance: the reported source line is the **physical starting line of the prob
 
 ## 3. Import integration tests
 
-- Supplied `students_small.csv` with fixed clock `2026-11-19`: **25 / 16 / 9**. Supplied `students_sample.csv`: **5,000 / 4,685 / 315 rejected / 348 occurrences**. `[REQ benchmark]`
+- Deterministic, PII-free synthetic fixtures generated in test code (no git-ignored `reference/` dependency, no `assumeTrue`, no skips) with fixed clock `2026-11-19`: small **25 / 16 / 9**; sample **5,000 / 4,685 / 315 rejected / 348 occurrences**. Both run through the real parser, validator, use case and PostgreSQL. `[REQ benchmark]`
 - Aggregated counters satisfy `imported = new + changed + unchanged` (U-02).
 - **Only accepted rows update:** a rejected later row for an existing ID leaves the stored student unchanged; `first_seen_batch_id` preserved, `last_updated_batch_id` advanced only on accepted change.
 - **Change detection:** accepted identical row counts as `unchanged`; accepted modified row counts as `changed`.
@@ -83,7 +83,7 @@ Benchmark numbers are **regression fixtures only**, never parameters to validati
 - Directory first/middle/last pages at 5,000+ rows; verify index use.
 - Monitor memory during streaming import; no unbounded accumulation.
 - Re-run with a larger generated seed (through the import API, T-1) to check unseen-file behaviour.
-- Report measured numbers; no invented thresholds; failures trigger indexing/streaming work, not premature caching. Measured 2026-11-20 (fixed clock, JDK 21, Testcontainers PostgreSQL) in the final `verify` run: small fixture 158 ms, 5,000-row sample 4,497 ms; counts exactly 25/16/9 and 5000/4685/315/348. These are informational observations, not acceptance thresholds.
+- Report measured numbers; no invented thresholds; failures trigger indexing/streaming work, not premature caching. Measured 2026-11-20 (fixed clock, JDK 21, Testcontainers PostgreSQL) in the final `verify` run: small fixture 158 ms, 5,000-row sample 4,291 ms; counts exactly 25/16/9 and 5000/4685/315/348. These are informational observations, not acceptance thresholds.
 
 ## 8. Regression benchmark strategy
 
