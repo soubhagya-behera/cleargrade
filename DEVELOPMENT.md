@@ -1,6 +1,6 @@
 # ClearGrade — Development Plan
 
-Status: **Phase 2B application foundation scaffolded and verified.** The remaining phases below are still planned. Owner decisions ratified 2026-11-19 (DECISIONS.md §1).
+Status: **Phase 3B.1 framework-free domain model implemented, independently reviewed and hardened (remediation in PR #4).** Persistence, CSV ingestion, REST APIs and the SPA remain planned. Owner decisions ratified 2026-11-19 (DECISIONS.md §1).
 
 ## 1. Planned development sequence
 
@@ -8,8 +8,8 @@ Status: **Phase 2B application foundation scaffolded and verified.** The remaini
 |---|---|---|
 | 0 — Specification & design | PDF/CSV analysis, documentation, owner ratification | **G0→G1 passed (§6)** |
 | 1 — Foundation **(scaffolded, no migrations yet)** | Maven/Spring Boot bootstrap (Java 21, Spring Boot 4.1.2, `mvnw`), Docker Compose + Postgres, profile-based configuration (§3), injected `Clock` (I-04), configurable 10 MiB limit (U-06) | Skeleton starts with the local profile; `/actuator/health` answers; minimal context/health verification test green. **Flyway migrations and the app Docker image remain for later phases.** |
-| 2 — Domain | Pure model with `BigDecimal` marks (C-3), validation, grading (D-07), error-code vocabulary | Domain tests green; no framework imports in `domain`; **C-4 spike attempted** |
-| 3 — Ingestion | CSV adapter, ports, import use case, digest reservation + partial unique index (C-1/C-2), accepted-only upsert (U-02), new/changed/unchanged counters, persistence | **C-4 spike PASSED**; idempotency/concurrency tests green; benchmarks 16/9 and 4,685/315/348 with fixed clock |
+| 2 — Domain **(3B.1 implemented + reviewed)** | Pure model with `BigDecimal` marks (C-3), validation, grading (D-07), error-code vocabulary; review remediation for count overflow, row-error line, batch/outcome construction and documentation | Domain tests green; source-scanning framework-independence test green; **C-4 spike evidence merged on `main` (PR #3), formal G2→G3 sign-off pending** |
+| 3 — Ingestion | CSV adapter, ports, import use case, digest reservation + partial unique index (C-1/C-2), accepted-only upsert (U-02), new/changed/unchanged counters, persistence | **C-4 gate signed off from PR #3 evidence**; idempotency/concurrency tests green; benchmarks 16/9 and 4,685/315/348 with fixed clock |
 | 4 — REST API | Controllers, DTOs, global error handler, `201/200/409/413` upload paths, management-path separation (T-5) | API contract tests green; no entity leakage; Actuator health-only |
 | 5 — Frontend | React Router + TanStack Query, three screens, all states, design tokens (UX_SPEC §2) | Build + typecheck pass; screens work end to end |
 | 6 — Seed & bonus | Seed generator posting CSV via `POST /api/imports` (T-1); bonus features only if owner requests (D-17) | Seed works through real pipeline; core not regressed |
@@ -72,7 +72,7 @@ Rules:
 
 - `main` protected baseline; short-lived feature branches; one reviewed PR per phase with tests passing.
 - No build output, `.env`, `backend/config/application-local.properties` or other credentials committed. Access shared with reviewers at handover.
-- Git was initialized during Phase 2A and the documentation blueprint committed; no application code has been committed.
+- Git was initialized during Phase 2A and the documentation blueprint committed; the application foundation and reviewed domain model are now committed on feature branches, with PR #4 open for independent review.
 
 ## 5. Commands
 
@@ -98,14 +98,14 @@ Exact script names may change once the build exists; the final README is authori
 |---|---|
 | **G0 → G1** | **All blocking decisions approved** — D-07, U-01, U-02, U-03, U-04, U-06, I-01, I-02, I-03, I-04, D-17 — **wherever they appear in DECISIONS.md (§1 and §2), not only §2**. No active superseded identifiers. C-4 recorded as a tracked spike. |
 | G1 → G2 | Docker boot + migration + health check succeed; port `8080:8080` reachable; Actuator exposes health only; external local config verified (§3): private file outside `src/main/resources`, excluded from Git and Docker context, not activated in Docker |
-| **G2 → G3** | Domain tests green; architecture boundary test green; **C-4 physical-line-number spike PASSED** (TEST_STRATEGY.md §2.2) — otherwise phase 3 is blocked |
+| **G2 → G3** | Domain tests green; architecture boundary test green; **C-4 physical-line-number spike evidence on `main` from PR #3** (TEST_STRATEGY.md §2.2) formally signed off — otherwise phase 3 is blocked |
 | G3 → G4 | Benchmarks green with fixed clock; error occurrence counts correct; idempotency (`200`/`409`/retry), partial-unique concurrency and new/changed/unchanged counters green |
 | G4 → G5 | API contract, security and management-path tests green |
 | G5 → G6 | Three screens work end to end; all specified states present; design tokens applied |
 | G6 → G7 | Seed works through the import API; any enabled bonus does not regress core |
 | G7 → handover | One-command test/run verified; README and reserved `NOTES.md` match reality |
 
-C-4 is a hard blocker: if the spike cannot prove physical line numbering, phase 3 must redesign the approach before proceeding.
+C-4 remains a hard gate: PR #3 provides the physical-line-number evidence, but formal G2→G3 sign-off is still required before ingestion proceeds. If that evidence is rejected, phase 3 must redesign the approach.
 
 ## 7. Definition of done
 

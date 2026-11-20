@@ -1,6 +1,6 @@
 # ClearGrade — Data Model
 
-Status: **Design documentation only — no schema or migration has been created.** Decision IDs follow DECISIONS.md (superseded IDs are listed there).
+Status: **Pure domain rules implemented (Phase 3B.1); no schema or migration has been created.** Decision IDs follow DECISIONS.md (superseded IDs are listed there).
 
 ## 1. Entity definitions
 
@@ -33,7 +33,7 @@ One row per accepted student identity; re-imports update it.
 | `student_id` | `VARCHAR(20)` | **Unique**, stored UPPERCASE; upsert key; CHECK constraint (§3) |
 | `full_name` | `VARCHAR(100)` | Trimmed, internal whitespace collapsed |
 | `email` | `VARCHAR(320)` | Stored lowercase; U-01 rule |
-| `date_of_birth` | `DATE` | Validated against injected `Clock` (I-04); inclusive 5–25 (I-03) |
+| `date_of_birth` | `DATE` | Validated against injected `Clock` (I-04); inclusive 5–25 (I-03); a 29 Feb birth increases age on 1 Mar in non-leap years (D-22) |
 | `grade_level` | `SMALLINT` | 1–12 (`09` stored as `9`) |
 | `section` | `CHAR(1)` | A–F, uppercase |
 | `maths`, `science`, `english`, `social_studies`, `second_language` | **`NUMERIC`** | **No fixed scale** (C-3); domain uses `BigDecimal`, range 0–100, no silent rounding |
@@ -41,7 +41,7 @@ One row per accepted student identity; re-imports update it.
 | `last_updated_batch_id` | `BIGINT` | FK → `import_batch.id`; **updated on accepted change** (U-02) |
 | `created_at`, `updated_at` | `TIMESTAMPTZ` | Audit |
 
-Derived total/percentage/grade/pass are **not stored**; computed on read by the domain grading policy (D-07). Display percentage is rounded to one decimal (HALF_UP); **stored marks are never rounded** (C-3). `NUMERIC` without precision/scale preserves submitted decimal precision within the domain-enforced digit limit (proposed: max 10 fractional digits, range 0–100).
+Derived total/percentage/grade/pass are **not stored**; computed on read by the domain grading policy (D-07). Display percentage is rounded to one decimal (HALF_UP); **stored marks are never rounded** (C-3). `NUMERIC` without precision/scale preserves submitted decimal precision: the domain enforces only the inclusive range 0–100 and imposes **no arbitrary fractional-digit limit**.
 
 ### `import_row_error`
 One row **per validation error occurrence**, not per rejected row (D-10).

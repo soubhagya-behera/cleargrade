@@ -1,0 +1,52 @@
+package dev.cleargrade.domain.batch;
+
+import dev.cleargrade.domain.DomainValidationException;
+
+/**
+ * Counters for one completed import. Blank and skipped rows are never counted.
+ *
+ * <p>Invariants: {@code imported = new + changed + unchanged},
+ * {@code rowsRead = imported + rejected} and {@code errorCount >= rejectedCount}.
+ * A row may produce several error occurrences, so the last relation is deliberately not equality.</p>
+ */
+public record ImportCounts(
+		int rowsRead,
+		int newCount,
+		int changedCount,
+		int unchangedCount,
+		int rejectedCount,
+		int errorCount) {
+
+	public ImportCounts {
+		if (rowsRead < 0 || newCount < 0 || changedCount < 0 || unchangedCount < 0
+				|| rejectedCount < 0 || errorCount < 0) {
+			throw new DomainValidationException("Import counts cannot be negative");
+		}
+		long imported = importedTotal(newCount, changedCount, unchangedCount);
+		if (imported > Integer.MAX_VALUE) {
+			throw new DomainValidationException("Aggregate imported count exceeds the supported integer range");
+		}
+		long totalRows = imported + rejectedCount;
+		if (totalRows > Integer.MAX_VALUE) {
+			throw new DomainValidationException("Aggregate rowsRead exceeds the supported integer range");
+		}
+		if (totalRows != rowsRead) {
+			throw new DomainValidationException("rowsRead must equal imported + rejected");
+		}
+		if (errorCount < rejectedCount) {
+			throw new DomainValidationException("errorCount cannot be less than rejectedCount");
+		}
+	}
+
+	public static ImportCounts zero() {
+		return new ImportCounts(0, 0, 0, 0, 0, 0);
+	}
+
+	public int imported() {
+		return (int) importedTotal(this.newCount, this.changedCount, this.unchangedCount);
+	}
+
+	private static long importedTotal(int newCount, int changedCount, int unchangedCount) {
+		return (long) newCount + changedCount + unchangedCount;
+	}
+}

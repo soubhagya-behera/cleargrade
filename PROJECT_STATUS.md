@@ -1,6 +1,6 @@
 # ClearGrade — Project Status
 
-Last updated: 2026-11-20 · **Current phase: Phase 2B application foundation complete; awaiting independent review of the foundation PR.** No CSV business logic is implemented.
+Last updated: 2026-11-20 · **Current phase: Phase 3B.1 domain model implemented, independently reviewed and remediated (PR #4); awaiting re-review.** No persistence, CSV ingestion, REST APIs or frontend business logic is implemented.
 
 ## 1. Completed
 
@@ -11,6 +11,8 @@ Last updated: 2026-11-20 · **Current phase: Phase 2B application foundation com
   - PostgreSQL 16 Compose service with named volume, `pg_isready` healthcheck, env-driven credentials, configurable host port and `restart: unless-stopped`.
   - React 19 / TypeScript 5.9 / Vite 7 / Tailwind 4 / React Router 7 / TanStack Query 5 / Lucide React shell with responsive sidebar, top bar, design tokens, accessible focus states, routes `/import`, `/students`, `/students/:studentId`, reusable API client and dev proxy.
   - `.github/workflows/ci.yml` verifying the Maven build, backend tests and frontend typecheck/build.
+ - Phase 3B.1 domain model (`dev.cleargrade.domain`): student value objects and validation, exact grading policy, import status/count/line/error vocabulary. Framework-free; no migrations, JPA entities, repositories or endpoints added.
+ - Phase 3B.1 review remediation: overflow-safe import count aggregates, row-error data-line guard, batch/outcome construction invariants, explicit `RECEIVED → FAILED` and leap-day decisions, `mark(null)` guard, stronger framework-independence source-set assertion.
 
 ## 2. Owner-ratified decisions (recorded in DECISIONS.md §1)
 
@@ -20,14 +22,14 @@ Last updated: 2026-11-20 · **Current phase: Phase 2B application foundation com
 
 | Spike | Status | Gate |
 |---|---|---|
-| **C-4 physical line numbers** — prove the chosen CSV library reports the physical starting line with header = 1 across embedded newlines, blank lines, a malformed row after the newline and a subsequent valid row; counting `Reader` not accepted untested | **UNRESOLVED** | G2→G3 (phase 3 blocked until passed) |
+| **C-4 physical line numbers** — prove the chosen CSV library reports the physical starting line with header = 1 across embedded newlines, blank lines, a malformed row after the newline and a subsequent valid row; counting `Reader` not accepted untested | **EVIDENCE MERGED on `main` (PR #3: 18 spike tests green); formal G2→G3 sign-off pending** | G2→G3 (phase 3 blocked until signed off) |
 
 ## 4. Verification evidence (executed 2026-11-20)
 
 | Check | Command | Result |
 |---|---|---|
 | Spring Boot / Java compatibility | Spring Initializr metadata + Maven Central | `4.1.2` GA; Java `21` supported |
-| Backend compile + tests | `.\mvnw.cmd -B test` | 2 tests, 0 failures/errors |
+| Backend compile + tests | `.\mvnw.cmd -B test` (JDK 21) | 109 tests, 0 failures/errors (87 domain tests, including the exact-source-set framework-independence scan); focused remediation run: 51 tests green |
 | Backend full verify | `.\mvnw.cmd -B verify` | Passed |
 | Packaged JAR config safety | `jar tf` on built JAR | Only `application.properties` packaged; no local profile |
 | Application startup + DB connection | `java -jar … --spring.profiles.active=local` | `/actuator/health` → `200`, status `UP` |
@@ -49,20 +51,20 @@ Toolchain: JDK `21.0.10` (installed at `C:\Program Files\Java\jdk-21.0.10`, sele
 | Unseen CSV contents unknown | Open | U-04 design + generated fixtures (TEST_STRATEGY §8) |
 | Unusual valid email forms | Open | U-01 rule documented; plus-address/subdomain supported |
 | Concurrent identical uploads | Designed | Partial unique index + digest reservation (C-1/C-2); test in phase 3 |
-| Decimal precision | Designed | `BigDecimal` + unconstrained `NUMERIC`, no rounding (C-3) |
+| Decimal precision | Implemented in domain | `BigDecimal` + unconstrained `NUMERIC`, no rounding (C-3) |
 | Private config leaking into builds | Mitigated | D-20: outside Maven resources, Git-ignored, excluded by `.dockerignore`, absent from built JAR |
 | Host port 5432 occupied locally | Mitigated | `POSTGRES_PORT` made configurable; local `.env` uses a free host port |
 | No authentication | Ratified | Local/trusted evaluation only; must not be publicly exposed (U-03) |
-| Domain boundary erosion | Open | Architecture test at G2→G3 |
+| Domain boundary erosion | Mitigated | Source-scanning framework-independence test now asserts the exact production source set; no ArchUnit dependency added |
 
 ## 6. Next actions
 
-1. Independent review of the foundation PR; do not merge it here.
-2. Resolve the **C-4 spike** as the first technical task of phases 2–3; it is a hard blocker.
+1. Independent re-review of the Phase 3B.1 remediation in PR #4; do not merge it here.
+2. Formally sign off **G2→G3** using the merged PR #3 C-4 spike evidence before starting ingestion work.
 3. Add Flyway migrations and persistence adapters per DATA_MODEL.md (no schema invented in the foundation).
-4. Implement domain validation/grading, CSV ingestion, REST API, then the three real screens.
+4. Implement CSV ingestion, REST API, then the three real screens; Flyway migrations and persistence adapters are still required.
 5. Add the multi-stage app Dockerfile, seed script, one-command test script and `NOTES.md`.
 
 ## 7. Scope notes
 
-Current-result snapshot only (no term/year invented, D-11). Benchmark numbers are regression fixtures, never application logic (D-12). `NOTES.md` is reserved for final assignment submission. No sample CSV data or PDF content is reproduced in documentation. No application business logic, migrations or real credentials are committed.
+Current-result snapshot only (no term/year invented, D-11). Benchmark numbers are regression fixtures, never application logic (D-12). `NOTES.md` is reserved for final assignment submission. No sample CSV data or PDF content is reproduced in documentation. Domain business rules are implemented; migrations, CSV ingestion, APIs and real credentials are not committed.
