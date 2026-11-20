@@ -49,7 +49,7 @@ flowchart TD
     D -- unique violation --> C
     D --> E[Tx2: persist PROCESSING; parse BOM/header/rows]
     E --> F{Required columns present?}
-    F -- No --> G[Fatal: rollback Tx2; Tx3 status FAILED; 400]
+    F -- No --> G[Fatal: rollback T3; T4 status FAILED; 400]
     F -- Yes --> H{Blank / all-empty?}
     H -- Yes --> I[Skip; physical line number still consumed - C-4 spike]
     H -- No --> J{Wrong field count?}
@@ -73,7 +73,7 @@ stateDiagram-v2
     [*] --> RECEIVED: Tx1 reserved batch via partial unique index
     RECEIVED --> PROCESSING: Tx2 persists status explicitly
     PROCESSING --> COMPLETED: Tx3 writes counts + status
-    PROCESSING --> FAILED: fatal error; Tx3 marks FAILED
+    PROCESSING --> FAILED: fatal error; T4 marks FAILED after T3 rollback
     RECEIVED --> FAILED: crash/recovery sweep timeout
     COMPLETED --> [*]
     FAILED --> [*]
