@@ -1,6 +1,6 @@
 # ClearGrade — Development Plan
 
-Status: **G4→G5 gate passed; documented REST API and real-data frontend integration implemented and verified.** PR #8 (G3→G4) is merged to `main` as `acc83a1`. Docker packaging, seed script and final documentation remain (Phases 6–7). Owner decisions ratified 2026-11-19, transaction boundary resolved 2026-11-20 (DECISIONS.md §1/§2).
+Status: **G7→handover passed; all eight phases (0–7) complete.** REST API, real-data frontend, Docker/Compose delivery, HTTP seed workflow, one-command scripts, final README and `NOTES.md` are implemented and verified. Owner decisions ratified 2026-11-19, transaction boundary resolved 2026-11-20 (DECISIONS.md §1/§2).
 
 ## 1. Planned development sequence
 
@@ -12,8 +12,8 @@ Status: **G4→G5 gate passed; documented REST API and real-data frontend integr
 | 3 — Ingestion **(schema + persistence + application services + production CSV + import use case implemented; G3→G4 passed)** | Flyway V1 schema, JPA entities/repositories/mappers, application output ports, T1–T4 transaction services, exact digest recovery, D-28 upsert, C-4 physical-line CSV adapter, domain-backed row validation/error occurrences and cohesive import use case | Migration, persistence and application transaction tests green; **C-4 gate passed (owner 2026-11-20), all six limitations carried forward**; idempotency/concurrency tests green; benchmarks 16/9 and 4,685/315/348 with fixed clock — **achieved 2026-11-20** |
 | 4 — REST API **(implemented; G4→G5 passed)** | Controllers, DTOs, global error handler, `201/200/409/400/413/415/500` upload paths, batch/error/student reads, management-path separation (T-5) | API contract tests green (11 real-PostgreSQL integration tests); no entity leakage; Actuator health-only — **achieved 2026-11-20** |
 | 5 — Frontend **(implemented; G4→G5 passed)** | React Router + TanStack Query, three screens with real API data, all loading/empty/error states, design tokens (UX_SPEC §2) | 14 frontend tests, typecheck and production build pass; screens use real backend data — **achieved 2026-11-20** |
-| 6 — Seed & bonus | Seed generator posting CSV via `POST /api/imports` (T-1); bonus features only if owner requests (D-17) | Seed works through real pipeline; core not regressed |
-| 7 — Hardening & handover | Security controls, performance checks, `NOTES.md` (reserved for final submission), final README | One-command test/run verified; docs accurate |
+| 6 — Seed & bonus **(complete; G6→G7 passed)** | Deterministic PII-free CSVs posted through `POST /api/imports` by `scripts/seed.*`; no direct SQL. Bonus features remain deferred (D-17) | Seed works through the real pipeline with new/changed/unchanged/rejected outcomes and clear idempotency; core not regressed — **achieved 2026-11-20** |
+| 7 — Hardening & handover **(complete; G7→handover passed)** | Multi-stage Docker images, Compose full stack, one-command scripts, security audit, `NOTES.md`, final README | One-command startup/test verified; docs accurate; no committed secrets; no critical/high security issue — **achieved 2026-11-20** |
 
 Phases are sequential; a failed gate stops the next phase. Bonus work starts only after phase 5 passes (D-17).
 
@@ -93,6 +93,11 @@ Rules:
 | Frontend tests | `cd frontend; npm test` | Runnable (14 Vitest/Testing Library tests) |
 | Frontend typecheck | `cd frontend; npm run typecheck` | Runnable |
 | Frontend production build | `cd frontend; npm run build` | Runnable |
+| One-command startup (Windows) | `powershell -ExecutionPolicy Bypass -File scripts/start.ps1` | Runnable (builds + starts full Compose stack, waits for health) |
+| One-command startup (Unix) | `bash scripts/start.sh` | Runnable |
+| One-command release checks | `powershell -File scripts/test.ps1` / `bash scripts/test.sh` | Runnable (backend verify, frontend tests/typecheck/build, compose config, diff check) |
+| HTTP seed | `powershell -File scripts/seed.ps1` / `bash scripts/seed.sh` | Runnable (real `POST /api/imports`, idempotency-aware) |
+| Docker image builds | `docker compose build` | Runnable (multi-stage backend/frontend, non-root runtime) |
 | Compose config check | `docker compose config --quiet` | Runnable |
 | Start PostgreSQL | `docker compose up -d` | Runnable |
 | Run locally with private profile | `Set-Location backend` → `$env:SPRING_PROFILES_ACTIVE = "local"` → `.\mvnw.cmd spring-boot:run` (§3) | Runnable |
@@ -112,8 +117,8 @@ Exact script names may change once the build exists; the final README is authori
 | **G3 → G4 — PASSED 2026-11-20** | Benchmarks green with fixed clock (25/16/9; 5000/4685/315/348); error occurrence counts correct; idempotency (completed → `200` semantics via `DigestConflictException(COMPLETED)`, active → `409` semantics, FAILED retry), real-PostgreSQL partial-unique concurrency and new/changed/unchanged counters green — **all verified on `feat/csv-import-adapter`** |
 | **G4 → G5 — PASSED 2026-11-20** | API contract, upload/size/duplicate/failure mapping, paginated row errors, directory filtering and report tests green; three screens use real API data; no entity leakage; Actuator health-only — **verified on `feat/rest-api-and-frontend-integration`** |
 | G5 → G6 | Three screens work end to end; all specified states present; design tokens applied |
-| G6 → G7 | Seed works through the import API; any enabled bonus does not regress core |
-| G7 → handover | One-command test/run verified; README and reserved `NOTES.md` match reality |
+| **G6 → G7 — PASSED 2026-11-20** | Seed posts through the real import API with new/changed/unchanged/rejected outcomes; repeated uploads reported as deduplicated; no bonus enabled, core not regressed |
+| **G7 → handover — PASSED 2026-11-20** | One-command startup and release checks verified; Docker images, Compose startup, readiness and persistence verified; README and `NOTES.md` match reality; no committed secrets |
 
 C-4 was a hard gate: PR #3 provides the physical-line-number evidence, which the owner formally approved on 2026-11-20, passing G2→G3. The documented spike limitations (`backend/src/test/resources/csv-spike/README.md`) must be carried into the production CSV adapter.
 

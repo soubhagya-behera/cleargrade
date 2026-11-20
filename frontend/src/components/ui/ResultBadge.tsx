@@ -4,7 +4,7 @@ interface ResultBadgeProps {
 
 export function ResultBadge({ passed }: ResultBadgeProps) {
   return (
-    <span className={`rounded px-2 py-1 text-xs font-semibold ${passed ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-700'}`}>
+    <span className={`inline-flex items-center rounded-md px-3 py-1 text-xs font-bold tracking-wide ${passed ? 'bg-emerald-50 text-success' : 'bg-red-50 text-danger'}`}>
       {passed ? 'PASS' : 'FAIL'}
     </span>
   );

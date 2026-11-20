@@ -40,32 +40,32 @@ export function StudentDirectoryPage() {
 
       <div className="mt-6 flex flex-wrap items-end gap-3">
         <div className="min-w-56 flex-1">
-          <label htmlFor="student-search" className="block text-xs font-medium text-ink-700">Search by name or student ID</label>
+          <label htmlFor="student-search" className="cg-label">Search by name or student ID</label>
           <input
             id="student-search"
             value={queryInput}
             onChange={(event) => setQueryInput(event.target.value)}
             placeholder="e.g. Alice or STU001"
-            className="mt-1 w-full rounded-md border border-line px-3 py-2 text-sm"
+            className="cg-input mt-2 w-full"
           />
         </div>
         <label className="text-xs text-ink-700" htmlFor="grade-filter">
           Class
-          <select id="grade-filter" value={grade} onChange={(event) => { setGrade(event.target.value); setPage(0); }} className="ml-2 rounded-md border border-line px-2 py-2">
+          <select id="grade-filter" value={grade} onChange={(event) => { setGrade(event.target.value); setPage(0); }} className="cg-input ml-2 !min-h-10 !py-1">
             <option value="">All</option>
             {Array.from({ length: 12 }, (_, index) => index + 1).map((value) => <option key={value} value={value}>{value}</option>)}
           </select>
         </label>
         <label className="text-xs text-ink-700" htmlFor="section-filter">
           Section
-          <select id="section-filter" value={section} onChange={(event) => { setSection(event.target.value); setPage(0); }} className="ml-2 rounded-md border border-line px-2 py-2">
+          <select id="section-filter" value={section} onChange={(event) => { setSection(event.target.value); setPage(0); }} className="cg-input ml-2 !min-h-10 !py-1">
             <option value="">All</option>
             {['A', 'B', 'C', 'D', 'E', 'F'].map((value) => <option key={value} value={value}>{value}</option>)}
           </select>
         </label>
         <label className="text-xs text-ink-700" htmlFor="sort-select">
           Sort
-          <select id="sort-select" value={sort} onChange={(event) => { setSort(event.target.value); setPage(0); }} className="ml-2 rounded-md border border-line px-2 py-2">
+          <select id="sort-select" value={sort} onChange={(event) => { setSort(event.target.value); setPage(0); }} className="cg-input ml-2 !min-h-10 !py-1">
             <option value="studentId,asc">Student ID ↑</option>
             <option value="studentId,desc">Student ID ↓</option>
             <option value="fullName,asc">Name ↑</option>
@@ -105,7 +105,7 @@ export function StudentDirectoryPage() {
             <Pagination page={students.data.page} totalPages={students.data.totalPages} onPageChange={setPage} label="Student pages" />
             <label className="text-xs text-ink-500" htmlFor="page-size">
               Rows per page
-              <select id="page-size" value={size} onChange={(event) => { setSize(Number(event.target.value)); setPage(0); }} className="ml-2 rounded-md border border-line px-2 py-1">
+              <select id="page-size" value={size} onChange={(event) => { setSize(Number(event.target.value)); setPage(0); }} className="cg-input ml-2 !min-h-9 !py-1">
                 {[25, 50, 100].map((value) => <option key={value} value={value}>{value}</option>)}
               </select>
             </label>

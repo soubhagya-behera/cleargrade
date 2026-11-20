@@ -14,7 +14,7 @@ export function Pagination({ page, totalPages, onPageChange, label }: Pagination
         type="button"
         disabled={page === 0}
         onClick={() => onPageChange(page - 1)}
-        className="rounded-md border border-line bg-surface px-3 py-2 text-sm disabled:opacity-50"
+        className="cg-btn-secondary !min-h-0 disabled:opacity-50"
       >
         Previous
       </button>
@@ -24,7 +24,7 @@ export function Pagination({ page, totalPages, onPageChange, label }: Pagination
           type="button"
           aria-current={index === page ? 'page' : undefined}
           onClick={() => onPageChange(index)}
-          className={`rounded-md px-3 py-2 text-sm ${index === page ? 'bg-brand-600 text-white' : 'border border-line bg-surface'}`}
+          className={`inline-flex min-h-10 items-center justify-center rounded-md px-3 text-sm font-medium ${index === page ? 'bg-brand-600 text-white' : 'cg-btn-secondary !min-h-0'}`}
         >
           {index + 1}
         </button>
@@ -33,7 +33,7 @@ export function Pagination({ page, totalPages, onPageChange, label }: Pagination
         type="button"
         disabled={page >= totalPages - 1}
         onClick={() => onPageChange(page + 1)}
-        className="rounded-md border border-line bg-surface px-3 py-2 text-sm disabled:opacity-50"
+        className="cg-btn-secondary !min-h-0 disabled:opacity-50"
       >
         Next
       </button>

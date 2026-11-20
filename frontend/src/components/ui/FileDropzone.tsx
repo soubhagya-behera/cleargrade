@@ -27,7 +27,7 @@ export function FileDropzone({ onFile, disabled = false, maxBytes }: FileDropzon
           setDragging(false);
           if (!disabled) select(event.dataTransfer.files[0]);
         }}
-        className={`rounded-xl border-2 border-dashed p-8 text-center ${dragging ? 'border-brand-600 bg-brand-100/40' : 'border-line bg-surface'}`}
+        className={`rounded-xl border-2 border-dashed p-8 text-center transition-colors ${dragging ? 'border-brand-600 bg-brand-100/60' : 'border-line bg-surface hover:border-brand-600/50'}`}
       >
         <FileUp aria-hidden="true" className="mx-auto size-8 text-ink-500" />
         <p className="mt-3 text-sm font-medium">Drag and drop a CSV file here, or</p>
@@ -44,7 +44,7 @@ export function FileDropzone({ onFile, disabled = false, maxBytes }: FileDropzon
           type="button"
           disabled={disabled}
           onClick={() => inputRef.current?.click()}
-          className="mt-3 rounded-md border border-line bg-canvas px-4 py-2 text-sm font-medium disabled:opacity-50"
+          className="cg-btn-secondary mt-4"
         >
           Choose file
         </button>

@@ -24,8 +24,9 @@ export function DataQualitySummary({ batch, breakdown }: DataQualitySummaryProps
   const problems = batch.errorCount ?? 0;
 
   return (
-    <section aria-labelledby="quality-heading" className="rounded-xl border border-line bg-surface p-6 shadow-sm">
-      <h3 id="quality-heading" className="text-lg font-semibold">Import summary</h3>
+    <section aria-labelledby="quality-heading" className="cg-card border-l-4 border-l-brand-600 p-6">
+      <p className="text-xs font-semibold uppercase tracking-wider text-brand-700">Outcome</p>
+      <h3 id="quality-heading" className="mt-1 text-xl font-semibold">Import summary</h3>
       <p className="mt-2 text-sm leading-relaxed" aria-live="polite">
         We read <strong>{rowsRead}</strong> {rowsRead === 1 ? 'row' : 'rows'}.{' '}
         <strong>{imported}</strong> were imported

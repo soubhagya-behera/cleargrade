@@ -30,8 +30,13 @@ export function StudentReportPage() {
 
   return (
     <section aria-labelledby="page-heading">
-      <Link to="/students" className="text-sm font-medium text-brand-600 underline underline-offset-4">‹ Back to students</Link>
-      <h2 id="page-heading" className="mt-4 text-2xl font-semibold tracking-tight">Student report</h2>
+      <nav aria-label="Breadcrumb" className="no-print text-xs text-ink-500">
+        <Link to="/students" className="font-medium text-brand-700 underline underline-offset-4">Students</Link>
+        <span aria-hidden="true" className="mx-2">/</span>
+        <span aria-current="page">{studentId}</span>
+      </nav>
+      <Link to="/students" className="cg-btn-secondary no-print mt-4">Back to students</Link>
+      <h2 id="page-heading" className="mt-5 text-2xl font-semibold tracking-tight">Student report</h2>
 
       {report.isPending && <div className="mt-8"><SkeletonTable rows={4} /></div>}
       {report.isError && (
@@ -40,14 +45,14 @@ export function StudentReportPage() {
         </div>
       )}
       {report.data === null && (
-        <div className="mt-8 rounded-xl border border-line bg-surface p-10 text-center">
+        <div className="cg-card mt-8 p-10 text-center">
           <p className="text-sm text-ink-500">No student was found for this ID.</p>
-          <Link to="/students" className="mt-4 inline-block rounded-md bg-brand-600 px-4 py-2 text-sm font-medium text-white">Back to students</Link>
+          <Link to="/students" className="cg-btn-primary mt-5">Return to directory</Link>
         </div>
       )}
       {report.data && (
         <div className="mt-8 grid gap-6 lg:grid-cols-2">
-          <section aria-label="Student identity" className="rounded-xl border border-line bg-surface p-6 shadow-sm">
+          <section aria-label="Student identity" className="cg-card p-6">
             <div className="flex items-center gap-4">
               <span aria-hidden="true" className="flex size-12 items-center justify-center rounded-full bg-brand-100 text-lg font-semibold text-brand-700">
                 {report.data.fullName.split(/\s+/).map((part) => part[0]).slice(0, 2).join('')}
@@ -63,7 +68,7 @@ export function StudentReportPage() {
             </dl>
           </section>
 
-          <section aria-label="Overall result" className="rounded-xl border border-line bg-surface p-6 shadow-sm">
+          <section aria-label="Overall result" className="cg-card p-6">
             <p className="text-xs font-semibold uppercase tracking-wider text-ink-500">Overall result</p>
             <div className="mt-2 flex items-end gap-4">
               <p className="text-5xl font-semibold tabular-nums text-ink-950">{report.data.percentage}%</p>
@@ -73,7 +78,7 @@ export function StudentReportPage() {
             <p className="mt-3 text-sm text-ink-500">Total: {report.data.total} / {report.data.maximum}</p>
           </section>
 
-          <section aria-label="Marks by subject" className="rounded-xl border border-line bg-surface p-6 shadow-sm lg:col-span-2">
+          <section aria-label="Marks by subject" className="cg-card p-6 lg:col-span-2">
             <h3 className="text-lg font-semibold">Marks by subject</h3>
             <ul className="mt-4 divide-y divide-line">
               {Object.entries(report.data.marks).map(([subject, mark]) => (

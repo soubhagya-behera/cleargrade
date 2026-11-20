@@ -100,7 +100,7 @@ export function ImportPage() {
               type="button"
               disabled={!file || upload.isPending}
               onClick={() => file && upload.mutate(file)}
-              className="rounded-md bg-brand-600 px-5 py-2.5 text-sm font-medium text-white disabled:opacity-50"
+              className="cg-btn-primary"
             >
               {upload.isPending ? 'Uploading and importing…' : 'Upload and import'}
             </button>
@@ -109,21 +109,21 @@ export function ImportPage() {
           {error && <div className="mt-4"><ErrorState message={error} /></div>}
         </div>
 
-        <aside className="rounded-xl border border-line bg-surface p-5 text-sm">
+        <aside className="cg-card p-5 text-sm">
           <h3 className="font-semibold">Check an earlier import</h3>
-          <label htmlFor="batch-id" className="mt-3 block text-xs text-ink-500">Batch id</label>
+          <label htmlFor="batch-id" className="cg-label mt-4">Batch id</label>
           <div className="mt-1 flex gap-2">
             <input
               id="batch-id"
               inputMode="numeric"
               value={lookupId}
               onChange={(event) => setLookupId(event.target.value)}
-              className="min-w-0 flex-1 rounded-md border border-line px-3 py-2"
+              className="cg-input min-w-0 flex-1"
             />
             <button
               type="button"
               onClick={() => setSearchedId(Number(lookupId))}
-              className="rounded-md border border-line px-3 py-2 text-sm"
+              className="cg-btn-secondary"
             >
               Look up
             </button>

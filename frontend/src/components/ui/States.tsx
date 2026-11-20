@@ -8,10 +8,10 @@ interface EmptyStateProps {
 
 export function EmptyState({ message, actionLabel, onAction }: EmptyStateProps) {
   return (
-    <div className="rounded-xl border border-dashed border-line bg-surface p-10 text-center">
+    <div className="cg-card border-dashed p-10 text-center">
       <p className="text-sm text-ink-500">{message}</p>
       {actionLabel && onAction && (
-        <button type="button" onClick={onAction} className="mt-4 rounded-md bg-brand-600 px-4 py-2 text-sm font-medium text-white">
+        <button type="button" onClick={onAction} className="cg-btn-primary mt-5">
           {actionLabel}
         </button>
       )}
@@ -21,10 +21,10 @@ export function EmptyState({ message, actionLabel, onAction }: EmptyStateProps) 
 
 export function ErrorState({ message, onRetry }: { message: string; onRetry?: () => void }) {
   return (
-    <div role="alert" className="rounded-xl border border-red-200 bg-red-50 p-6 text-sm text-red-800">
+    <div role="alert" className="rounded-xl border border-red-200 bg-red-50 p-6 text-sm text-danger">
       <p>{message}</p>
       {onRetry && (
-        <button type="button" onClick={onRetry} className="mt-3 rounded-md border border-red-300 px-3 py-2 text-sm font-medium">
+        <button type="button" onClick={onRetry} className="cg-btn-secondary mt-4 !border-red-300 !text-danger">
           Retry
         </button>
       )}
@@ -44,9 +44,9 @@ export function SkeletonTable({ rows = 5 }: { rows?: number }) {
 
 export function NotFoundPanel({ message, backTo, backLabel }: { message: string; backTo: string; backLabel: string }) {
   return (
-    <div className="rounded-xl border border-line bg-surface p-10 text-center">
+    <div className="cg-card p-10 text-center">
       <p className="text-sm text-ink-500">{message}</p>
-      <Link to={backTo} className="mt-4 inline-block rounded-md bg-brand-600 px-4 py-2 text-sm font-medium text-white">{backLabel}</Link>
+      <Link to={backTo} className="cg-btn-primary mt-5">{backLabel}</Link>
     </div>
   );
 }

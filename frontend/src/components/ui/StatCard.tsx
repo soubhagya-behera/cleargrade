@@ -6,12 +6,12 @@ interface StatCardProps {
 }
 
 export function StatCard({ label, value, hint, tone = 'default' }: StatCardProps) {
-  const valueTone = tone === 'success' ? 'text-emerald-700' : tone === 'danger' ? 'text-red-700' : 'text-ink-950';
+  const valueTone = tone === 'success' ? '!text-success' : tone === 'danger' ? '!text-danger' : '';
   return (
-    <div className="rounded-xl border border-line bg-surface p-5 shadow-sm">
+    <div className="cg-card p-5">
       <p className="text-xs font-semibold uppercase tracking-wider text-ink-500">{label}</p>
-      <p className={`mt-2 text-3xl font-semibold tabular-nums ${valueTone}`}>{value}</p>
-      {hint && <p className="mt-1 text-xs text-ink-500">{hint}</p>}
+      <p className={`cg-stat-value ${valueTone}`}>{value}</p>
+      {hint && <p className="mt-2 text-xs text-ink-500">{hint}</p>}
     </div>
   );
 }
