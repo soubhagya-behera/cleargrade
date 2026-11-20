@@ -15,7 +15,6 @@ export const navigationItems: NavigationItem[] = [
     to: '/students/:studentId',
     label: 'Student Report',
     icon: FileText,
-    disabled: true,
     hint: 'Select a student from the directory',
   },
 ];

@@ -12,8 +12,10 @@ import dev.cleargrade.adapters.out.persistence.entity.ImportBatchEntity;
 import dev.cleargrade.adapters.out.persistence.repository.ImportBatchRepository;
 import dev.cleargrade.application.exception.DuplicateDigestException;
 import dev.cleargrade.application.model.BatchReservation;
+import dev.cleargrade.application.model.BatchSummary;
 import dev.cleargrade.application.model.DigestMatch;
 import dev.cleargrade.application.port.out.ImportBatchOutputPort;
+import dev.cleargrade.application.port.out.ImportBatchQueryPort;
 import dev.cleargrade.domain.batch.ImportCounts;
 import dev.cleargrade.domain.batch.ImportStatus;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -22,7 +24,7 @@ import org.springframework.stereotype.Component;
 
 /** Implements batch persistence operations using the V1 schema. */
 @Component
-public class ImportBatchPersistenceAdapter implements ImportBatchOutputPort {
+public class ImportBatchPersistenceAdapter implements ImportBatchOutputPort, ImportBatchQueryPort {
 
 	private static final String ACTIVE_INDEX = "ux_import_batch_active_sha256";
 	private static final String RESERVE_SQL = "INSERT INTO import_batch "
@@ -30,6 +32,10 @@ public class ImportBatchPersistenceAdapter implements ImportBatchOutputPort {
 	private static final String LOOKUP_SQL = "SELECT id, status FROM import_batch WHERE sha256 = ? "
 			+ "ORDER BY CASE status WHEN 'COMPLETED' THEN 0 WHEN 'PROCESSING' THEN 1 "
 			+ "WHEN 'RECEIVED' THEN 2 ELSE 3 END, id";
+	private static final String SUMMARY_SQL = "SELECT id, filename, status, rows_read, imported_count, "
+			+ "new_count, changed_count, unchanged_count, rejected_count, error_count, "
+			+ "started_at, finished_at, duration_ms FROM import_batch WHERE id = ?";
+	private static final String EXISTS_SQL = "SELECT COUNT(*) FROM import_batch WHERE id = ?";
 
 	private final JdbcTemplate jdbc;
 	private final ImportBatchRepository repository;
@@ -76,6 +82,35 @@ public class ImportBatchPersistenceAdapter implements ImportBatchOutputPort {
 				(row, index) -> new DigestMatch(row.getLong("id"), ImportStatus.valueOf(row.getString("status"))),
 				sha256);
 		return matches.stream().filter(match -> match.status() != ImportStatus.FAILED).findFirst();
+	}
+
+	@Override
+	public Optional<BatchSummary> findSummaryById(long batchId) {
+		return this.jdbc.query(SUMMARY_SQL, (row, index) -> new BatchSummary(
+				row.getLong("id"),
+				row.getString("filename"),
+				ImportStatus.valueOf(row.getString("status")),
+				(Integer) row.getObject("rows_read"),
+				(Integer) row.getObject("imported_count"),
+				(Integer) row.getObject("new_count"),
+				(Integer) row.getObject("changed_count"),
+				(Integer) row.getObject("unchanged_count"),
+				(Integer) row.getObject("rejected_count"),
+				(Integer) row.getObject("error_count"),
+				instant(row, "started_at"),
+				instant(row, "finished_at"),
+				(Long) row.getObject("duration_ms")), batchId).stream().findFirst();
+	}
+
+	@Override
+	public boolean existsById(long batchId) {
+		Integer count = this.jdbc.queryForObject(EXISTS_SQL, Integer.class, batchId);
+		return count != null && count > 0;
+	}
+
+	private static Instant instant(java.sql.ResultSet row, String column) throws java.sql.SQLException {
+		OffsetDateTime value = row.getObject(column, OffsetDateTime.class);
+		return value == null ? null : value.toInstant();
 	}
 
 	@Override

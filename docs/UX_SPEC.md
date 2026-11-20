@@ -1,6 +1,6 @@
 # ClearGrade — UX Specification
 
-Status: **Design documentation only — no screens are implemented.** Wireframes are in the assignment PDF (pp. 4–5); their numbers are illustrative, not data to reproduce. `[REQ]`
+Status: **Core three-screen journey implemented against the real API (G4→G5, 2026-11-20).** Wireframes are in the assignment PDF (pp. 4–5); their numbers are illustrative, not data to reproduce. Bonus affordances (`BONUS` CSV download, mark bars, print) remain deferred (D-17). `[REQ]`
 
 ## 1. Product design direction
 

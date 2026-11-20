@@ -11,6 +11,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 
+import dev.cleargrade.application.exception.CsvFailureCode;
 import dev.cleargrade.application.model.ParsedCsv;
 import dev.cleargrade.application.port.in.CsvFileParser;
 import org.apache.commons.csv.CSVFormat;
@@ -54,7 +55,7 @@ public class CommonsCsvFileParser implements CsvFileParser {
 					header = indexHeader(values);
 					headerWidth = values.size();
 					if (header == null) {
-						return fatal(lastLine, FATAL_HEADER_MESSAGE, null);
+						return fatal(lastLine, FATAL_HEADER_MESSAGE, null, CsvFailureCode.MISSING_REQUIRED_COLUMNS);
 					}
 					continue;
 				}
@@ -67,19 +68,21 @@ public class CommonsCsvFileParser implements CsvFileParser {
 			}
 		}
 		catch (IOException | RuntimeException error) {
-			return fatal(lastLine, FATAL_PARSE_MESSAGE + " (near physical line " + lastLine + ")", error);
+			return fatal(lastLine, FATAL_PARSE_MESSAGE + " (near physical line " + lastLine + ")",
+					error, CsvFailureCode.MALFORMED_CSV);
 		}
 		if (header == null) {
-			return fatal(lastLine, FATAL_EMPTY_MESSAGE, null);
+			return fatal(lastLine, FATAL_EMPTY_MESSAGE, null, CsvFailureCode.EMPTY_FILE);
 		}
 		if (rows.isEmpty()) {
-			return fatal(lastLine, FATAL_NO_DATA_MESSAGE, null);
+			return fatal(lastLine, FATAL_NO_DATA_MESSAGE, null, CsvFailureCode.EMPTY_FILE);
 		}
 		return new ParsedCsv(List.copyOf(rows), Optional.empty(), Set.copyOf(header.keySet()));
 	}
 
-	private static ParsedCsv fatal(int physicalLine, String safeMessage, Throwable cause) {
-		return new ParsedCsv(List.of(), Optional.of(new ParsedCsv.FatalFailure(physicalLine, safeMessage, cause)), Set.of());
+	private static ParsedCsv fatal(int physicalLine, String safeMessage, Throwable cause, CsvFailureCode code) {
+		return new ParsedCsv(List.of(),
+				Optional.of(new ParsedCsv.FatalFailure(physicalLine, safeMessage, cause, code)), Set.of());
 	}
 
 	private static Map<String, Integer> indexHeader(List<String> values) {

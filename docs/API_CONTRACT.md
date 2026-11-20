@@ -1,6 +1,6 @@
 # ClearGrade — API Contract
 
-Status: **Proposed contract — no endpoint is implemented.** Numeric values in examples are illustrative; all counts are derived from the uploaded file (D-12). Row-level error codes are distinct from file/API-level codes.
+Status: **Implemented 2026-11-20 (G4→G5).** Numeric values in examples are illustrative; all counts are derived from the uploaded file (D-12). Row-level error codes are distinct from file/API-level codes. The bonus `errors.csv` download remains deferred (D-17); no other endpoint is added beyond those below.
 
 ## 1. Endpoints
 
@@ -164,7 +164,8 @@ Marks are JSON numbers preserving submitted decimal precision within the configu
 
 | Code | HTTP | Meaning |
 |---|---|---|
-| `MISSING_REQUIRED_COLUMNS` | 400 | Header lacks one or more required columns |
+| `MISSING_REQUIRED_COLUMNS` | 400 | Header lacks one or more required columns, or has duplicate columns |
+| `MALFORMED_CSV` | 400 | CSV cannot be parsed (for example, an unterminated quoted field); safe message only |
 | `EMPTY_FILE` | 400 | No header, or no data rows |
 | `INVALID_ENCODING` | 400 | Not decodable as UTF-8 |
 | `INVALID_FILE_TYPE` | 415 | Missing `.csv` extension / wrong content type |
@@ -180,3 +181,5 @@ Row-level duplicates are reported only through `DUPLICATE_ID` in `import_row_err
 ## 9. Content and security notes
 
 All responses use UTF-8. Dates are ISO-8601 (`YYYY-MM-DD`); timestamps are UTC ISO-8601. CORS restricted to the app origin. Error bodies never include secrets or logged PII bodies (SECURITY.md §5).
+
+Implementation notes (G4→G5): the configurable limit is `cleargrade.upload.max-file-size` (default `10485760` bytes = 10 MiB); it drives both `spring.servlet.multipart.max-file-size`/`max-request-size` and a controller-side guard. Non-UTF-8 payloads are rejected before parsing. `page` is 0-based; `size` is 1–100 (defaults 50 for row errors, 25 for students). `sort` accepts only `studentId`, `fullName`, `gradeLevel` or `section` with `asc|desc`. Duplicate COMPLETED digests return `200` with `deduplicated: true`; active digests return `409 BATCH_PROCESSING`. No authentication is implemented (U-03): deployment is local/trusted only.

@@ -1,6 +1,6 @@
 # ClearGrade — Development Plan
 
-Status: **G3→G4 gate passed; production CSV adapter, import use-case wiring and benchmark/idempotency/concurrency acceptance implemented and verified against real PostgreSQL.** REST APIs and the SPA remain planned. Owner decisions ratified 2026-11-19, transaction boundary resolved 2026-11-20 (DECISIONS.md §1/§2).
+Status: **G4→G5 gate passed; documented REST API and real-data frontend integration implemented and verified.** PR #8 (G3→G4) is merged to `main` as `acc83a1`. Docker packaging, seed script and final documentation remain (Phases 6–7). Owner decisions ratified 2026-11-19, transaction boundary resolved 2026-11-20 (DECISIONS.md §1/§2).
 
 ## 1. Planned development sequence
 
@@ -10,8 +10,8 @@ Status: **G3→G4 gate passed; production CSV adapter, import use-case wiring an
 | 1 — Foundation **(scaffolded, no migrations yet)** | Maven/Spring Boot bootstrap (Java 21, Spring Boot 4.1.2, `mvnw`), Docker Compose + Postgres, profile-based configuration (§3), injected `Clock` (I-04), configurable 10 MiB limit (U-06) | Skeleton starts with the local profile; `/actuator/health` answers; minimal context/health verification test green. **Flyway migrations and the app Docker image remain for later phases.** |
 | 2 — Domain **(3B.1 implemented + reviewed)** | Pure model with `BigDecimal` marks (C-3), validation, grading (D-07), error-code vocabulary; review remediation for count overflow, row-error line, batch/outcome construction and documentation | Domain tests green; source-scanning framework-independence test green; **C-4 spike evidence approved and G2→G3 passed by owner 2026-11-20** |
 | 3 — Ingestion **(schema + persistence + application services + production CSV + import use case implemented; G3→G4 passed)** | Flyway V1 schema, JPA entities/repositories/mappers, application output ports, T1–T4 transaction services, exact digest recovery, D-28 upsert, C-4 physical-line CSV adapter, domain-backed row validation/error occurrences and cohesive import use case | Migration, persistence and application transaction tests green; **C-4 gate passed (owner 2026-11-20), all six limitations carried forward**; idempotency/concurrency tests green; benchmarks 16/9 and 4,685/315/348 with fixed clock — **achieved 2026-11-20** |
-| 4 — REST API | Controllers, DTOs, global error handler, `201/200/409/413` upload paths, management-path separation (T-5) | API contract tests green; no entity leakage; Actuator health-only |
-| 5 — Frontend | React Router + TanStack Query, three screens, all states, design tokens (UX_SPEC §2) | Build + typecheck pass; screens work end to end |
+| 4 — REST API **(implemented; G4→G5 passed)** | Controllers, DTOs, global error handler, `201/200/409/400/413/415/500` upload paths, batch/error/student reads, management-path separation (T-5) | API contract tests green (10 real-PostgreSQL integration tests); no entity leakage; Actuator health-only — **achieved 2026-11-20** |
+| 5 — Frontend **(implemented; G4→G5 passed)** | React Router + TanStack Query, three screens with real API data, all loading/empty/error states, design tokens (UX_SPEC §2) | 14 frontend tests, typecheck and production build pass; screens use real backend data — **achieved 2026-11-20** |
 | 6 — Seed & bonus | Seed generator posting CSV via `POST /api/imports` (T-1); bonus features only if owner requests (D-17) | Seed works through real pipeline; core not regressed |
 | 7 — Hardening & handover | Security controls, performance checks, `NOTES.md` (reserved for final submission), final README | One-command test/run verified; docs accurate |
 
@@ -87,8 +87,10 @@ Rules:
 | Application transaction tests | `cd backend; .\mvnw.cmd -B "-Dtest=ApplicationTransactionIntegrationTest,ImportApplicationServiceUnitTest,DigestViolationClassificationTest" test` | Runnable (17 tests; real Testcontainer for T1–T4/exact digest/upsert concurrency, unit test for suppressed failure-finalisation error) |
 | Focused CSV parser/validation tests | `cd backend; .\mvnw.cmd -B "-Dtest=CommonsCsvFileParserTest,CsvRowValidatorTest,ImportApplicationServiceUnitTest,BatchFinalisationTxTest,PhysicalLineTrackingSpikeTest" test` | Runnable (41 tests; no Docker needed) |
 | CSV import + benchmark acceptance | `cd backend; .\mvnw.cmd -B "-Dtest=CsvImportIntegrationTest,CsvImportBenchmarkTest" test` | Runnable (14 tests, 0 skipped; Testcontainers PostgreSQL; deterministic synthetic fixtures generated in test code — 25/16/9 and 5000/4685/315/348) |
-| Full backend verification | `cd backend; .\mvnw.cmd -B verify` | Runnable (195 tests green, 0 skipped) |
+| REST API integration tests | `cd backend; .\mvnw.cmd -B "-Dtest=RestApiIntegrationTest" test` | Runnable (10 tests, real PostgreSQL Testcontainers + MockMvc) |
+| Full backend verification | `cd backend; .\mvnw.cmd -B verify` | Runnable (205 tests green, 0 skipped) |
 | Frontend dependency install | `cd frontend; npm ci` | Runnable |
+| Frontend tests | `cd frontend; npm test` | Runnable (14 Vitest/Testing Library tests) |
 | Frontend typecheck | `cd frontend; npm run typecheck` | Runnable |
 | Frontend production build | `cd frontend; npm run build` | Runnable |
 | Compose config check | `docker compose config --quiet` | Runnable |
@@ -108,7 +110,7 @@ Exact script names may change once the build exists; the final README is authori
 | G1 → G2 | Docker boot + migration + health check succeed; port `8080:8080` reachable; Actuator exposes health only; external local config verified (§3): private file outside `src/main/resources`, excluded from Git and Docker context, not activated in Docker |
 | **G2 → G3 — PASSED 2026-11-20** | Domain tests green; architecture boundary test green; **C-4 physical-line-number spike evidence on `main` from PR #3** (TEST_STRATEGY.md §2.2) formally signed off by owner; all documented spike limitations carried forward into production CSV implementation |
 | **G3 → G4 — PASSED 2026-11-20** | Benchmarks green with fixed clock (25/16/9; 5000/4685/315/348); error occurrence counts correct; idempotency (completed → `200` semantics via `DigestConflictException(COMPLETED)`, active → `409` semantics, FAILED retry), real-PostgreSQL partial-unique concurrency and new/changed/unchanged counters green — **all verified on `feat/csv-import-adapter`** |
-| G4 → G5 | API contract, security and management-path tests green |
+| **G4 → G5 — PASSED 2026-11-20** | API contract, upload/size/duplicate/failure mapping, paginated row errors, directory filtering and report tests green; three screens use real API data; no entity leakage; Actuator health-only — **verified on `feat/rest-api-and-frontend-integration`** |
 | G5 → G6 | Three screens work end to end; all specified states present; design tokens applied |
 | G6 → G7 | Seed works through the import API; any enabled bonus does not regress core |
 | G7 → handover | One-command test/run verified; README and reserved `NOTES.md` match reality |

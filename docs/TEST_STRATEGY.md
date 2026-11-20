@@ -1,6 +1,6 @@
 # ClearGrade — Test Strategy
 
-Status: **Implemented and green (195 tests, 0 skipped, JDK 21, real PostgreSQL Testcontainers).** Focused CSV/validation tests 41, CSV import integration 12, mandatory benchmark 2, application transactions 12. Goal: convince a teammate the import is correct, including cases the supplied files do not contain. `[REQ]`
+Status: **Implemented and green (205 backend tests + 14 frontend tests, 0 skipped, JDK 21, real PostgreSQL Testcontainers).** Backend: CSV/validation focus 41, CSV import integration 12, mandatory benchmark 2, application transactions 12, REST API 10. Frontend (Vitest + Testing Library): API client 4, upload workflow 4, directory 4, report 2. Goal: convince a teammate the import is correct, including cases the supplied files do not contain. `[REQ]`
 
 ## 1. Validation unit tests (domain, pure JUnit 5)
 
@@ -60,7 +60,14 @@ Benchmark numbers are **regression fixtures only**, never parameters to validati
 - Transaction test: rollback of T3 leaves no students, no error occurrences, no `COMPLETED` status and no partial counts; T4 separately commits `FAILED`; `REQUIRES_NEW` executes in an independent transaction (proves no self-invocation bug).
 - Flyway migration from empty schema and idempotent second startup.
 
-## 5. API tests
+## 5. API tests (implemented — `RestApiIntegrationTest`, 10 tests)
+
+Real MockMvc → application service → PostgreSQL Testcontainers coverage: multipart upload `201` with counts/`Location`; repeated COMPLETED digest `200` with `deduplicated: true`; active digest `409 BATCH_PROCESSING` with `batchId`; empty/missing-column/malformed uploads `400`; non-CSV `415`; oversized `413`; batch summary `200`/`404`; paged row errors with physical lines, code filter, `404` and invalid-parameter `400`; student directory search/filter/sort/paging and sort allowlist; student report derived grading and `404`; `/actuator/health` available outside `/api`. No broad `@Transactional` test wrapper is used, so T1–T4 boundaries remain real.
+
+## 6. Frontend tests (implemented — Vitest + Testing Library, 14 tests)
+
+Typed API client success/query-string/error-envelope/network-failure/multipart cases; ImportPage upload success with real summary and physical-line problem rows, `409`/`413` friendly messages, client-side size rejection and batch lookup not-found; directory loading, real rows, search/grade/section filters, pagination, empty/error states; report rendering with derived grade/PASS and not-found state.
+
 
 - `POST /api/imports`: `201`, `200` deduplicated, `409 BATCH_PROCESSING`, `400`, `413`, `415`, `500` with correlation id; counters shape correct.
 - `GET /api/imports/{id}` and `/errors`: `200` shapes, **default size 50**, filter, `404`.
@@ -69,8 +76,6 @@ Benchmark numbers are **regression fixtures only**, never parameters to validati
 - Contract checks: JSON names/types match API_CONTRACT.md; no JPA entity leakage.
 - Management path: `/actuator/health` available; other Actuator endpoints disabled (T-5).
 - Security subset from SECURITY.md §8.
-
-## 6. Frontend tests
 
 - Component tests: `FileDropzone`, `StatCard`, `DataQualitySummary`, `ProblemTable`, `StudentTable`, `Pagination`, `ResultBadge`.
 - State coverage: upload loading/success/error/already-processing; directory loading/empty/error; report not-found.

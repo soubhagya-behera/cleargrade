@@ -2,19 +2,24 @@ package dev.cleargrade.adapters.out.persistence;
 
 import java.util.List;
 
-import dev.cleargrade.adapters.out.persistence.mapper.ImportRowErrorMapper;
+import dev.cleargrade.application.model.PageResult;
+import dev.cleargrade.application.model.RowErrorView;
 import dev.cleargrade.application.port.out.ImportRowErrorOutputPort;
+import dev.cleargrade.application.port.out.ImportRowErrorQueryPort;
 import dev.cleargrade.domain.batch.RowError;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
 
-/** Persists one row per error occurrence (D-10). */
+/** Persists and reads one row per error occurrence (D-10). */
 @Component
-public class ImportRowErrorPersistenceAdapter implements ImportRowErrorOutputPort {
+public class ImportRowErrorPersistenceAdapter implements ImportRowErrorOutputPort, ImportRowErrorQueryPort {
 
 	private static final String INSERT_SQL = "INSERT INTO import_row_error "
 			+ "(batch_id, line_number, raw_student_id, field_name, error_code, message) "
 			+ "VALUES (?, ?, ?, ?, ?, ?)";
+	private static final String SELECT_PAGE_SQL = "SELECT line_number, raw_student_id, field_name, error_code, message "
+			+ "FROM import_row_error WHERE batch_id = ? ";
+	private static final String COUNT_SQL = "SELECT COUNT(*) FROM import_row_error WHERE batch_id = ? ";
 
 	private final JdbcTemplate jdbc;
 
@@ -34,5 +39,25 @@ public class ImportRowErrorPersistenceAdapter implements ImportRowErrorOutputPor
 					error.message());
 		}
 		return errors.size();
+	}
+
+	@Override
+	public PageResult<RowErrorView> findErrors(long batchId, int page, int size, String code) {
+		String filter = code == null ? "" : "AND error_code = ? ";
+		String order = "ORDER BY line_number ASC, field_name ASC, id ASC LIMIT ? OFFSET ?";
+		Object[] pageArgs = code == null
+				? new Object[] { batchId, size, (long) page * size }
+				: new Object[] { batchId, code, size, (long) page * size };
+		List<RowErrorView> content = this.jdbc.query(SELECT_PAGE_SQL + filter + order,
+				(row, index) -> new RowErrorView(
+						row.getInt("line_number"),
+						row.getString("raw_student_id"),
+						row.getString("field_name"),
+						row.getString("error_code"),
+						row.getString("message")),
+				pageArgs);
+		Object[] countArgs = code == null ? new Object[] { batchId } : new Object[] { batchId, code };
+		Long total = this.jdbc.queryForObject(COUNT_SQL + filter, Long.class, countArgs);
+		return PageResult.of(content, page, size, total == null ? 0 : total);
 	}
 }

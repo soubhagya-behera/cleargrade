@@ -1,6 +1,6 @@
 # ClearGrade — Security Considerations
 
-Status: **Proposed controls — none implemented.** No authentication is implemented (U-03): the app is for **local/trusted evaluation only** and **must not be publicly exposed without authentication**.
+Status: **Upload, parameter, management-path and PII-logging controls implemented (G4→G5, 2026-11-20).** No authentication is implemented (U-03): the app is for **local/trusted evaluation only** and **must not be publicly exposed without authentication**.
 
 ## 1. Threat considerations
 
