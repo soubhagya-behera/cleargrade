@@ -3,6 +3,8 @@ package dev.cleargrade.csv.spike;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -15,7 +17,13 @@ import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
 import org.junit.jupiter.api.Test;
 
-/** C-4 proof: every record's physical starting line is recovered correctly. */
+/**
+ * C-4 proof: every record's physical starting line is recovered correctly.
+ *
+ * <p>Known limits carried into production design (see {@code csv-spike/README.md}): unterminated
+ * quotes are file-level failures; comment markers stay disabled; BOM stripping is caller-dependent
+ * for string input; Unicode offsets are UTF-16 code units.</p>
+ */
 class PhysicalLineTrackingSpikeTest {
 
 	private static final Path FIXTURES = Path.of("src", "test", "resources", "csv-spike");
@@ -75,6 +83,36 @@ class PhysicalLineTrackingSpikeTest {
 	}
 
 	@Test
+	void loneCarriageReturnsAreCountedAndAlignWithCharacterPositions() throws IOException {
+		String source = Files.readString(FIXTURES.resolve("lone-cr.csv"), StandardCharsets.UTF_8);
+		List<TrackedRecord> records = new PhysicalLineCsvReader(FORMAT).read(source);
+
+		assertThat(records).extracting(TrackedRecord::physicalLine).containsExactly(1, 2, 4, 6, 8);
+		assertThat(records.get(0).characterPosition()).isZero();
+		assertThat(records.get(1).characterPosition()).isEqualTo(source.indexOf("1,Alice,ok"));
+		assertThat(records.get(2).characterPosition()).isEqualTo(source.indexOf("2,Bob,") - 1);
+		assertThat(records.get(2).values().get(2)).isEqualTo("x\ry");
+		assertThat(records.get(4).physicalLine()).isEqualTo(8);
+		assertThat(records.get(4).values()).containsExactly("4", "Dana", "after");
+	}
+
+	@Test
+	void supplementaryCharactersDoNotShiftCharacterPositionsOrLines() throws IOException {
+		String source = Files.readString(FIXTURES.resolve("unicode-supplementary.csv"), StandardCharsets.UTF_8);
+		String emoji = new String(new char[] { '\ud83d', '\ude00' });
+		List<TrackedRecord> records = new PhysicalLineCsvReader(FORMAT).read(source);
+
+		assertThat(source).contains(emoji);
+		assertThat(emoji).hasSize(2);
+		assertThat(records).extracting(TrackedRecord::physicalLine).containsExactly(1, 2, 3, 5);
+		assertThat(records.get(2).characterPosition()).isEqualTo(source.indexOf("2," + emoji));
+		assertThat(records.get(2).physicalLine()).isEqualTo(3);
+		assertThat(records.get(2).values().get(1)).isEqualTo(emoji + " Star");
+		assertThat(records.get(3).physicalLine()).isEqualTo(5);
+		assertThat(records.get(3).values()).containsExactly("3", "Bob", "after");
+	}
+
+	@Test
 	void repeatedExecutionIsDeterministic() throws IOException {
 		int[] expected = { 1, 2, 4, 6, 8, 9 };
 		List<List<Integer>> observed = new ArrayList<>();
@@ -109,6 +147,8 @@ class PhysicalLineTrackingSpikeTest {
 				Arguments.of("embedded-newline-crlf.csv", new int[] { 1, 2, 5 }),
 				Arguments.of("malformed-after-embedded-lf.csv", new int[] { 1, 2, 4, 6, 8, 9 }),
 				Arguments.of("malformed-after-embedded-crlf.csv", new int[] { 1, 2, 4, 6, 8, 9 }),
-				Arguments.of("mixed-endings.csv", new int[] { 1, 2, 4 }));
+				Arguments.of("mixed-endings.csv", new int[] { 1, 2, 4 }),
+				Arguments.of("lone-cr.csv", new int[] { 1, 2, 4, 6, 8 }),
+				Arguments.of("unicode-supplementary.csv", new int[] { 1, 2, 3, 5 }));
 	}
 }

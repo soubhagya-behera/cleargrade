@@ -12,7 +12,14 @@ import org.apache.commons.csv.CSVFormat;
 import org.apache.commons.csv.CSVParser;
 import org.apache.commons.csv.CSVRecord;
 
-/** Isolated proof reader: Commons CSV parsing plus independent physical-line mapping. */
+/**
+ * Isolated proof reader: Commons CSV parsing plus independent physical-line mapping.
+ *
+ * <p>Limitations (see {@code csv-spike/README.md}): unterminated quoted fields abort parsing and
+ * must be treated as file-level failures in production; comment markers are disabled and must not
+ * be enabled without extending the mapping; {@link #read(Path)} strips a leading UTF-8 BOM while
+ * {@link #read(String)} expects BOM handling by its caller; offsets are UTF-16 code-unit based.</p>
+ */
 final class PhysicalLineCsvReader {
 
 	private static final char BOM = '\ufeff';
