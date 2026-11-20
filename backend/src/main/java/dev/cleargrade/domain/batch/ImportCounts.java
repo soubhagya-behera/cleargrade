@@ -22,7 +22,15 @@ public record ImportCounts(
 				|| rejectedCount < 0 || errorCount < 0) {
 			throw new DomainValidationException("Import counts cannot be negative");
 		}
-		if (importedOf(newCount, changedCount, unchangedCount) + rejectedCount != rowsRead) {
+		long imported = importedTotal(newCount, changedCount, unchangedCount);
+		if (imported > Integer.MAX_VALUE) {
+			throw new DomainValidationException("Aggregate imported count exceeds the supported integer range");
+		}
+		long totalRows = imported + rejectedCount;
+		if (totalRows > Integer.MAX_VALUE) {
+			throw new DomainValidationException("Aggregate rowsRead exceeds the supported integer range");
+		}
+		if (totalRows != rowsRead) {
 			throw new DomainValidationException("rowsRead must equal imported + rejected");
 		}
 		if (errorCount < rejectedCount) {
@@ -35,10 +43,10 @@ public record ImportCounts(
 	}
 
 	public int imported() {
-		return importedOf(this.newCount, this.changedCount, this.unchangedCount);
+		return (int) importedTotal(this.newCount, this.changedCount, this.unchangedCount);
 	}
 
-	private static int importedOf(int newCount, int changedCount, int unchangedCount) {
-		return newCount + changedCount + unchangedCount;
+	private static long importedTotal(int newCount, int changedCount, int unchangedCount) {
+		return (long) newCount + changedCount + unchangedCount;
 	}
 }

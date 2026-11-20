@@ -57,8 +57,12 @@ class ImportStatusTest {
 
 	@Test
 	void batchCanFailFromProcessingOrReceived() {
-		assertEquals(ImportStatus.FAILED, ImportBatch.received(SHA).failed().status());
-		assertEquals(ImportStatus.FAILED, ImportBatch.received(SHA).processing().failed().status());
+		ImportBatch failedFromReceived = ImportBatch.received(SHA).failed();
+		ImportBatch failedFromProcessing = ImportBatch.received(SHA).processing().failed();
+		assertEquals(ImportStatus.FAILED, failedFromReceived.status());
+		assertEquals(ImportStatus.FAILED, failedFromProcessing.status());
+		assertNull(failedFromReceived.counts());
+		assertNull(failedFromProcessing.counts());
 	}
 
 	@Test
@@ -72,5 +76,24 @@ class ImportStatusTest {
 		assertThrows(DomainValidationException.class, () -> ImportBatch.received("ABC"));
 		assertThrows(DomainValidationException.class, () -> ImportBatch.received("Z".repeat(64)));
 		assertThrows(DomainValidationException.class, () -> ImportBatch.received(null));
+	}
+
+	@Test
+	void directConstructionRejectsEveryInconsistentStateAndCountCombination() {
+		ImportCounts counts = new ImportCounts(2, 1, 0, 1, 0, 0);
+		assertThrows(DomainValidationException.class, () -> new ImportBatch(SHA, ImportStatus.RECEIVED, counts));
+		assertThrows(DomainValidationException.class, () -> new ImportBatch(SHA, ImportStatus.PROCESSING, counts));
+		assertThrows(DomainValidationException.class, () -> new ImportBatch(SHA, ImportStatus.COMPLETED, null));
+		assertThrows(DomainValidationException.class, () -> new ImportBatch(SHA, ImportStatus.FAILED, counts));
+		assertThrows(DomainValidationException.class, () -> new ImportBatch(SHA, null, null));
+	}
+
+	@Test
+	void directConstructionAllowsConsistentStates() {
+		ImportCounts counts = new ImportCounts(2, 1, 0, 1, 0, 0);
+		assertNull(new ImportBatch(SHA, ImportStatus.RECEIVED, null).counts());
+		assertNull(new ImportBatch(SHA, ImportStatus.PROCESSING, null).counts());
+		assertNull(new ImportBatch(SHA, ImportStatus.FAILED, null).counts());
+		assertEquals(counts, new ImportBatch(SHA, ImportStatus.COMPLETED, counts).counts());
 	}
 }

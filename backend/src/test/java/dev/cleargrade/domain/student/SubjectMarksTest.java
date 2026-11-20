@@ -60,6 +60,13 @@ class SubjectMarksTest {
 	}
 
 	@Test
+	void rejectsNullSubjectLookup() {
+		SubjectMarks marks = SubjectMarks.of(allMarks("50"));
+		assertThrows(DomainValidationException.class, () -> marks.mark(null));
+		assertEquals(new BigDecimal("50"), marks.mark(Subject.MATHS));
+	}
+
+	@Test
 	void exposesAnUnmodifiableSnapshot() {
 		SubjectMarks marks = SubjectMarks.of(allMarks("50"));
 		assertThrows(UnsupportedOperationException.class,

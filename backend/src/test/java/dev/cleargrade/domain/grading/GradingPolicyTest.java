@@ -129,6 +129,39 @@ class GradingPolicyTest {
 	}
 
 	@Test
+	void directConstructionAcceptsPolicyConsistentOutcome() {
+		Student student = student(marks("60", "70", "80", "90", "100"));
+		StudentOutcome expected = policy.outcome(student);
+		StudentOutcome direct = new StudentOutcome(student, expected.total(), expected.exactPercentage(),
+				expected.displayPercentage(), expected.grade(), expected.passed());
+		assertEquals(expected, direct);
+		assertEquals(expected.hashCode(), direct.hashCode());
+	}
+
+	@Test
+	void directConstructionRejectsContradictoryOutcomeValues() {
+		Student student = student(marks("100", "100", "100", "99.8", "0"));
+		StudentOutcome valid = policy.outcome(student);
+		assertEquals(Grade.B, valid.grade());
+		assertEquals(new BigDecimal("80.0"), valid.displayPercentage());
+
+		assertThrows(DomainValidationException.class, () -> new StudentOutcome(student, valid.total(),
+				valid.exactPercentage(), valid.displayPercentage(), Grade.A, valid.passed()));
+		assertThrows(DomainValidationException.class, () -> new StudentOutcome(student, valid.total(),
+				valid.exactPercentage(), valid.displayPercentage(), valid.grade(), false));
+		assertThrows(DomainValidationException.class, () -> new StudentOutcome(student, valid.total(),
+				valid.exactPercentage(), new BigDecimal("79.9"), valid.grade(), valid.passed()));
+		assertThrows(DomainValidationException.class, () -> new StudentOutcome(student, valid.total(),
+				valid.exactPercentage(), new BigDecimal("80.00"), valid.grade(), valid.passed()));
+		assertThrows(DomainValidationException.class, () -> new StudentOutcome(student, valid.total(),
+				new BigDecimal("80.0"), valid.displayPercentage(), Grade.A, true));
+		assertThrows(DomainValidationException.class, () -> new StudentOutcome(student, new BigDecimal("400"),
+				new BigDecimal("80"), new BigDecimal("80.0"), Grade.A, true));
+		assertThrows(DomainValidationException.class, () -> new StudentOutcome(null, valid.total(),
+				valid.exactPercentage(), valid.displayPercentage(), valid.grade(), valid.passed()));
+	}
+
+	@Test
 	void rejectsNullInputs() {
 		assertThrows(DomainValidationException.class, () -> policy.exactPercentage((SubjectMarks) null));
 		assertThrows(DomainValidationException.class, () -> policy.exactPercentage((BigDecimal) null));

@@ -54,4 +54,26 @@ class ImportCountsTest {
 	void rejectsNegativeCounts() {
 		assertThrows(DomainValidationException.class, () -> counts(1, -1, 0, 2, 0, 0));
 	}
+
+	@Test
+	void acceptsLargestRepresentableAggregates() {
+		int max = Integer.MAX_VALUE;
+		ImportCounts counts = counts(max, max, 0, 0, 0, max);
+		assertEquals(max, counts.imported());
+		assertEquals(max, counts.rowsRead());
+		assertEquals(max, counts.errorCount());
+	}
+
+	@Test
+	void rejectsImportedAggregateOverflow() {
+		int max = Integer.MAX_VALUE;
+		assertThrows(DomainValidationException.class, () -> counts(0, max, 1, 0, 0, 0));
+		assertThrows(DomainValidationException.class, () -> counts(0, max, max, max, 0, 0));
+	}
+
+	@Test
+	void rejectsRowsReadAggregateOverflow() {
+		int max = Integer.MAX_VALUE;
+		assertThrows(DomainValidationException.class, () -> counts(0, max, 0, 0, 1, 1));
+	}
 }

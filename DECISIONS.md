@@ -1,6 +1,6 @@
 # ClearGrade — Engineering Decisions
 
-Status: **Owner approvals recorded 2026-11-19.** Pure domain rules are implemented (Phase 3B.1); persistence, CSV ingestion, REST APIs and the SPA remain unimplemented. `[REQ]` = assignment requirement; `[REC]` = engineering choice; `[INF]` = inference confirmed by supplied data.
+Status: **Owner approvals recorded 2026-11-19.** Pure domain rules are implemented and hardened after independent review (Phase 3B.1); persistence, CSV ingestion, REST APIs and the SPA remain unimplemented. `[REQ]` = assignment requirement; `[REC]` = engineering choice; `[INF]` = inference confirmed by supplied data.
 
 ## 1. Owner-approved decisions (canonical, active)
 
@@ -112,6 +112,8 @@ Status: **Owner approvals recorded 2026-11-19.** Pure domain rules are implement
 - **D-13 — Transaction boundaries.** Separate transaction service beans or `TransactionTemplate` for `REQUIRES_NEW` work to avoid self-invocation; explicit `PROCESSING` persistence and `FAILED` finalisation (DATA_MODEL.md §7).
 - **D-14 — Server-side pagination.** All list endpoints paged; errors default 50, students default 25, max 100 (T-4).
 - **D-16 — Single container for SPA + API.** Multi-stage Dockerfile; Compose adds PostgreSQL; port `8080:8080` published.
+- **D-21 — RECEIVED→FAILED is a valid recovery transition.** `RECEIVED → PROCESSING → COMPLETED/FAILED` is the normal path, but the approved lifecycle also permits `RECEIVED → FAILED` for the crash-recovery sweep of a timed-out stale reservation (ARCHITECTURE.md §4, DATA_MODEL.md §5). This is not a row-level failure: a bad row never fails a batch. `PROCESSING → FAILED` remains the fatal-file path; terminal states are locked. Implemented in `ImportStatus` and locked by tests.
+- **D-22 — Leap-day age increments on 1 March in non-leap years.** The domain keeps `Period`-based age calculation (I-03, I-04). For a 29 February birth date, age advances on 1 March of a non-leap year: a 2000-02-29 birth is 24 on 2025-02-28 and 25 on 2025-03-01. Fixed-clock tests lock both dates and the maximum-age rejection from 2026-03-01.
 
 ## 3. Superseded identifiers (history preserved — no longer active)
 
@@ -128,5 +130,5 @@ These identifiers are retained here so no decision history is silently lost; the
 
 - **C-4 — Physical line numbers (UNRESOLVED PRE-IMPLEMENTATION SPIKE).** Not claimed solved. Must be proven against the chosen Commons CSV version before production ingestion; see TEST_STRATEGY.md §2 and DEVELOPMENT.md gate G2→G3. A counting `Reader` is not acceptable without testing parser buffering/read-ahead. If the spike cannot prove the behaviour, this remains unresolved and the line-number feature must be redesigned before phase 3 completion.
 - **U-04 residual:** the actual contents of the unseen CSV are unknown; only the README-listed variations can be designed for.
-- **U-01 residual:** plus-addresses and subdomains are accepted by design; other unusual valid forms may still be rejected.
+- **U-01 residual:** plus-addresses and subdomains are accepted by design; other unusual valid forms may still be rejected. The exact pragmatic grammar boundary (local-part length, underscore, ASCII-only TLD) is an explicit future decision for CSV integration in Phase 3; email validation rules were not changed during the 3B.1 remediation.
 - **U-06 residual:** whether a real unseen file exceeds the configurable limit is unknown; the limit is an operator setting.

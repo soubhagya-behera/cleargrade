@@ -16,6 +16,12 @@ public record ImportBatch(String sha256, ImportStatus status, ImportCounts count
 		if (status == null) {
 			throw new DomainValidationException("Import status is required");
 		}
+		if (status == ImportStatus.COMPLETED && counts == null) {
+			throw new DomainValidationException("A completed import requires final counts");
+		}
+		if (status != ImportStatus.COMPLETED && counts != null) {
+			throw new DomainValidationException("Only a completed import may carry counts");
+		}
 	}
 
 	public static ImportBatch received(String sha256) {
@@ -23,7 +29,7 @@ public record ImportBatch(String sha256, ImportStatus status, ImportCounts count
 	}
 
 	public ImportBatch processing() {
-		return new ImportBatch(this.sha256, this.status.transitionTo(ImportStatus.PROCESSING), this.counts);
+		return new ImportBatch(this.sha256, this.status.transitionTo(ImportStatus.PROCESSING), null);
 	}
 
 	public ImportBatch completed(ImportCounts finalCounts) {
@@ -34,6 +40,6 @@ public record ImportBatch(String sha256, ImportStatus status, ImportCounts count
 	}
 
 	public ImportBatch failed() {
-		return new ImportBatch(this.sha256, this.status.transitionTo(ImportStatus.FAILED), this.counts);
+		return new ImportBatch(this.sha256, this.status.transitionTo(ImportStatus.FAILED), null);
 	}
 }

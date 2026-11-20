@@ -55,6 +55,27 @@ class DateOfBirthTest {
 	}
 
 	@Test
+	void leapDayBirthdayIncrementsOnMarchOneInNonLeapYear() {
+		Clock feb = Clock.fixed(Instant.parse("2025-02-28T00:00:00Z"), ZoneOffset.UTC);
+		Clock mar = Clock.fixed(Instant.parse("2025-03-01T00:00:00Z"), ZoneOffset.UTC);
+		LocalDate leapDayBirth = LocalDate.of(2000, 2, 29);
+
+		DateOfBirth dateOfBirth = DateOfBirth.of(leapDayBirth, feb);
+		assertEquals(24, dateOfBirth.ageOn(feb, DateOfBirth.BUSINESS_ZONE));
+		assertEquals(25, dateOfBirth.ageOn(mar, DateOfBirth.BUSINESS_ZONE));
+	}
+
+	@Test
+	void leapDayMaximumAgeIsRejectedFromMarchOne() {
+		Clock feb = Clock.fixed(Instant.parse("2026-02-28T00:00:00Z"), ZoneOffset.UTC);
+		Clock mar = Clock.fixed(Instant.parse("2026-03-01T00:00:00Z"), ZoneOffset.UTC);
+		LocalDate leapDayBirth = LocalDate.of(2000, 2, 29);
+
+		assertEquals(25, DateOfBirth.of(leapDayBirth, feb).ageOn(feb, DateOfBirth.BUSINESS_ZONE));
+		assertThrows(DomainValidationException.class, () -> DateOfBirth.of(leapDayBirth, mar));
+	}
+
+	@Test
 	void rejectsNullInputs() {
 		assertThrows(DomainValidationException.class, () -> DateOfBirth.of(null, FIXED_CLOCK));
 		assertThrows(NullPointerException.class, () -> DateOfBirth.of(LocalDate.of(2001, 11, 19), null));

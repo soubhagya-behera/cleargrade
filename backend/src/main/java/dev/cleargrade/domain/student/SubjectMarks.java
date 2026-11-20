@@ -38,6 +38,9 @@ public final class SubjectMarks {
 	}
 
 	public BigDecimal mark(Subject subject) {
+		if (subject == null) {
+			throw new DomainValidationException("Subject is required");
+		}
 		return this.marks.get(subject);
 	}
 

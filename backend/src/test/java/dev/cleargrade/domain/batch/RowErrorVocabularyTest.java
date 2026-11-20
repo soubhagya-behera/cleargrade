@@ -41,6 +41,22 @@ class RowErrorVocabularyTest {
 	}
 
 	@Test
+	void rejectsHeaderLineEvenThroughDirectConstruction() {
+		PhysicalLineNumber header = PhysicalLineNumber.of(1);
+		assertThrows(DomainValidationException.class,
+				() -> new RowError(header, RowErrorCode.INVALID_FORMAT, "email", null, "Bad email"));
+		assertThrows(DomainValidationException.class,
+				() -> RowError.wholeRow(header, RowErrorCode.WRONG_FIELD_COUNT, "Bad row"));
+	}
+
+	@Test
+	void acceptsDataLineThroughDirectConstruction() {
+		RowError error = new RowError(PhysicalLineNumber.of(2), RowErrorCode.OUT_OF_RANGE,
+				"maths", "STU-001", "Mark must be between 0 and 100");
+		assertEquals(2, error.lineNumber().value());
+	}
+
+	@Test
 	void rejectsIncompleteErrors() {
 		PhysicalLineNumber line = PhysicalLineNumber.of(2);
 		assertThrows(DomainValidationException.class,

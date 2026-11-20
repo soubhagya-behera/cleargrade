@@ -14,9 +14,19 @@ public record StudentOutcome(
 		Grade grade,
 		boolean passed) {
 
+	private static final GradingPolicy POLICY = new GradingPolicy();
+
 	public StudentOutcome {
 		if (student == null || total == null || exactPercentage == null || displayPercentage == null || grade == null) {
 			throw new DomainValidationException("Student outcome fields are required");
+		}
+		if (total.compareTo(student.marks().total()) != 0
+				|| exactPercentage.compareTo(POLICY.exactPercentage(total)) != 0
+				|| displayPercentage.scale() != 1
+				|| displayPercentage.compareTo(POLICY.displayPercentage(exactPercentage)) != 0
+				|| grade != POLICY.grade(exactPercentage)
+				|| passed != POLICY.passed(exactPercentage)) {
+			throw new DomainValidationException("Student outcome values are inconsistent with GradingPolicy");
 		}
 	}
 }
