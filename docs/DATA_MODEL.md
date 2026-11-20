@@ -1,6 +1,6 @@
 # ClearGrade — Data Model
 
-Status: **Pure domain rules implemented (Phase 3B.1); V1 schema migration implemented and tested (Phase 3B.2.1), but no JPA entities or persistence services exist yet.** Decision IDs follow DECISIONS.md (superseded IDs are listed there).
+Status: **Domain, V1 schema, JPA persistence, application ports/T1–T4 services, production CSV adapter and import use case implemented; G3→G4 passed 2026-11-20.** Decision IDs follow DECISIONS.md (superseded IDs are listed there).
 
 ## 1. Entity definitions
 
@@ -162,7 +162,7 @@ Batch row exists before parsing so fatal errors can be recorded. `PROCESSING` is
 
 ## 8. Physical line numbers (C-4)
 
-`line_number` semantics are specified and the C-4 spike evidence was approved by the owner on 2026-11-20 (G2→G3 passed). The documented spike limitations are carried forward into the production CSV adapter, which remains future work (ARCHITECTURE.md §9, TEST_STRATEGY.md §2).
+`line_number` semantics are specified and the C-4 spike evidence was approved by the owner on 2026-11-20 (G2→G3 passed). The production CSV adapter now adopts the approved `getCharacterPosition()` + independent `PhysicalLineMap` mechanism and preserves all six documented limitations (ARCHITECTURE.md §9 and §11, TEST_STRATEGY.md §2). Every rejected row's error occurrences carry the physical starting line, including after embedded newlines and blank lines; blank rows are never counted or rejected.
 
 ## 9. Traceability
 

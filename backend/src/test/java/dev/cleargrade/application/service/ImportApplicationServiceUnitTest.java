@@ -19,6 +19,7 @@ import org.junit.jupiter.api.Test;
 
 import dev.cleargrade.application.model.BatchReservation;
 import dev.cleargrade.application.model.BatchSubmission;
+import dev.cleargrade.application.port.in.CsvFileParser;
 import dev.cleargrade.domain.DomainValidationException;
 
 /** Orchestrator error-path behaviour; database semantics are covered by the integration tests. */
@@ -39,7 +40,8 @@ class ImportApplicationServiceUnitTest {
 		doThrow(original).when(finalisationTx).process(anyLong(), anyList(), anyList(), anyInt(), any(Instant.class));
 		doThrow(failureFinalisationError).when(failureTx).markFailed(anyLong(), any(Instant.class));
 		ImportApplicationService service = new ImportApplicationService(
-				CLOCK, reservationTx, digestLookupTx, transitionTx, finalisationTx, failureTx);
+				CLOCK, reservationTx, digestLookupTx, transitionTx, finalisationTx, failureTx,
+				mock(CsvFileParser.class), mock(CsvRowValidator.class));
 
 		DomainValidationException thrown = assertThrows(DomainValidationException.class,
 				() -> service.importBatch(new BatchSubmission(

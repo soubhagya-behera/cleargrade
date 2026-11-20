@@ -1,6 +1,6 @@
 # ClearGrade — Project Status
 
-Last updated: 2026-11-20 · **Current phase: application output ports and T1–T4 transaction/digest/upsert services implemented and verified against real PostgreSQL.** PR #5 (V1 schema) and PR #6 (persistence foundation) are merged on `main`. No CSV ingestion, REST APIs or frontend business logic is implemented.
+Last updated: 2026-11-20 · **Current phase: production CSV adapter, import-use-case wiring and G3→G4 acceptance tests implemented and verified; G3→G4 gate now passes.** PR #5 (V1 schema), PR #6 (persistence foundation) and PR #7 (application ports/services) are merged on `main`. REST APIs (G4→G5) and frontend business logic are not implemented.
 
 ## 1. Completed
 
@@ -22,6 +22,11 @@ Last updated: 2026-11-20 · **Current phase: application output ports and T1–T
  - Owner decision 2026-11-20: G2→G3 gate passed, and the D-25/D-26 transaction boundary resolved as T1 `RECEIVED` reservation, T2 `PROCESSING`, T3 atomic upserts/errors/counts/`COMPLETED`, T4 separate `FAILED`; duplicate recovery outside the failed transaction on the exact active-digest `23505` (DECISIONS.md §2 owner resolution).
  - Application services slice: narrow output ports (`ImportBatchOutputPort`, `StudentOutputPort`, `ImportRowErrorOutputPort`), application-owned input/result types, adapters implementing the ports, and four distinct proxied `REQUIRES_NEW` transaction beans plus a fresh-transaction digest lookup. D-28 upsert uses sorted `INSERT … ON CONFLICT DO NOTHING`, `SELECT … FOR UPDATE` on conflict, normalized-field comparison, and no update for unchanged rows.
  - `ClearGradeApplicationHealthTest` now starts the full context against real PostgreSQL (Flyway + Hibernate `validate`) instead of excluding datasource auto-configuration.
+ - Application services slice merged on `main` via PR #7 as squash commit `85e3df9`; final diagram alignment recorded in `a4678bc`.
+ - CSV ingestion slice: production `CommonsCsvFileParser` in `adapters.in.csv` (BOM-aware, explicit Commons CSV format, header mapping, extra-column support) adopts the approved C-4 physical-line mechanism; `CsvRowValidator` reuses existing domain validators and collects one `RowError` per occurrence. `ImportApplicationService.importFile(byte[], String)` computes SHA-256 from original bytes and owns T1→T2→parse/validate→T3, with T4 on fatal failure. `commons-csv` moved to compile scope (D-04).
+ - Production CSV adapter details: explicit `CSVFormat` (comment markers disabled), BOM stripping before decoding to text, header normalization/uniqueness/width checks, C-4 `CSVRecord.getCharacterPosition()` plus independent `PhysicalLineMap`, all-empty/blank row skipping, recoverable `WRONG_FIELD_COUNT` rows, and file-level fatal failures for unterminated quotes/empty/header-only files. Safe administrator messages never carry raw CSV or PII; the original parser cause is retained.
+ - Row validation via `CsvRowValidator` reuses existing domain value objects (including the canonical U-01 email rule), collects every applicable error occurrence, reserves the first normalized ID even when another field is invalid (I-02), and pins every occurrence to the physical starting line. Counts are overflow-guarded in T3 before narrowing to persisted integers.
+ - Supplied benchmark fixtures are git-ignored; benchmark tests assert exact counts when the assignment pack is present (fixtures were present for this run, so both executed). Measured 2026-11-20 with JDK 21 in the final `verify` run: small **25/16/9** in **158 ms**, sample **5000/4685/315 rejected/348 occurrences** in **4,497 ms** (informational, no invented SLA; timings vary per run — earlier runs measured 168–206 ms and 3,943–6,274 ms).
 
 ## 2. Owner-ratified decisions (recorded in DECISIONS.md §1)
 
@@ -38,11 +43,13 @@ Last updated: 2026-11-20 · **Current phase: application output ports and T1–T
 | Check | Command | Result |
 |---|---|---|
 | Spring Boot / Java compatibility | Spring Initializr metadata + Maven Central | `4.1.2` GA; Java `21` supported |
-| Backend compile + tests | `.\mvnw.cmd -B test` (JDK 21) | 159 tests, 0 failures/errors (88 domain, 20 CSV spike, 9 migration, 2 health, 10 mapper, 8 persistence integration, 18 application services, 4 digest classifiers) |
+| Backend compile + tests | `.\mvnw.cmd -B test` (JDK 21) | **193 tests, 0 failures/errors/skips** (domain 88, C-4 spike 20, CSV parser 13, validator 6, application unit/overflow 3, batch/CSV integration 11, application transactions 12, benchmark 2, application model 5, persistence/migration/health/digest 33) |
+| Focused CSV/validation tests | `.\mvnw.cmd -B "-Dtest=CommonsCsvFileParserTest,CsvRowValidatorTest,ImportApplicationServiceUnitTest,BatchFinalisationTxTest,PhysicalLineTrackingSpikeTest" test` | 40 tests, 0 failures/errors |
+| CSV + benchmark integration | `.\mvnw.cmd -B "-Dtest=CsvImportIntegrationTest,CsvImportBenchmarkTest" test` | 13 tests, 0 failures/errors; both benchmark fixtures executed with exact counts |
 | PostgreSQL migration integration | `.\mvnw.cmd -B -Dtest=CoreSchemaMigrationTest test` (JDK 21, `postgres:16-alpine`) | 9 tests, 0 failures/errors against a real Testcontainer, including status/count and SHA-256 SQLSTATE assertions |
 | Persistence integration | `.\mvnw.cmd -B "-Dtest=PersistenceMapperTest,PersistenceIntegrationTest" test` (JDK 21, `postgres:16-alpine`) | 18 tests, 0 failures/errors; Flyway + Hibernate `validate` + repository round trips |
 | Application transaction integration | `.\mvnw.cmd -B "-Dtest=ApplicationTransactionIntegrationTest,ImportApplicationServiceUnitTest,DigestViolationClassificationTest" test` (JDK 21, `postgres:16-alpine`) | 17 tests, 0 failures/errors; T1–T4 boundaries, exact digest index, upsert counts, concurrency and suppressed failure-finalisation error |
-| Backend full verify | `.\mvnw.cmd -B verify` | Passed, 159 tests green |
+| Backend full verify | `.\mvnw.cmd -B verify` | Passed, 193 tests green |
 | Packaged JAR config safety | `jar tf` on built JAR | Only `application.properties` packaged; no local profile |
 | Application startup + DB connection | `java -jar … --spring.profiles.active=local` | `/actuator/health` → `200`, status `UP` |
 | Actuator restriction | HTTP probes of `/actuator/env`, `/actuator/beans`, `/actuator/info` | All `404`; only health exposed |
@@ -62,7 +69,7 @@ Toolchain: JDK `21.0.10` (installed at `C:\Program Files\Java\jdk-21.0.10`, sele
 | Benchmark counts drift with real date | Mitigated | Fixed clock `2026-11-19` in tests (I-04); document in `NOTES.md` |
 | Unseen CSV contents unknown | Open | U-04 design + generated fixtures (TEST_STRATEGY §8) |
 | Unusual valid email forms | Open | U-01 rule documented; plus-address/subdomain supported |
-| Concurrent identical uploads | Designed | Partial unique index + digest reservation (C-1/C-2); test in phase 3 |
+| Concurrent identical uploads | Implemented & tested | Partial unique index + digest reservation (C-1/C-2); real PostgreSQL simultaneous-reservation and divergent D-28 upsert tests green |
 | Decimal precision | Implemented in domain | `BigDecimal` + unconstrained `NUMERIC`, no rounding (C-3) |
 | Private config leaking into builds | Mitigated | D-20: outside Maven resources, Git-ignored, excluded by `.dockerignore`, absent from built JAR |
 | Host port 5432 occupied locally | Mitigated | `POSTGRES_PORT` made configurable; local `.env` uses a free host port |
@@ -74,9 +81,10 @@ Toolchain: JDK `21.0.10` (installed at `C:\Program Files\Java\jdk-21.0.10`, sele
 1. Phase 3B.2.1 schema slice is merged on `main` via PR #5; Phase 3B.2.2 is merged on `main` via PR #6 (`dce122f`).
 2. **G2→G3 formally passed by owner 2026-11-20** on the merged PR #3 C-4 evidence, with all documented spike limitations carried forward.
 3. Application output ports and T1–T4 transaction/digest/upsert services are implemented per D-23–D-28; no schema changes were needed.
-4. Implement the production CSV adapter adopting the approved C-4 mechanism and limitations, then the import use case, REST API and three screens.
-5. Add the multi-stage app Dockerfile, seed script, one-command test script and `NOTES.md`.
+4. **Production CSV adapter, import use case and G3→G4 acceptance are complete** on `feat/csv-import-adapter`; all C-4 limitations carried forward; no migration/schema changes. **G3→G4 now passes.**
+5. G4→G5 remains: REST upload/history/error/student endpoints with the documented `201/200/409/400/413` mapping of application outcomes, then the three SPA screens, the multi-stage Dockerfile, seed script, one-command test script and `NOTES.md`.
+6. Deferred: D-21 stale-`RECEIVED` recovery sweep; U-01 exact pragmatic email grammar boundary remains an owner decision (the canonical domain validator is reused unchanged).
 
 ## 7. Scope notes
 
-Current-result snapshot only (no term/year invented, D-11). Benchmark numbers are regression fixtures, never application logic (D-12). `NOTES.md` is reserved for final assignment submission. No sample CSV data or PDF content is reproduced in documentation. Domain business rules, the V1 schema migration, JPA entities/repositories/mappers and application output ports with T1–T4 services are implemented; production CSV ingestion, REST APIs and real credentials are not committed.
+Current-result snapshot only (no term/year invented, D-11). Benchmark numbers are regression fixtures, never application logic (D-12). `NOTES.md` is reserved for final assignment submission. No sample CSV data or PDF content is reproduced in documentation. Domain rules, V1 schema, JPA adapters, application ports/T1–T4 services, the production CSV adapter and the import use case are implemented. REST APIs, frontend business logic and real credentials are not committed. The six C-4 limitations remain carried forward unchanged: file-level unterminated quotes, disabled comment markers, `read(Path)` BOM stripping, caller-side BOM stripping for string input, UTF-16 offset semantics and explicit header-width consistency (no `isConsistent()` reliance).

@@ -1,6 +1,6 @@
 # ClearGrade — Architecture
 
-Status: **Design documentation only — not implemented.** All statements are plans. Conventions: `[REQ]` assignment/README requirement; `[REC]` engineering choice; `[INF]` data-confirmed inference; `[SPIKE]` unresolved pre-implementation verification.
+Status: **Design documentation with implemented Phase 3 ingestion.** Domain, V1 schema, JPA adapters, application ports/T1–T4 services, the production CSV adapter and the import use case are implemented; REST/SPA remain planned. Conventions: `[REQ]` assignment/README requirement; `[REC]` engineering choice; `[INF]` data-confirmed inference; `[SPIKE]` resolved pre-implementation verification.
 
 ## 1. Context and system overview
 
@@ -64,7 +64,7 @@ flowchart TD
     H --> Q[Tx3: counts + COMPLETED]
 ```
 
-Row numbers must be **physical file line numbers, header = 1, blank lines counted** `[REQ]`; the C-4 spike (§9) is approved and its mechanism/limitations carry into the future production CSV adapter.
+Row numbers must be **physical file line numbers, header = 1, blank lines counted** `[REQ]`; the C-4 spike (§9) is approved and its mechanism/limitations are carried into the production CSV adapter (§11).
 
 ## 4. Import lifecycle and identical-file idempotency (C-1, C-2)
 
@@ -173,7 +173,7 @@ cleargrade/
 
 ## 9. Open verification gate — physical line numbers (C-4)
 
-**Status: spike evidence approved; G2→G3 passed by owner 2026-11-20.** The merged PR #3 spike proves the approach against the chosen Commons CSV version; all documented limitations (`backend/src/test/resources/csv-spike/README.md`) are carried forward into production CSV implementation, which remains future work. CSV record numbers are **not** physical line numbers. The spike verified: (a) a quoted field containing an embedded newline; (b) blank physical lines; (c) a malformed row after the embedded newline; (d) a subsequent valid row. The reported source line is the **physical starting line** of the problematic record, with the header as line 1. A simple counting `Reader` is **not** acceptable without testing parser buffering/read-ahead. See TEST_STRATEGY.md §2 and DEVELOPMENT.md gate G2→G3.
+**Status: spike evidence approved; G2→G3 passed by owner 2026-11-20; mechanism adopted in production (§11).** The merged PR #3 spike proves the approach against the chosen Commons CSV version; all documented limitations (`backend/src/test/resources/csv-spike/README.md`) are carried forward unchanged. CSV record numbers are **not** physical line numbers. The spike verified: (a) a quoted field containing an embedded newline; (b) blank physical lines; (c) a malformed row after the embedded newline; (d) a subsequent valid row. The reported source line is the **physical starting line** of the problematic record, with the header as line 1. A simple counting `Reader` is **not** acceptable without testing parser buffering/read-ahead. See TEST_STRATEGY.md §2 and DEVELOPMENT.md gate G2→G3.
 
 ## 10. Traceability to assignment requirements
 
@@ -188,3 +188,19 @@ cleargrade/
 | Build for the unseen file | U-04, DATA_MODEL.md, TEST_STRATEGY.md |
 
 `NOTES.md` is reserved for the final assignment submission (Phase 7); DECISIONS.md is its source of truth.
+
+## 11. Production CSV adapter and import use case (implemented, G3→G4)
+
+`adapters.in.csv.CommonsCsvFileParser` implements the application-owned `application.port.in.CsvFileParser` and returns only application-owned `ParsedCsv` types (no Commons CSV type escapes the adapter). `CsvRowValidator` (application) turns header-mapped rows into `ValidatedRows` using existing domain value objects; `ImportApplicationService` owns the full sequence: SHA-256 over the original bytes → T1 `RECEIVED` → T2 `PROCESSING` → parse and validate → T3 atomic upserts/errors/counts/`COMPLETED`, or T4 `FAILED` when parsing/validation/T3 fails. The adapter contains no SQL, business validation or transaction handling; the domain contains no framework or CSV imports; no JPA entity is exposed to the adapter or application.
+
+Parsing behaviour (derived from `reference/README.md` and the C-4 spike fixtures, never from sample-specific constants):
+
+- Explicit `CSVFormat` with comment markers disabled; UTF-8 decoded text with a leading BOM stripped **before** both the line map and parser are built.
+- Header-based mapping: order-insensitive, case-insensitive, surrounding spaces ignored, uniqueness checked; data rows compared against the **actual parsed header width** (I-01), not a fixed constant.
+- LF, CRLF, mixed endings, lone CR, quoted commas/newlines, supplementary Unicode and reordered/extra columns are preserved and mapped correctly.
+- Blank and all-empty physical lines are counted for line accuracy but excluded from imported/rejected counters and error occurrences.
+- Recoverable wrong-field-count rows produce one `WRONG_FIELD_COUNT` occurrence and parsing continues; unterminated quotes, empty files, header-only files and duplicate headers are safe file-level failures with a diagnosable retained cause and no raw CSV/PII in messages or logs.
+- Each row's physical starting line uses `CSVRecord.getCharacterPosition()` plus the independent `PhysicalLineMap` (header = 1, blank lines counted) adopted from the C-4 spike.
+- Duplicate IDs use the domain `StudentId` normalization: the first valid occurrence reserves the ID even when that row is rejected for other reasons; later occurrences get `DUPLICATE_ID` (I-02). Complete error lists yield one persisted `import_row_error` row per occurrence (D-10), each pinned to the physical starting line.
+
+All six C-4 limitations remain carried forward: (1) unterminated quotes are file-level failures; (2) comment markers stay disabled; (3) `read(Path)`/byte input strips the BOM before mapping; (4) string-based callers must strip a BOM first; (5) offsets are UTF-16 code units built from the same decoded source; (6) field-count consistency is computed against the configured/parsed header, not `isConsistent()`.

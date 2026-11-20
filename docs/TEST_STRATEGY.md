@@ -1,6 +1,6 @@
 # ClearGrade — Test Strategy
 
-Status: **Planned tests only — no test code exists.** Commands are illustrative until the build exists (DEVELOPMENT.md). Goal: convince a teammate the import is correct, including cases the supplied files do not contain. `[REQ]`
+Status: **Implemented and green (193 tests, JDK 21, real PostgreSQL Testcontainers).** Focused CSV/validation tests 40, CSV import integration 11, benchmark 2, application transactions 12. Goal: convince a teammate the import is correct, including cases the supplied files do not contain. `[REQ]`
 
 ## 1. Validation unit tests (domain, pure JUnit 5)
 
@@ -36,7 +36,7 @@ Tests assert the complete error list per row, covering multi-error behaviour (D-
 3. a **malformed row after** the embedded newline;
 4. a **subsequent valid row**.
 
-Acceptance: the reported source line is the **physical starting line of the problematic record**, with **header = 1** and blank lines counted. A simple counting `Reader` is **not acceptable** without testing parser buffering/read-ahead. All documented spike limitations are carried forward into production CSV implementation, which remains future work.
+Acceptance: the reported source line is the **physical starting line of the problematic record**, with **header = 1** and blank lines counted. A simple counting `Reader` is **not acceptable** without testing parser buffering/read-ahead. All documented spike limitations are carried forward into the production CSV adapter (`CommonsCsvFileParser`/`PhysicalLineMap`), whose tests re-run every listed fixture variation plus BOM, header uniqueness/width, unterminated-quote fatality and multi-error row cases.
 
 ## 3. Import integration tests
 
@@ -83,7 +83,7 @@ Benchmark numbers are **regression fixtures only**, never parameters to validati
 - Directory first/middle/last pages at 5,000+ rows; verify index use.
 - Monitor memory during streaming import; no unbounded accumulation.
 - Re-run with a larger generated seed (through the import API, T-1) to check unseen-file behaviour.
-- Report measured numbers; no invented thresholds; failures trigger indexing/streaming work, not premature caching.
+- Report measured numbers; no invented thresholds; failures trigger indexing/streaming work, not premature caching. Measured 2026-11-20 (fixed clock, JDK 21, Testcontainers PostgreSQL) in the final `verify` run: small fixture 158 ms, 5,000-row sample 4,497 ms; counts exactly 25/16/9 and 5000/4685/315/348. These are informational observations, not acceptance thresholds.
 
 ## 8. Regression benchmark strategy
 
