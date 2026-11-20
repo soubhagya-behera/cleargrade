@@ -46,14 +46,14 @@ Last updated: 2026-11-20 · **Current phase: REST API and real-data frontend int
 | Check | Command | Result |
 |---|---|---|
 | Spring Boot / Java compatibility | Spring Initializr metadata + Maven Central | `4.1.2` GA; Java `21` supported |
-| Backend compile + tests | `.\mvnw.cmd -B test` (JDK 21) | **205 tests, 0 failures/errors/skips** (195 prior + 10 REST API integration tests against real PostgreSQL) |
+| Backend compile + tests | `.\mvnw.cmd -B test` (JDK 21) | **206 tests, 0 failures/errors/skips** (195 prior + 11 REST API integration tests against real PostgreSQL) |
 | Focused CSV/validation tests | `.\mvnw.cmd -B "-Dtest=CommonsCsvFileParserTest,CsvRowValidatorTest,ImportApplicationServiceUnitTest,BatchFinalisationTxTest,PhysicalLineTrackingSpikeTest" test` | 41 tests, 0 failures/errors |
 | CSV + benchmark integration | `.\mvnw.cmd -B "-Dtest=CsvImportIntegrationTest,CsvImportBenchmarkTest" test` | 14 tests, 0 failures/errors/skips; both mandatory synthetic benchmarks executed with exact counts |
 | PostgreSQL migration integration | `.\mvnw.cmd -B -Dtest=CoreSchemaMigrationTest test` (JDK 21, `postgres:16-alpine`) | 9 tests, 0 failures/errors against a real Testcontainer, including status/count and SHA-256 SQLSTATE assertions |
 | Persistence integration | `.\mvnw.cmd -B "-Dtest=PersistenceMapperTest,PersistenceIntegrationTest" test` (JDK 21, `postgres:16-alpine`) | 18 tests, 0 failures/errors; Flyway + Hibernate `validate` + repository round trips |
 | Application transaction integration | `.\mvnw.cmd -B "-Dtest=ApplicationTransactionIntegrationTest,ImportApplicationServiceUnitTest,DigestViolationClassificationTest" test` (JDK 21, `postgres:16-alpine`) | 18 tests, 0 failures/errors; T1–T4 boundaries (including T2 failure → T4), exact digest index, upsert counts, concurrency and suppressed failure-finalisation error |
-| Backend full verify | `.\mvnw.cmd -B verify` | Passed, 205 tests green, 0 skipped |
-| REST API integration | `.\mvnw.cmd -B "-Dtest=RestApiIntegrationTest" test` | 10 tests, 0 failures/errors; real MockMvc → application → PostgreSQL path for upload outcomes, batch/error reads, directory/report and health |
+| Backend full verify | `.\mvnw.cmd -B verify` | Passed, 206 tests green, 0 skipped |
+| REST API integration | `.\mvnw.cmd -B "-Dtest=RestApiIntegrationTest" test` | 11 tests, 0 failures/errors; real MockMvc → application → PostgreSQL path for upload outcomes, batch/error reads, directory/report and health |
 | Frontend tests | `npm test` (Vitest + Testing Library) | 14 tests, 0 failures; API client, upload workflow/states, row problems, directory search/filter/pagination/states, report/not-found |
 | Frontend typecheck | `npm run typecheck` | Passed |
 | Frontend production build | `npm run build` | Passed (Vite build, 2,212 modules) |

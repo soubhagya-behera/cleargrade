@@ -32,6 +32,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.test.context.ActiveProfiles;
@@ -168,6 +169,24 @@ class RestApiIntegrationTest {
 		this.mockMvc.perform(multipart("/api/imports").file(file("large.csv", large)))
 				.andExpect(status().isPayloadTooLarge())
 				.andExpect(jsonPath("$.code").value("FILE_TOO_LARGE"));
+	}
+
+	@Test
+	void wrongContentTypeAndInvalidFiltersReturnContractErrorEnvelope() throws Exception {
+		this.mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders
+					.post("/api/imports").contentType(MediaType.APPLICATION_JSON).content("{}"))
+				.andExpect(status().isUnsupportedMediaType())
+				.andExpect(jsonPath("$.code").value("INVALID_FILE_TYPE"));
+
+		this.mockMvc.perform(multipart("/api/imports").file(file("marks.csv", csv(VALID_ONE))))
+				.andExpect(status().isCreated());
+
+		this.mockMvc.perform(get("/api/imports/1/errors").param("code", "NOT_A_CODE"))
+				.andExpect(status().isBadRequest())
+				.andExpect(jsonPath("$.code").value("INVALID_PARAMETER"));
+		this.mockMvc.perform(get("/api/students").param("grade", "99"))
+				.andExpect(status().isBadRequest())
+				.andExpect(jsonPath("$.code").value("INVALID_PARAMETER"));
 	}
 
 	@Test
