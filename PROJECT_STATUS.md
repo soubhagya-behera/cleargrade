@@ -1,6 +1,6 @@
 # ClearGrade — Project Status
 
-Last updated: 2026-11-20 · **Current phase: Phase 3B.1 domain model implemented, independently reviewed and remediated (PR #4); awaiting re-review.** No persistence, CSV ingestion, REST APIs or frontend business logic is implemented.
+Last updated: 2026-11-20 · **Current phase: Phase 3B.2.1 PostgreSQL schema and migration test foundation implemented; awaiting independent review.** No JPA entities, repositories, persistence services, CSV ingestion, REST APIs or frontend business logic is implemented.
 
 ## 1. Completed
 
@@ -13,6 +13,7 @@ Last updated: 2026-11-20 · **Current phase: Phase 3B.1 domain model implemented
   - `.github/workflows/ci.yml` verifying the Maven build, backend tests and frontend typecheck/build.
  - Phase 3B.1 domain model (`dev.cleargrade.domain`): student value objects and validation, exact grading policy, import status/count/line/error vocabulary. Framework-free; no migrations, JPA entities, repositories or endpoints added.
  - Phase 3B.1 review remediation: overflow-safe import count aggregates, row-error data-line guard, batch/outcome construction invariants, explicit `RECEIVED → FAILED` and leap-day decisions, `mark(null)` guard, stronger framework-independence source-set assertion.
+ - Phase 3B.2.1: Flyway `V1__create_core_schema.sql` for `import_batch`, `student`, `import_row_error` with checks, foreign keys and the partial SHA-256 index (D-23–D-28); Testcontainers PostgreSQL integration tests for migration idempotency, schema objects, index semantics and unconstrained `NUMERIC`.
 
 ## 2. Owner-ratified decisions (recorded in DECISIONS.md §1)
 
@@ -29,8 +30,9 @@ Last updated: 2026-11-20 · **Current phase: Phase 3B.1 domain model implemented
 | Check | Command | Result |
 |---|---|---|
 | Spring Boot / Java compatibility | Spring Initializr metadata + Maven Central | `4.1.2` GA; Java `21` supported |
-| Backend compile + tests | `.\mvnw.cmd -B test` (JDK 21) | 109 tests, 0 failures/errors (87 domain tests, including the exact-source-set framework-independence scan); focused remediation run: 51 tests green |
-| Backend full verify | `.\mvnw.cmd -B verify` | Passed |
+| Backend compile + tests | `.\mvnw.cmd -B test` (JDK 21) | 115 tests, 0 failures/errors (87 domain tests, including the exact-source-set framework-independence scan; 6 new PostgreSQL/Testcontainers integration tests) |
+| PostgreSQL migration integration | `.\mvnw.cmd -B -Dtest=CoreSchemaMigrationTest test` (JDK 21, `postgres:16-alpine`) | 6 tests, 0 failures/errors against a real Testcontainer |
+| Backend full verify | `.\mvnw.cmd -B verify` | Passed, 115 tests green |
 | Packaged JAR config safety | `jar tf` on built JAR | Only `application.properties` packaged; no local profile |
 | Application startup + DB connection | `java -jar … --spring.profiles.active=local` | `/actuator/health` → `200`, status `UP` |
 | Actuator restriction | HTTP probes of `/actuator/env`, `/actuator/beans`, `/actuator/info` | All `404`; only health exposed |
@@ -59,12 +61,12 @@ Toolchain: JDK `21.0.10` (installed at `C:\Program Files\Java\jdk-21.0.10`, sele
 
 ## 6. Next actions
 
-1. Independent re-review of the Phase 3B.1 remediation in PR #4; do not merge it here.
+1. Independent review of the Phase 3B.2.1 schema slice on `feat/database-persistence-foundation`; do not merge it here.
 2. Formally sign off **G2→G3** using the merged PR #3 C-4 spike evidence before starting ingestion work.
-3. Add Flyway migrations and persistence adapters per DATA_MODEL.md (no schema invented in the foundation).
-4. Implement CSV ingestion, REST API, then the three real screens; Flyway migrations and persistence adapters are still required.
+3. Add JPA entities, repositories and explicit mappers, then the transaction/digest/upsert services per D-23–D-28 (no schema changes expected in this slice).
+4. Implement CSV ingestion, REST API, then the three real screens; persistence adapters are still required.
 5. Add the multi-stage app Dockerfile, seed script, one-command test script and `NOTES.md`.
 
 ## 7. Scope notes
 
-Current-result snapshot only (no term/year invented, D-11). Benchmark numbers are regression fixtures, never application logic (D-12). `NOTES.md` is reserved for final assignment submission. No sample CSV data or PDF content is reproduced in documentation. Domain business rules are implemented; migrations, CSV ingestion, APIs and real credentials are not committed.
+Current-result snapshot only (no term/year invented, D-11). Benchmark numbers are regression fixtures, never application logic (D-12). `NOTES.md` is reserved for final assignment submission. No sample CSV data or PDF content is reproduced in documentation. Domain business rules and the V1 schema migration are implemented; JPA persistence, CSV ingestion, APIs and real credentials are not committed.

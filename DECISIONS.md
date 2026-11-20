@@ -1,6 +1,6 @@
 # ClearGrade — Engineering Decisions
 
-Status: **Owner approvals recorded 2026-11-19.** Pure domain rules are implemented and hardened after independent review (Phase 3B.1); persistence, CSV ingestion, REST APIs and the SPA remain unimplemented. `[REQ]` = assignment requirement; `[REC]` = engineering choice; `[INF]` = inference confirmed by supplied data.
+Status: **Owner approvals recorded 2026-11-19.** Pure domain rules are implemented and hardened after independent review (Phase 3B.1); the V1 PostgreSQL schema migration is implemented and tested (Phase 3B.2.1). JPA persistence, CSV ingestion, REST APIs and the SPA remain unimplemented. `[REQ]` = assignment requirement; `[REC]` = engineering choice; `[INF]` = inference confirmed by supplied data.
 
 ## 1. Owner-approved decisions (canonical, active)
 
@@ -114,6 +114,12 @@ Status: **Owner approvals recorded 2026-11-19.** Pure domain rules are implement
 - **D-16 — Single container for SPA + API.** Multi-stage Dockerfile; Compose adds PostgreSQL; port `8080:8080` published.
 - **D-21 — RECEIVED→FAILED is a valid recovery transition.** `RECEIVED → PROCESSING → COMPLETED/FAILED` is the normal path, but the approved lifecycle also permits `RECEIVED → FAILED` for the crash-recovery sweep of a timed-out stale reservation (ARCHITECTURE.md §4, DATA_MODEL.md §5). This is not a row-level failure: a bad row never fails a batch. `PROCESSING → FAILED` remains the fatal-file path; terminal states are locked. Implemented in `ImportStatus` and locked by tests.
 - **D-22 — Leap-day age increments on 1 March in non-leap years.** The domain keeps `Period`-based age calculation (I-03, I-04). For a 29 February birth date, age advances on 1 March of a non-leap year: a 2000-02-29 birth is 24 on 2025-02-28 and 25 on 2025-03-01. Fixed-clock tests lock both dates and the maximum-age rejection from 2026-03-01.
+- **D-23 — Singular physical table names.** The PostgreSQL schema uses the names in DATA_MODEL.md exactly: `import_batch`, `student`, `import_row_error`. Plural forms are not used.
+- **D-24 — Unconstrained `NUMERIC` marks.** The five mark columns are PostgreSQL `NUMERIC` with no precision or scale; the only database restriction is the inclusive 0–100 CHECK (C-3). Hibernate mappings must not fall back to a default `numeric(38,2)`, and no silent rounding is permitted anywhere in the persistence path.
+- **D-25 — Atomic processing and successful finalisation.** Accepted student upserts, `import_row_error` occurrences, final counts and the `COMPLETED` status commit in **one** transaction (Tx2). A fatal file error rolls back all student and error writes; `FAILED` finalisation runs separately (D-26).
+- **D-26 — Independent reservation, processing and failure transactions.** Tx1 inserts `RECEIVED` and commits independently so the digest is reserved before parsing; `PROCESSING` is committed as the start of Tx2; failure handling (`FAILED` finalisation and the stale-batch sweep using D-21) runs in a separate transaction so it survives Tx2 rollback. `REQUIRES_NEW` work uses separate beans or `TransactionTemplate`, never self-invocation (D-13).
+- **D-27 — Exact duplicate-digest violation handling.** Duplicate SHA handling catches only the violation of the partial unique index `ux_import_batch_active_sha256` (PostgreSQL SQLSTATE `23505` on that index) and re-reads the digest **outside the failed transaction**, then maps the result to the documented deduplicated/`409 BATCH_PROCESSING`/retry cases (DATA_MODEL.md §5).
+- **D-28 — Concurrent student upsert strategy.** Upsert uses `INSERT ... ON CONFLICT DO NOTHING` on normalized `student_id`; on conflict, `SELECT ... FOR UPDATE` locks the existing row, normalized field values are compared, and only a changed row is updated. `first_seen_batch_id` is preserved, `last_updated_batch_id` advances only on a changed accepted row, and unchanged rows perform no update (U-02).
 
 ## 3. Superseded identifiers (history preserved — no longer active)
 
