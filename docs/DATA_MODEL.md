@@ -1,6 +1,6 @@
 # ClearGrade — Data Model
 
-Status: **Pure domain rules implemented (Phase 3B.1); no schema or migration has been created.** Decision IDs follow DECISIONS.md (superseded IDs are listed there).
+Status: **Pure domain rules implemented (Phase 3B.1); V1 schema migration implemented and tested (Phase 3B.2.1), but no JPA entities or persistence services exist yet.** Decision IDs follow DECISIONS.md (superseded IDs are listed there).
 
 ## 1. Entity definitions
 
@@ -95,7 +95,8 @@ Two optional FKs from `student` to `import_batch`; no cascade. `import_row_error
 - `student_id` non-null and unique on the stored uppercase value. **DB CHECK** on normalized format `[A-Z0-9-]{3,20}` (consistent with domain; defence in depth for the unseen file).
 - `CHECK (grade_level BETWEEN 1 AND 12)`, `CHECK (section IN ('A'..'F'))`, `CHECK` each mark `BETWEEN 0 AND 100` (no scale restriction — C-3).
 - `error_code CHECK` against the five allowed codes.
-- **Partial unique index (planned DDL, not created):**
+- **Final counts are exclusive to `COMPLETED`:** `rows_read`, `imported_count`, `new_count`, `changed_count`, `unchanged_count`, `rejected_count` and `error_count` must all be NULL for `RECEIVED`, `PROCESSING` and `FAILED`. `duration_ms` is independent and may be set outside finalisation.
+- **Partial unique index (created in `V1__create_core_schema.sql`):**
   `CREATE UNIQUE INDEX ux_import_batch_active_sha256 ON import_batch (sha256) WHERE status IN ('RECEIVED','PROCESSING','COMPLETED');`
   Failed batches are excluded → retry permitted. This is the database-enforced guarantee that concurrent identical uploads cannot both import.
 
