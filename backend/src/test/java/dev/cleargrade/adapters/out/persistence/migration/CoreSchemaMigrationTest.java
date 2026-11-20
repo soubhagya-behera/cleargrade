@@ -14,6 +14,7 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
+import java.sql.Types;
 import java.util.HashSet;
 import java.util.Set;
 
@@ -109,7 +110,8 @@ class CoreSchemaMigrationTest {
 					"ck_import_batch_unchanged_nonnegative", "ck_import_batch_rejected_nonnegative",
 					"ck_import_batch_error_nonnegative", "ck_import_batch_imported_sum",
 					"ck_import_batch_rows_read_sum", "ck_import_batch_error_count",
-					"ck_import_batch_completed_counts", "ck_student_student_id_format", "ck_student_grade_level",
+					"ck_import_batch_completed_counts", "ck_import_batch_non_completed_no_counts",
+					"ck_student_student_id_format", "ck_student_grade_level",
 					"ck_student_section", "ck_student_maths", "ck_import_row_error_line_number",
 					"ck_import_row_error_code")), checkConstraints.toString());
 
@@ -228,6 +230,44 @@ class CoreSchemaMigrationTest {
 	}
 
 	@Test
+	void finalCountsAreAllowedOnlyForCompletedBatches() throws SQLException {
+		String withCounts = "INSERT INTO import_batch "
+				+ "(filename, file_size_bytes, sha256, status, started_at, rows_read, imported_count, "
+				+ "new_count, changed_count, unchanged_count, rejected_count, error_count) "
+				+ "VALUES ('x.csv', 1, ?, ?, now(), 2, 2, 1, 1, 0, 0, 0)";
+		String[] nonCompletedStatuses = { "RECEIVED", "PROCESSING", "FAILED" };
+		for (int i = 0; i < nonCompletedStatuses.length; i++) {
+			assertCheckViolation(withCounts, hexDigest((char) ('a' + i)), nonCompletedStatuses[i]);
+		}
+
+		insertBatch(hexDigest('d'), "RECEIVED");
+		insertBatch(hexDigest('e'), "PROCESSING");
+		insertBatch(hexDigest('f'), "FAILED");
+		insertBatch(hexDigest('0'), "COMPLETED");
+
+		try (Connection connection = connection(); Statement statement = connection.createStatement();
+				ResultSet rows = statement.executeQuery("SELECT status FROM import_batch")) {
+			Set<String> statuses = new HashSet<>();
+			while (rows.next()) {
+				statuses.add(rows.getString(1));
+			}
+			assertEquals(Set.of("RECEIVED", "PROCESSING", "FAILED", "COMPLETED"), statuses);
+		}
+	}
+
+	@Test
+	void digestConstraintRejectsMalformedAndNullDigests() throws SQLException {
+		String insert = "INSERT INTO import_batch "
+				+ "(filename, file_size_bytes, sha256, status, started_at) "
+				+ "VALUES ('x.csv', 1, ?, 'RECEIVED', now())";
+		assertCheckViolation(insert, "A".repeat(64));
+		assertCheckViolation(insert, "a".repeat(63));
+
+		SQLException nullDigest = assertThrows(SQLException.class, () -> execute(insert, (Object) null));
+		assertEquals("23502", nullDigest.getSQLState(), nullDigest.getMessage());
+	}
+
+	@Test
 	void numericColumnsRetainHighScaleBigDecimalWithoutRounding() throws SQLException {
 		long batchId = insertBatch(hexDigest('a'), "COMPLETED");
 		BigDecimal precise = new BigDecimal(PRECISE_MARK);
@@ -329,7 +369,12 @@ class CoreSchemaMigrationTest {
 	private static void execute(String sql, Object... parameters) throws SQLException {
 		try (Connection connection = connection(); PreparedStatement statement = connection.prepareStatement(sql)) {
 			for (int i = 0; i < parameters.length; i++) {
-				statement.setObject(i + 1, parameters[i]);
+				if (parameters[i] == null) {
+					statement.setNull(i + 1, Types.VARCHAR);
+				}
+				else {
+					statement.setObject(i + 1, parameters[i]);
+				}
 			}
 			statement.executeUpdate();
 		}

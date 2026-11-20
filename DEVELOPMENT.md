@@ -1,6 +1,6 @@
 # ClearGrade — Development Plan
 
-Status: **Phase 3B.2.1 PostgreSQL schema and migration test foundation implemented; Phase 3B.1 domain model is merged on `main` via PR #4.** JPA persistence, CSV ingestion, REST APIs and the SPA remain planned. Owner decisions ratified 2026-11-19 (DECISIONS.md §1).
+Status: **Phase 3B.2.1 PostgreSQL schema and migration test foundation implemented and hardened after independent review; Phase 3B.1 domain model is merged on `main` via PR #4.** JPA persistence, CSV ingestion, REST APIs and the SPA remain planned. Owner decisions ratified 2026-11-19 (DECISIONS.md §1).
 
 ## 1. Planned development sequence
 
@@ -20,7 +20,7 @@ Phases are sequential; a failed gate stops the next phase. Bonus work starts onl
 ## 2. Code conventions
 
 - **Java 21**, package root `dev.cleargrade`; layers `domain`, `application` (use cases, ports, **separate transaction service beans / `TransactionTemplate`**), `adapters.in.web`, `adapters.in.csv`, `adapters.out.persistence`, `configuration` (the boundary names mandated for Phase 2B; ARCHITECTURE.md §8 is the earlier proposed naming). **No `REQUIRES_NEW` self-invocation.**
-- Domain has no Spring/JPA/Commons CSV imports. Marks use `BigDecimal`; no silent rounding (C-3). Adapters depend inward on ports. Flyway owns the schema (`V1__create_core_schema.sql`); Hibernate remains `ddl-auto=validate`. Mark columns are unconstrained `NUMERIC` (D-24). Migration integration tests use a shared Testcontainers `postgres:16-alpine` container with explicit table truncation.
+- Domain has no Spring/JPA/Commons CSV imports. Marks use `BigDecimal`; no silent rounding (C-3). Adapters depend inward on ports. Flyway owns the schema (`V1__create_core_schema.sql`); Hibernate remains `ddl-auto=validate`. Mark columns are unconstrained `NUMERIC` (D-24). Final count columns must be NULL unless batch status is `COMPLETED`, matching `ImportBatch`. Migration integration tests use a shared Testcontainers `postgres:16-alpine` container with explicit table truncation. The deferred Spring Boot repeated-context startup test is a Phase 3B.2.2 integration-test item.
 - Controllers accept/return DTOs only. Validation returns a complete error-occurrence list; never fail fast on the first field error.
 - Use injected `Clock` everywhere (I-04). No `LocalDate.now()` in domain/application.
 - **TypeScript strict mode**; `src/types` for API types, `src/api` for the client; **React Router** routing, **TanStack Query** for server state, local component state for UI; **no Redux** without justification. Tailwind utilities with UX_SPEC tokens.

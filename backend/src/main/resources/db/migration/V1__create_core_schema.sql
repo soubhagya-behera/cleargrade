@@ -52,6 +52,16 @@ CREATE TABLE import_batch (
             AND unchanged_count IS NOT NULL
             AND rejected_count IS NOT NULL
             AND error_count IS NOT NULL)
+    ),
+    CONSTRAINT ck_import_batch_non_completed_no_counts CHECK (
+        status = 'COMPLETED'
+        OR (rows_read IS NULL
+            AND imported_count IS NULL
+            AND new_count IS NULL
+            AND changed_count IS NULL
+            AND unchanged_count IS NULL
+            AND rejected_count IS NULL
+            AND error_count IS NULL)
     )
 );
 
