@@ -38,11 +38,11 @@ Last updated: 2026-11-20 · **Current phase: application output ports and T1–T
 | Check | Command | Result |
 |---|---|---|
 | Spring Boot / Java compatibility | Spring Initializr metadata + Maven Central | `4.1.2` GA; Java `21` supported |
-| Backend compile + tests | `.\mvnw.cmd -B test` (JDK 21) | 154 tests, 0 failures/errors (88 domain, 20 CSV spike, 9 migration, 2 health, 10 mapper, 8 persistence integration, 13 application services, 4 digest classifiers) |
+| Backend compile + tests | `.\mvnw.cmd -B test` (JDK 21) | 159 tests, 0 failures/errors (88 domain, 20 CSV spike, 9 migration, 2 health, 10 mapper, 8 persistence integration, 18 application services, 4 digest classifiers) |
 | PostgreSQL migration integration | `.\mvnw.cmd -B -Dtest=CoreSchemaMigrationTest test` (JDK 21, `postgres:16-alpine`) | 9 tests, 0 failures/errors against a real Testcontainer, including status/count and SHA-256 SQLSTATE assertions |
 | Persistence integration | `.\mvnw.cmd -B "-Dtest=PersistenceMapperTest,PersistenceIntegrationTest" test` (JDK 21, `postgres:16-alpine`) | 18 tests, 0 failures/errors; Flyway + Hibernate `validate` + repository round trips |
 | Application transaction integration | `.\mvnw.cmd -B "-Dtest=ApplicationTransactionIntegrationTest,ImportApplicationServiceUnitTest,DigestViolationClassificationTest" test` (JDK 21, `postgres:16-alpine`) | 17 tests, 0 failures/errors; T1–T4 boundaries, exact digest index, upsert counts, concurrency and suppressed failure-finalisation error |
-| Backend full verify | `.\mvnw.cmd -B verify` | Passed, 154 tests green |
+| Backend full verify | `.\mvnw.cmd -B verify` | Passed, 159 tests green |
 | Packaged JAR config safety | `jar tf` on built JAR | Only `application.properties` packaged; no local profile |
 | Application startup + DB connection | `java -jar … --spring.profiles.active=local` | `/actuator/health` → `200`, status `UP` |
 | Actuator restriction | HTTP probes of `/actuator/env`, `/actuator/beans`, `/actuator/info` | All `404`; only health exposed |

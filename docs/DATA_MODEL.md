@@ -135,17 +135,17 @@ sequenceDiagram
     else RECEIVED/PROCESSING match
         App-->>API: 409 BATCH_PROCESSING + batchId
     else no match or FAILED only
-        App->>DB: Tx1 REQUIRES_NEW insert batch RECEIVED
-        alt unique violation (23505)
-            App->>DB: re-read digest; return completed/processing case above
+        App->>DB: T1 REQUIRES_NEW insert batch RECEIVED
+        alt unique violation (23505) on ux_import_batch_active_sha256
+            App->>DB: re-read digest in a fresh transaction; return completed/processing case above
         else inserted
-            App->>DB: Tx2 persist PROCESSING; upsert + errors
-            alt fatal file error
-                App->>DB: Tx3 REQUIRES_NEW status FAILED
+            App->>DB: T2 REQUIRES_NEW persist PROCESSING
+            App->>DB: T3 REQUIRES_NEW upsert + errors + counts + COMPLETED (one transaction)
+            alt T3 failure and rollback
+                App->>DB: T4 REQUIRES_NEW status FAILED
             else success
-                App->>DB: Tx3 REQUIRES_NEW counts + COMPLETED
+                App-->>API: 201 summary
             end
-            App-->>API: 201 summary
         end
     end
 ```
@@ -154,11 +154,11 @@ Stale `RECEIVED`/`PROCESSING` batches (crash) are marked `FAILED` by a startup/r
 
 ## 6. Batch lifecycle storage rules
 
-Batch row exists before parsing so fatal errors can be recorded. `PROCESSING` is **explicitly persisted** at the start of Tx2 (not inferred). Counts are written only at finalisation. Error occurrences are written during Tx2 and roll back with it. A `FAILED` batch has no student writes and is retained for diagnostics.
+Batch row exists before parsing so fatal errors can be recorded. `PROCESSING` is **explicitly persisted** by T2 (not inferred). Counts are written only at finalisation in T3. Error occurrences are written during T3 and roll back with it. A `FAILED` batch has no student writes and is retained for diagnostics.
 
 ## 7. Transaction boundaries
 
-`REQUIRES_NEW` work is performed by **separate transaction service beans or `TransactionTemplate`** — never by self-invocation within one Spring bean, which would silently run in the caller's transaction. Tx1 reserves the digest, Tx2 is the single all-or-nothing data transaction, Tx3 durably finalises `COMPLETED` or `FAILED`. Chunking is deferred; it would require explicit progress state.
+`REQUIRES_NEW` work is performed by **separate transaction service beans or `TransactionTemplate`** — never by self-invocation within one Spring bean, which would silently run in the caller's transaction. T1 reserves the digest, T2 commits `PROCESSING`, T3 is the single all-or-nothing data transaction that also writes final counts and `COMPLETED`, and T4 durably finalises `FAILED` after a T3 rollback. Duplicate recovery re-reads the digest outside the failed reservation transaction. Chunking is deferred; it would require explicit progress state.
 
 ## 8. Physical line numbers (C-4)
 

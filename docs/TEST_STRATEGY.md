@@ -57,7 +57,7 @@ Benchmark numbers are **regression fixtures only**, never parameters to validati
 - Unique `student_id` and normalized CHECK; upsert behaviour; partial unique index on active `sha256`; excluded FAILED digest permits retry.
 - `NUMERIC` columns preserve decimal precision with **no rounding** (C-3); `DATE`/`TIMESTAMPTZ` mappings; `TEXT` raw identifier column.
 - Index-usage check via query plan for directory search and error lookup (or migration assertion).
-- Transaction test: rollback of Tx2 leaves no students but retains FAILED batch; `REQUIRES_NEW` executes in an independent transaction (proves no self-invocation bug).
+- Transaction test: rollback of T3 leaves no students, no error occurrences, no `COMPLETED` status and no partial counts; T4 separately commits `FAILED`; `REQUIRES_NEW` executes in an independent transaction (proves no self-invocation bug).
 - Flyway migration from empty schema and idempotent second startup.
 
 ## 5. API tests

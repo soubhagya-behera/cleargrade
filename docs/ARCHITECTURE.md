@@ -107,12 +107,13 @@ A row-level error never moves the batch to `FAILED` `[REQ]`. Successful row vali
 
 ## 6. Transaction strategy
 
-Four distinct transactional steps, using **separate transaction service beans or `TransactionTemplate`** for each requires-new step — **no `REQUIRES_NEW` self-invocation** inside one Spring bean:
+Distinct transactional steps, using **separate transaction service beans or `TransactionTemplate`** for each requires-new step — **no `REQUIRES_NEW` self-invocation** inside one Spring bean. The numbering follows the owner resolution in DECISIONS.md (2026-11-20):
 
-1. **Lookup (read-only).** Digest query; decide dedup/conflict/retry before any write.
-2. **Tx1 (`REQUIRES_NEW`).** Insert `import_batch` as `RECEIVED` inside a savepoint-style conflict handler; catch unique violation (SQLSTATE `23505`) and return existing batch state.
-3. **Tx2 (single transaction).** Persist `status = PROCESSING` explicitly, stream rows, upsert accepted students and insert all error occurrences. Any fatal error rolls Tx2 back completely.
-4. **Tx3 (`REQUIRES_NEW`).** Finalise `counts + status = COMPLETED`, or `status = FAILED` on fatal error. FAILED survives Tx2 rollback; a FAILED batch has no student writes.
+1. **Lookup (read-only, fresh transaction).** Decide dedup/conflict/retry before any write. On the exact active-digest `ux_import_batch_active_sha256` violation (SQLSTATE `23505`), re-read the digest after the failed reservation transaction has rolled back.
+2. **T1 (`REQUIRES_NEW`).** Independently commit `import_batch` as `RECEIVED` with its digest.
+3. **T2 (`REQUIRES_NEW`).** Independently commit the explicit `PROCESSING` transition.
+4. **T3 (`REQUIRES_NEW`).** One atomic transaction for accepted student upserts, `import_row_error` occurrences, final counts and `COMPLETED`. Any failure rolls all of them back.
+5. **T4 (`REQUIRES_NEW`).** Only after T3 has rolled back, independently commit `FAILED`; a FAILED batch has no student writes.
 
 Single transaction for all rows is appropriate at ~5,000 rows; chunking would require explicit progress state. `[REC]`
 

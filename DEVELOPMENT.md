@@ -80,7 +80,7 @@ Rules:
 
 | Intent | Command | Status |
 |---|---|---|
-| Backend compile + tests | `cd backend; .\mvnw.cmd -B test` | Runnable (154 tests) |
+| Backend compile + tests | `cd backend; .\mvnw.cmd -B test` | Runnable (159 tests) |
 | PostgreSQL migration integration tests | `cd backend; .\mvnw.cmd -B -Dtest=CoreSchemaMigrationTest test` | Runnable (Testcontainers `postgres:16-alpine`, Docker daemon required; 9 tests) |
 | Persistence integration tests | `cd backend; .\mvnw.cmd -B "-Dtest=PersistenceMapperTest,PersistenceIntegrationTest" test` | Runnable (18 tests; real Testcontainer, Flyway + Hibernate `validate`) |
 | Application transaction tests | `cd backend; .\mvnw.cmd -B "-Dtest=ApplicationTransactionIntegrationTest,ImportApplicationServiceUnitTest,DigestViolationClassificationTest" test` | Runnable (17 tests; real Testcontainer for T1–T4/exact digest/upsert concurrency, unit test for suppressed failure-finalisation error) |

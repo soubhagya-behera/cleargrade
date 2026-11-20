@@ -165,7 +165,7 @@ class ApplicationTransactionIntegrationTest {
 	@Test
 	void unrelatedViolationIsNotMisclassifiedAsDuplicateDigest() {
 		DataIntegrityViolationException error = assertThrows(DataIntegrityViolationException.class,
-				() -> this.reservationTx.reserve(new BatchReservation("BAD", "marks.csv", 10L, this.clock.instant())));
+				() -> this.reservationTx.reserve(new BatchReservation("a".repeat(64), " ", 10L, this.clock.instant())));
 		assertFalse(DuplicateDigestException.class.isInstance(error));
 		assertEquals(0, batchCount());
 	}
@@ -261,30 +261,74 @@ class ApplicationTransactionIntegrationTest {
 	}
 
 	@Test
-	void concurrentUpsertsProduceOneRowAndNoDuplicateKeyError() throws Exception {
-		long firstBatch = readyBatch("c".repeat(64));
-		long secondBatch = readyBatch("d".repeat(64));
+	void concurrentUpsertsKeepOneCompleteVersionAndCorrectBatchIds() throws Exception {
+		long initialBatch = readyBatch("c".repeat(64));
+		Student initial = student("STU-001", "Alice Initial", "alice.initial@example.com", 9, 'A', "70.5");
+		this.finalisationTx.process(initialBatch, List.of(initial), List.of(), 0, this.clock.instant());
+
+		long batchA = readyBatch("d".repeat(64));
+		long batchB = readyBatch("e".repeat(64));
+		Student versionA = student("STU-001", "Alice Alpha", "alice.alpha@example.com", 10, 'B', "81.125");
+		Student versionB = student("STU-001", "Alice Beta", "alice.beta@example.com", 11, 'C', "92.375");
+
+		Map<Long, Student> submissions = Map.of(batchA, versionA, batchB, versionB);
 		ExecutorService pool = Executors.newFixedThreadPool(2);
 		CountDownLatch start = new CountDownLatch(1);
 		try {
 			List<Future<BatchImportResult>> futures = new ArrayList<>();
-			for (long batchId : List.of(firstBatch, secondBatch)) {
+			for (Map.Entry<Long, Student> submission : submissions.entrySet()) {
 				futures.add(pool.submit(() -> {
 					start.await();
-					return this.finalisationTx.process(batchId, List.of(student("STU-001", "Alice Smith")),
+					return this.finalisationTx.process(submission.getKey(), List.of(submission.getValue()),
 							List.of(), 0, this.clock.instant());
 				}));
 			}
 			start.countDown();
 			for (Future<BatchImportResult> future : futures) {
-				assertNotNull(future.get());
+				BatchImportResult result = future.get();
+				assertEquals(0, result.counts().newCount());
+				assertEquals(1, result.counts().changedCount());
+				assertEquals(0, result.counts().unchangedCount());
 			}
 		}
 		finally {
 			pool.shutdownNow();
 		}
+
 		assertEquals(1, this.jdbc.queryForObject("SELECT COUNT(*) FROM student WHERE student_id = 'STU-001'",
 				Integer.class));
+		StudentSnapshot stored = this.jdbc.queryForObject("SELECT full_name, email, grade_level, section, "
+				+ "maths, science, english, social_studies, second_language, first_seen_batch_id, "
+				+ "last_updated_batch_id FROM student WHERE student_id = 'STU-001'",
+				(row, index) -> new StudentSnapshot(
+						row.getString("full_name"),
+						row.getString("email"),
+						row.getInt("grade_level"),
+						row.getString("section"),
+						row.getBigDecimal("maths"),
+						row.getBigDecimal("science"),
+						row.getBigDecimal("english"),
+						row.getBigDecimal("social_studies"),
+						row.getBigDecimal("second_language"),
+						row.getLong("first_seen_batch_id"),
+						row.getLong("last_updated_batch_id")));
+
+		boolean versionAWon = versionA.fullName().value().equals(stored.fullName());
+		boolean versionBWon = versionB.fullName().value().equals(stored.fullName());
+		assertTrue(versionAWon || versionBWon, "Stored business values must be one complete submitted version");
+		Student winner = versionAWon ? versionA : versionB;
+		long winningBatch = versionAWon ? batchA : batchB;
+
+		assertEquals(winner.email().value(), stored.email());
+		assertEquals(winner.gradeLevel().value(), stored.gradeLevel());
+		assertEquals(String.valueOf(winner.section().value()), stored.section());
+		assertEquals(winner.marks().mark(Subject.MATHS), stored.maths());
+		assertEquals(winner.marks().mark(Subject.SCIENCE), stored.science());
+		assertEquals(winner.marks().mark(Subject.ENGLISH), stored.english());
+		assertEquals(winner.marks().mark(Subject.SOCIAL_STUDIES), stored.socialStudies());
+		assertEquals(winner.marks().mark(Subject.SECOND_LANGUAGE), stored.secondLanguage());
+		assertEquals(initialBatch, stored.firstSeenBatchId());
+		assertEquals(winningBatch, stored.lastUpdatedBatchId());
 	}
 
 	private BatchReservation reservation(String digest) {
@@ -304,6 +348,12 @@ class ApplicationTransactionIntegrationTest {
 	private Student student(String studentId, String fullName) {
 		return new Student(StudentId.of(studentId), FullName.of(fullName), EmailAddress.of("test@example.com"),
 				DateOfBirth.of(LocalDate.of(2001, 11, 19), this.clock), GradeLevel.of(9), Section.of('A'), marks(MARK));
+	}
+
+	private Student student(String studentId, String fullName, String email, int gradeLevel, char section, String mark) {
+		return new Student(StudentId.of(studentId), FullName.of(fullName), EmailAddress.of(email),
+				DateOfBirth.of(LocalDate.of(2001, 11, 19), this.clock), GradeLevel.of(gradeLevel),
+				Section.of(section), marks(mark));
 	}
 
 	private static SubjectMarks marks(String value) {
@@ -326,5 +376,10 @@ class ApplicationTransactionIntegrationTest {
 
 	private int batchCount() {
 		return this.jdbc.queryForObject("SELECT COUNT(*) FROM import_batch", Integer.class);
+	}
+
+	private record StudentSnapshot(String fullName, String email, int gradeLevel, String section,
+			BigDecimal maths, BigDecimal science, BigDecimal english, BigDecimal socialStudies,
+			BigDecimal secondLanguage, long firstSeenBatchId, long lastUpdatedBatchId) {
 	}
 }
