@@ -37,6 +37,9 @@ jobs:
       - name: Install dependencies
         working-directory: frontend
         run: npm ci
+      - name: Frontend tests
+        working-directory: frontend
+        run: npm test
       - name: TypeScript check
         working-directory: frontend
         run: npm run typecheck

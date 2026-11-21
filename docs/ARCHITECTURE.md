@@ -1,6 +1,6 @@
 # ClearGrade — Architecture
 
-Status: **Design documentation with implemented Phase 3 ingestion.** Domain, V1 schema, JPA adapters, application ports/T1–T4 services, the production CSV adapter and the import use case are implemented; REST/SPA remain planned. Conventions: `[REQ]` assignment/README requirement; `[REC]` engineering choice; `[INF]` data-confirmed inference; `[SPIKE]` resolved pre-implementation verification.
+Status: **Design documentation with the full delivery implemented.** Domain, V1 schema, JPA adapters, application ports/T1–T4 services, the production CSV adapter, the REST API, the React SPA and ClearGrade Intelligence are implemented. Conventions: `[REQ]` assignment/README requirement; `[REC]` engineering choice; `[INF]` data-confirmed inference; `[SPIKE]` resolved pre-implementation verification.
 
 ## 1. Context and system overview
 
@@ -19,7 +19,7 @@ flowchart LR
     Seed[Seed generator] -->|POST /api/imports| API
 ```
 
-The SPA is served as static assets by the same Spring Boot process (one origin, `localhost:8080`). Actuator management endpoints are **not** under `/api` (§7). `[REC]`
+In Docker Compose the SPA is served by nginx on the single published host port `8080`, which proxies same-origin `/api` and `/actuator/health` to the Spring Boot container; in native development Vite serves the SPA on `localhost:3000` and proxies `/api` to `localhost:8080`. Actuator management endpoints are **not** under `/api` (§7). `[REC]`
 
 ## 2. Component responsibilities
 
@@ -31,11 +31,11 @@ The SPA is served as static assets by the same Spring Boot process (one origin, 
 | `adapters.in.csv` | BOM/line-ending handling, header mapping, quoted fields, **physical line numbers (C-4 spike)** | Decide validity beyond structural shape |
 | `adapters.out.persistence` | JPA entities, repositories, Flyway migrations | Expose entities beyond this adapter |
 | `configuration` | Bean wiring, injected `Clock` (I-04), properties, CORS | Contain business logic |
-| `frontend` | Three screens, states, API client, typed models | Duplicate validation rules |
+| `frontend` | Four screens plus the intelligence panel, states, API client, typed models | Duplicate validation rules |
 
 Dependencies point inward: `adapters → application → domain`. Domain depends on nothing (plain Java 21). Enforced by package discipline plus an architecture test (G2→G3). No Maven multi-module split initially (D-01, D-02). `[REC]`
 
-**Frontend architecture `[REC]`:** React 18+, **React Router** for `/import`, `/students`, `/students/:id`; **TanStack Query** for server state (caching, loading/error states, retry); **local component state** for form/dropzone/UI state. **No Redux** unless a justified need appears. TanStack Query is a planned dependency, not installed in this phase.
+**Frontend architecture `[REC]`:** React 19, **React Router** for `/import`, `/students`, `/student-report` and `/students/{studentId}`; **TanStack Query** for server state (caching, loading/error states, retry); **local component state** for form/dropzone/UI state. **No Redux.** `/student-report` is the Student Report Finder; `/students/{studentId}` is the individual student report.
 
 ## 3. Data flow
 
@@ -179,7 +179,7 @@ cleargrade/
 
 | Assignment requirement | Design location |
 |---|---|
-| Three screens | UX_SPEC.md |
+| Four screens | UX_SPEC.md |
 | Upload never crashes on bad data/files | §5, SECURITY.md |
 | Explain rejections in administrator language | API_CONTRACT.md, UX_SPEC.md |
 | Searchable, paginated directory | API_CONTRACT.md, DATA_MODEL.md |
@@ -204,3 +204,32 @@ Parsing behaviour (derived from `reference/README.md` and the C-4 spike fixtures
 - Duplicate IDs use the domain `StudentId` normalization: the first valid occurrence reserves the ID even when that row is rejected for other reasons; later occurrences get `DUPLICATE_ID` (I-02). Complete error lists yield one persisted `import_row_error` row per occurrence (D-10), each pinned to the physical starting line.
 
 All six C-4 limitations remain carried forward: (1) unterminated quotes are file-level failures; (2) comment markers stay disabled; (3) `read(Path)`/byte input strips the BOM before mapping; (4) string-based callers must strip a BOM first; (5) offsets are UTF-16 code units built from the same decoded source; (6) field-count consistency is computed against the configured/parsed header, not `isConsistent()`.
+
+## 12. ClearGrade Intelligence (post-release, implemented)
+
+The optional analysis feature keeps the same inward dependency rule. `application.port.out.ImportInsightProvider`
+is the outbound boundary; `application.service.InsightProviderRouter` owns provider order (Gemini → Ollama →
+`DeterministicInsightService`) and failure categories; `ImportQualityContextBuilder` produces the single
+privacy-safe aggregate DTO; `ImportInsightService` guards batch status, coalesces concurrent requests and owns a
+bounded TTL/LRU cache. Provider HTTP code, prompt construction and response parsing live only in
+`adapters.out.ai` (`gemini/`, `ollama/`), never in `application` or `domain`. No AI SDK, framework or agent
+runtime is added; plain Java `HttpClient` is used.
+
+```mermaid
+flowchart TD
+    UI[Intelligence panel] -->|POST insights| Web[AiController]
+    Web --> Svc[ImportInsightService: guard, cache, coalesce]
+    Svc --> Ctx[ImportQualityContextBuilder: aggregates only]
+    Svc --> Router[InsightProviderRouter]
+    Router --> G[Gemini Interactions adapter]
+    Router --> O[Ollama chat adapter]
+    Router --> R[Deterministic Java engine]
+    G --> V[Strict JSON validation]
+    O --> V
+    R --> Resp[Labelled advisory report]
+    V --> Resp
+```
+
+The router never calls both cloud and local providers concurrently and never mutates import state. The
+deterministic engine is always available unless explicitly disabled, so a no-key/no-Ollama install still
+returns a labelled `RULE_BASED` report. Details: [AI_INTELLIGENCE.md](AI_INTELLIGENCE.md).

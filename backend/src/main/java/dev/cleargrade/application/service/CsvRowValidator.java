@@ -14,6 +14,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 
+import dev.cleargrade.application.exception.CsvFailureCode;
 import dev.cleargrade.application.exception.CsvImportException;
 import dev.cleargrade.application.model.ParsedCsv;
 import dev.cleargrade.application.model.ValidatedRows;
@@ -57,10 +58,12 @@ public class CsvRowValidator {
 	public ValidatedRows validate(ParsedCsv parsed) {
 		if (parsed.fatalFailure().isPresent()) {
 			ParsedCsv.FatalFailure failure = parsed.fatalFailure().get();
-			throw new CsvImportException(failure.safeMessage(), failure.physicalLine(), failure.cause());
+			throw new CsvImportException(failure.safeMessage(), failure.physicalLine(), failure.cause(),
+					failure.failureCode());
 		}
 		if (!parsed.headers().containsAll(REQUIRED_COLUMNS)) {
-			throw new CsvImportException(MISSING_HEADER_MESSAGE, 1, null);
+			throw new CsvImportException(MISSING_HEADER_MESSAGE, 1, null,
+					CsvFailureCode.MISSING_REQUIRED_COLUMNS);
 		}
 
 		List<Student> accepted = new ArrayList<>();

@@ -8,6 +8,7 @@ import { NotFoundPage } from './features/app/NotFoundPage';
 import { ImportPage } from './features/import/ImportPage';
 import { StudentDirectoryPage } from './features/students/StudentDirectoryPage';
 import { StudentReportPage } from './features/students/StudentReportPage';
+import { StudentReportFinder } from './features/students/StudentReportFinder';
 import './styles/index.css';
 
 const rootElement = document.getElementById('root');
@@ -24,6 +25,7 @@ createRoot(rootElement).render(
             <Route index element={<Navigate to="/import" replace />} />
             <Route path="/import" element={<ImportPage />} />
             <Route path="/students" element={<StudentDirectoryPage />} />
+            <Route path="/student-report" element={<StudentReportFinder />} />
             <Route path="/students/:studentId" element={<StudentReportPage />} />
             <Route path="*" element={<NotFoundPage />} />
           </Route>

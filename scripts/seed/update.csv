@@ -1,0 +1,13 @@
+student_id,full_name,email,date_of_birth,grade_level,section,maths,science,english,social_studies,second_language
+STU00001,Seed Student One Updated,stu00001@example.edu,2010-01-01,9,A,85,86,87,88,89
+STU00002,Seed Student Two,stu00002@example.edu,2010-02-02,10,B,70,71,72,73,74
+STU00003,Seed Student Three,stu00003@example.edu,2010-03-03,10,C,60,61,62,63,64
+STU00004,Seed Student Four,stu00004@example.edu,2010-04-04,10,B,50,51,52,53,54
+STU00005,Seed Student Five,stu00005@example.edu,2010-05-05,11,C,90,91,92,93,94
+STU00006,Seed Student Six,stu00006@example.edu,2010-06-06,11,C,40,41,42,43,44
+STU00007,Seed Student Seven,stu00007@example.edu,2010-07-07,12,D,30,31,32,33,34
+STU00008,Seed Student Eight,stu00008@example.edu,2010-08-08,12,D,20,21,22,23,24
+STU00009,Seed Student Nine,not-an-email,2010-09-09,9,A,80,80,80,80,80
+STU00010,Seed Student Ten,stu00010@example.edu,2010-10-10,9,Z,80,80,80,80,80
+STU00011,Seed Student Eleven,stu00011@example.edu,2010-11-11,9,A,80,80,80,80
+STU00002,Seed Student Duplicate,stu00012@example.edu,2010-12-12,9,A,80,80,80,80,80

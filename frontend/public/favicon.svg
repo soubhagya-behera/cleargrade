@@ -1,4 +1,12 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" role="img" aria-label="ClearGrade">
-  <rect width="32" height="32" rx="8" fill="#1e3a8a" />
-  <path d="M9 22V10h3.2l3.8 6.4L19.8 10H23v12h-3v-6.6l-3.3 5.3h-1.4L12 15.4V22H9Z" fill="#ffffff" />
+<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64" fill="none" role="img" aria-label="ClearGrade">
+  <title>ClearGrade</title>
+  <rect width="64" height="64" rx="14" fill="#0D2143" />
+  <g transform="translate(4 4) scale(0.875)">
+    <path d="M 46.91 10.70 A 26 26 0 1 0 46.91 53.30 L 41.75 45.93 A 17 17 0 1 1 41.75 18.07 Z" fill="#FFFFFF" />
+    <path d="M 28.27 53.22 L 10.50 32.00 L 28.27 10.78" stroke="#80B4E3" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" />
+    <circle cx="28.27" cy="53.22" r="2.4" fill="#80B4E3" />
+    <circle cx="10.50" cy="32.00" r="2.4" fill="#80B4E3" />
+    <circle cx="28.27" cy="10.78" r="2.4" fill="#80B4E3" />
+    <path d="M 58.00 31.00 L 48.00 43.00 L 41.00 36.00" stroke="#FEDF17" stroke-width="4.2" stroke-linecap="round" stroke-linejoin="round" />
+  </g>
 </svg>

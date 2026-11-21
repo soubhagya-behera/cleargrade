@@ -13,6 +13,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 
+import dev.cleargrade.application.exception.CsvFailureCode;
 import dev.cleargrade.application.exception.CsvImportException;
 import dev.cleargrade.application.model.ParsedCsv;
 import dev.cleargrade.application.model.ValidatedRows;
@@ -80,7 +81,8 @@ class CsvRowValidatorTest {
 	void fatalParserFailurePropagatesWithSafeMessage() {
 		RuntimeException original = new RuntimeException("parser detail");
 		ParsedCsv csv = new ParsedCsv(List.of(),
-				Optional.of(new ParsedCsv.FatalFailure(3, "The CSV file could not be parsed", original)), HEADERS);
+				Optional.of(new ParsedCsv.FatalFailure(3, "The CSV file could not be parsed", original,
+					CsvFailureCode.MALFORMED_CSV)), HEADERS);
 		CsvImportException error = assertThrows(CsvImportException.class, () -> validator.validate(csv));
 		assertEquals(3, error.physicalLine());
 		assertEquals("The CSV file could not be parsed", error.getMessage());

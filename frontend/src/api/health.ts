@@ -10,7 +10,7 @@ const healthClient = createApiClient('');
 export function useBackendHealth() {
   return useQuery({
     queryKey: ['backend-health'],
-    queryFn: ({ signal }) => healthClient.get<HealthResponse>('/actuator/health', signal),
+    queryFn: ({ signal }) => healthClient.get<HealthResponse>('/actuator/health', undefined, signal),
     retry: false,
     refetchInterval: 60_000,
   });

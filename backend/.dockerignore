@@ -1,0 +1,13 @@
+target/
+.mvn/wrapper/maven-wrapper.jar
+config/application-local.properties
+config/application-local.yml
+config/application-local.yaml
+.env
+.env.*
+*.log
+*.pem
+*.key
+*.p12
+*.pfx
+*.jks

@@ -1,6 +1,6 @@
 # ClearGrade — Test Strategy
 
-Status: **Implemented and green (195 tests, 0 skipped, JDK 21, real PostgreSQL Testcontainers).** Focused CSV/validation tests 41, CSV import integration 12, mandatory benchmark 2, application transactions 12. Goal: convince a teammate the import is correct, including cases the supplied files do not contain. `[REQ]`
+Status: **Implemented and green (286 backend tests across 40 test classes, 0 failures, 0 errors, 1 opt-in live smoke test skipped; 45 frontend tests, 0 failures; JDK 21, real PostgreSQL Testcontainers).** Backend coverage includes CSV/validation, import integration, mandatory benchmarks, transactions, REST API and ClearGrade Intelligence; frontend coverage includes API client, import, directory, student report finder, individual report and intelligence panel. Goal: convince a teammate the import is correct, including cases the supplied files do not contain. `[REQ]`
 
 ## 1. Validation unit tests (domain, pure JUnit 5)
 
@@ -60,7 +60,14 @@ Benchmark numbers are **regression fixtures only**, never parameters to validati
 - Transaction test: rollback of T3 leaves no students, no error occurrences, no `COMPLETED` status and no partial counts; T4 separately commits `FAILED`; `REQUIRES_NEW` executes in an independent transaction (proves no self-invocation bug).
 - Flyway migration from empty schema and idempotent second startup.
 
-## 5. API tests
+## 5. API tests (implemented — `RestApiIntegrationTest`, 11 tests)
+
+Real MockMvc → application service → PostgreSQL Testcontainers coverage: multipart upload `201` with counts/`Location`; repeated COMPLETED digest `200` with `deduplicated: true`; active digest `409 BATCH_PROCESSING` with `batchId`; empty/missing-column/malformed uploads `400`; non-CSV `415`; oversized `413`; batch summary `200`/`404`; paged row errors with physical lines, code filter, `404` and invalid-parameter `400`; student directory search/filter/sort/paging and sort allowlist; student report derived grading and `404`; `/actuator/health` available outside `/api`. No broad `@Transactional` test wrapper is used, so T1–T4 boundaries remain real.
+
+## 6. Frontend tests (implemented — Vitest + Testing Library, 45 tests)
+
+Typed API client success/query-string/error-envelope/network-failure/multipart cases; ImportPage upload success with real summary and physical-line problem rows, `409`/`413` friendly messages, client-side size rejection and batch lookup not-found; directory loading, real rows, search/grade/section filters, pagination, empty/error states; individual report rendering with derived grade/PASS and not-found state; student report finder search, results, retry and navigation; responsive `ProblemTable` card/table switching; intelligence panel and report states.
+
 
 - `POST /api/imports`: `201`, `200` deduplicated, `409 BATCH_PROCESSING`, `400`, `413`, `415`, `500` with correlation id; counters shape correct.
 - `GET /api/imports/{id}` and `/errors`: `200` shapes, **default size 50**, filter, `404`.
@@ -70,11 +77,9 @@ Benchmark numbers are **regression fixtures only**, never parameters to validati
 - Management path: `/actuator/health` available; other Actuator endpoints disabled (T-5).
 - Security subset from SECURITY.md §8.
 
-## 6. Frontend tests
-
 - Component tests: `FileDropzone`, `StatCard`, `DataQualitySummary`, `ProblemTable`, `StudentTable`, `Pagination`, `ResultBadge`.
 - State coverage: upload loading/success/error/already-processing; directory loading/empty/error; report not-found.
-- Interaction: search updates results, pagination changes page, report link uses `/students/:id`; TanStack Query loading/error states.
+- Interaction: search updates results, pagination changes page, the `/student-report` finder navigates to `/students/{studentId}`; TanStack Query loading/error states.
 - Type-check and production build as gates. No decorative snapshot suite initially.
 
 ## 7. Performance verification
@@ -92,3 +97,23 @@ Benchmark numbers are **regression fixtures only**, never parameters to validati
 - Generated messy fixtures cover README-listed variations (U-04) absent from the sample: embedded newline (C-4), reordered header, BOM-less CRLF, plus-address email, high-precision marks, 25-year-old boundary.
 - Seed generator submits generated CSV via `POST /api/imports` (T-1) so tests exercise the real pipeline.
 - If grading or validation rules change, update DECISIONS.md and tests deliberately; never adjust fixtures to make tests pass.
+
+## 9. ClearGrade Intelligence tests (post-release)
+
+No real key, Ollama installation or live AI call is required for CI. Mock HTTP servers use the JDK
+`com.sun.net.httpserver.HttpServer` bound to `127.0.0.1:0` and capture the real outbound bytes.
+
+| Area | Coverage |
+|---|---|
+| Provider protocol | Gemini Interactions path/header/`store:false`/schema; 429/5xx/timeout → fallback; 401/403/other 4xx → configuration (distinct); unusable output → fallback; Ollama `/api/tags` verification, `/api/chat` non-streaming `format`, model missing/invalid JSON → fallback |
+| Routing | Primary Gemini, fallback to Ollama, both unavailable → rule engine, AI disabled, safe reasons, engine labels, engine version, no simultaneous calls, configuration errors not hidden |
+| Privacy | Real outbound payloads for both providers asserted free of student names/IDs/emails/DOB/marks/raw rows/messages/lines; aggregate DTO has no student/persistence fields; blocked markers in model free text rejected |
+| Validation | Exact evidence values, allowlisted metrics/severities, unknown/missing fields, malformed JSON, text length caps, finding/action caps |
+| Deterministic engine | All five codes, thresholds, evidence-valued recommendations, clean import, repeatability; never labelled AI |
+| Cache/coalescing | Hit, TTL expiry, context invalidation, engine-version key, max-entry eviction, concurrent same-batch coalescing, exception propagation, cooldown |
+| Web/status | MockMvc mappings for `200/404/409/429/502/503` and a status body proven key-free |
+| Database aggregates | Testcontainers PostgreSQL: batch counters + `countByCode` produce the exact context; persisted PII never appears in prompt |
+| Live smoke | `LiveGeminiSmokeTest` runs only with `CLEARGRADE_LIVE_GEMINI_SMOKE=true` **and** `GEMINI_API_KEY` set; it never prints the key or response body |
+| Frontend | Provider availability, no key in frontend source, Gemini/Ollama/rule-based rendering, loading/error/retry, cache indicator, evidence separation, disabled/offline and accessibility states |
+
+Existing import/grade counters and benchmark assertions remain unchanged; adding AI tests does not alter them.
