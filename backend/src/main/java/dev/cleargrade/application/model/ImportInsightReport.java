@@ -15,7 +15,8 @@ public record ImportInsightReport(
 		List<String> recommendedActions,
 		String limitations,
 		String contextFingerprint,
-		InsightTelemetry telemetry) {
+		InsightTelemetry telemetry,
+		List<ProviderFailure> providerFailures) {
 
 	public ImportInsightReport(Engine engine, String engineModel, String fallbackReason, boolean cached,
 			ImportQualityContext measuredFacts, String summary, String overallAssessment,
@@ -23,7 +24,15 @@ public record ImportInsightReport(
 			String contextFingerprint) {
 		this(engine, engineModel, fallbackReason, cached, measuredFacts, summary, overallAssessment,
 				findings, recommendedActions, limitations, contextFingerprint,
-				InsightTelemetry.unavailable(engineModel, "NOT_RECORDED", null, 0L));
+				InsightTelemetry.unavailable(engineModel, "NOT_RECORDED", null, 0L), List.of());
+	}
+
+	public ImportInsightReport(Engine engine, String engineModel, String fallbackReason, boolean cached,
+			ImportQualityContext measuredFacts, String summary, String overallAssessment,
+			List<ImportInsightFinding> findings, List<String> recommendedActions, String limitations,
+			String contextFingerprint, InsightTelemetry telemetry) {
+		this(engine, engineModel, fallbackReason, cached, measuredFacts, summary, overallAssessment,
+				findings, recommendedActions, limitations, contextFingerprint, telemetry, List.of());
 	}
 
 	public enum Engine {

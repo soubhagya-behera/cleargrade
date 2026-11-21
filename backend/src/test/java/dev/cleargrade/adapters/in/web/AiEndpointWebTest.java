@@ -32,6 +32,8 @@ import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 class AiEndpointWebTest {
 
 	private static final String KEY_SENTINEL = "DUMMY_KEY_VALUE_SHOULD_NEVER_APPEAR";
+	private static final String PROVIDER_PAYLOAD_SENTINEL = "RAW_PROVIDER_BODY_SHOULD_NEVER_APPEAR";
+	private static final String PII_SENTINEL = "STU999,PII_SENTINEL_SHOULD_NEVER_APPEAR";
 
 	private ImportInsightService service;
 	private InsightProviderRouter router;
@@ -88,14 +90,14 @@ class AiEndpointWebTest {
 		ImportInsightFinding finding = new ImportInsightFinding("Duplicates", "MEDIUM",
 				"DUPLICATE_ID_COUNT", "4", "Four duplicate IDs were measured.", "Review the export.");
 		when(this.service.analyse(7L, false)).thenReturn(new ImportInsightReport(
-				ImportInsightReport.Engine.OLLAMA, "test-model", "GEMINI_UNAVAILABLE", false, context,
+				ImportInsightReport.Engine.OLLAMA, "test-model", "GEMINI:GEMINI_SERVER", false, context,
 				"Aggregate summary", "Aggregate assessment", List.of(finding), List.of("Review the export."),
 				"Aggregates only", context.fingerprint()));
 
 		this.mockMvc.perform(post("/api/imports/7/insights"))
 				.andExpect(status().isOk())
 				.andExpect(jsonPath("$.engine").value("OLLAMA"))
-				.andExpect(jsonPath("$.fallbackReason").value("GEMINI_UNAVAILABLE"))
+				.andExpect(jsonPath("$.fallbackReason").value("GEMINI:GEMINI_SERVER"))
 				.andExpect(jsonPath("$.cached").value(false))
 				.andExpect(jsonPath("$.measured.rowsRead").value(100))
 				.andExpect(jsonPath("$.measured.errorCountsByCode.DUPLICATE_ID").value(4))
@@ -138,6 +140,42 @@ class AiEndpointWebTest {
 		this.mockMvc.perform(post("/api/imports/7/insights"))
 				.andExpect(status().isBadGateway())
 				.andExpect(jsonPath("$.code").value("ANALYSIS_PROVIDER_FAILED"));
+	}
+
+	@Test
+	void aiErrorResponsesSanitizeSensitiveContent() throws Exception {
+		RuntimeException providerCause = new RuntimeException("raw=" + PROVIDER_PAYLOAD_SENTINEL
+				+ " key=" + KEY_SENTINEL + " pii=" + PII_SENTINEL);
+
+		org.mockito.Mockito.doThrow(new InsightCooldownException())
+				.when(this.service).analyse(anyLong(), anyBoolean());
+		String cooldownBody = this.mockMvc.perform(post("/api/imports/7/insights"))
+				.andExpect(status().isTooManyRequests())
+				.andExpect(jsonPath("$.code").value("ANALYSIS_COOLDOWN"))
+				.andExpect(jsonPath("$.message").value("An analysis was requested too recently for this import"))
+				.andExpect(jsonPath("$.details").isEmpty())
+				.andExpect(jsonPath("$.correlationId").value(org.hamcrest.Matchers.nullValue()))
+				.andReturn().getResponse().getContentAsString();
+
+		org.mockito.Mockito.doThrow(new InsightProviderException(
+				"A configured AI provider rejected the request",
+				InsightProviderException.Category.CONFIGURATION, providerCause))
+				.when(this.service).analyse(anyLong(), anyBoolean());
+		String configurationBody = this.mockMvc.perform(post("/api/imports/7/insights"))
+				.andExpect(status().isServiceUnavailable())
+				.andExpect(jsonPath("$.code").value("AI_CONFIGURATION_ERROR"))
+				.andExpect(jsonPath("$.message").value("A configured AI provider rejected the request"))
+				.andExpect(jsonPath("$.details").isEmpty())
+				.andExpect(jsonPath("$.correlationId").value(org.hamcrest.Matchers.nullValue()))
+				.andReturn().getResponse().getContentAsString();
+
+		for (String body : List.of(cooldownBody, configurationBody)) {
+			org.junit.jupiter.api.Assertions.assertFalse(body.contains("stackTrace"), body);
+			org.junit.jupiter.api.Assertions.assertFalse(body.contains("AiEndpointWebTest"), body);
+			org.junit.jupiter.api.Assertions.assertFalse(body.contains(KEY_SENTINEL), body);
+			org.junit.jupiter.api.Assertions.assertFalse(body.contains(PROVIDER_PAYLOAD_SENTINEL), body);
+			org.junit.jupiter.api.Assertions.assertFalse(body.contains(PII_SENTINEL), body);
+		}
 	}
 
 	@Test

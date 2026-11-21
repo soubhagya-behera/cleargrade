@@ -8,8 +8,9 @@ import dev.cleargrade.application.exception.InsightProviderException;
 import dev.cleargrade.application.exception.InsightUnavailableException;
 import dev.cleargrade.application.model.AiProviderStatus;
 import dev.cleargrade.application.model.ImportInsightReport;
-import dev.cleargrade.application.model.ImportQualityContext;
 import dev.cleargrade.application.model.OllamaAvailability;
+import dev.cleargrade.application.model.ProviderFailure;
+import dev.cleargrade.application.model.QualityAssessment;
 import dev.cleargrade.application.port.out.ImportInsightProvider;
 
 /** Provider routing: Gemini → Ollama → deterministic, with explicit safe failure codes. */
@@ -26,36 +27,57 @@ public class InsightProviderRouter {
 		this.properties = properties;
 	}
 
-	public ImportInsightReport analyse(ImportQualityContext context) {
-		if (!this.properties.isEnabled()) return deterministicReport(context, "AI_DISABLED");
+	public ImportInsightReport analyse(QualityAssessment assessment) {
+		if (!this.properties.isEnabled()) return deterministicReport(assessment, "AI_DISABLED");
 
-		List<String> failures = new ArrayList<>();
+		List<ProviderFailure> failures = new ArrayList<>();
 		for (ImportInsightProvider provider : this.aiProviders) {
 			if (!providerConfigured(provider) || !provider.available()) continue;
 			try {
-				ImportInsightReport report = provider.analyse(context);
-				return failures.isEmpty() ? report : withReason(report, String.join(";", failures));
+				ImportInsightReport report = provider.analyse(assessment);
+				ImportInsightReport attributed = withFailures(report, failures);
+				return failures.isEmpty() ? attributed
+						: withReason(attributed, reasons(failures));
 			}
 			catch (InsightProviderException error) {
 				if (error.category() == InsightProviderException.Category.CONFIGURATION) throw error;
-				failures.add(provider.engine().name() + ":" + error.code());
+				failures.add(new ProviderFailure(provider.engine().name(), error.code(), error.telemetry()));
 			}
 		}
-		String reason = failures.isEmpty() ? "NO_AI_PROVIDERS_AVAILABLE" : String.join(";", failures);
-		return deterministicReport(context, reason);
+		String reason = failures.isEmpty() ? "NO_AI_PROVIDERS_AVAILABLE" : reasons(failures);
+		return deterministicReport(assessment, reason, failures);
 	}
 
-	private ImportInsightReport deterministicReport(ImportQualityContext context, String reason) {
+	private ImportInsightReport deterministicReport(QualityAssessment assessment, String reason) {
+		return deterministicReport(assessment, reason, List.of());
+	}
+
+	private ImportInsightReport deterministicReport(QualityAssessment assessment, String reason,
+			List<ProviderFailure> failures) {
 		if (!this.properties.isDeterministicEnabled()) throw new InsightUnavailableException();
-		ImportInsightReport fallback = this.deterministic.analyse(context);
-		return withReason(fallback, reason);
+		ImportInsightReport fallback = this.deterministic.analyse(assessment);
+		return withFailures(withReason(fallback, reason), failures);
+	}
+
+	private static String reasons(List<ProviderFailure> failures) {
+		return String.join(";", failures.stream()
+				.map(failure -> failure.engine() + ":" + failure.code()).toList());
+	}
+
+	private static ImportInsightReport withFailures(ImportInsightReport report,
+			List<ProviderFailure> failures) {
+		if (failures.isEmpty()) return report;
+		return new ImportInsightReport(report.engine(), report.engineModel(), report.fallbackReason(),
+				report.cached(), report.measuredFacts(), report.summary(), report.overallAssessment(),
+				report.findings(), report.recommendedActions(), report.limitations(),
+				report.contextFingerprint(), report.telemetry(), List.copyOf(failures));
 	}
 
 	private static ImportInsightReport withReason(ImportInsightReport report, String reason) {
 		return new ImportInsightReport(report.engine(), report.engineModel(), reason, report.cached(),
 				report.measuredFacts(), report.summary(), report.overallAssessment(), report.findings(),
 				report.recommendedActions(), report.limitations(), report.contextFingerprint(),
-				report.telemetry());
+				report.telemetry(), List.copyOf(report.providerFailures()));
 	}
 
 	private boolean providerConfigured(ImportInsightProvider provider) {

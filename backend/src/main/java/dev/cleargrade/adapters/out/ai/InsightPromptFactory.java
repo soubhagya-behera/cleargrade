@@ -6,28 +6,33 @@ import java.util.List;
 import java.util.Map;
 
 import dev.cleargrade.application.exception.InsightProviderException;
+import dev.cleargrade.application.model.ApprovedInsightFinding;
 import dev.cleargrade.application.model.ImportQualityContext;
 import dev.cleargrade.application.model.InsightEvidenceMetric;
+import dev.cleargrade.application.model.InsightFindingId;
+import dev.cleargrade.application.model.QualityAssessment;
 
-/** Builds the only payload providers receive: trusted aggregates and static instructions. */
+/** Builds the only payload providers receive: Java-approved findings plus aggregate context. */
 public final class InsightPromptFactory {
 
 	private static final String INSTRUCTION = """
-			Analyse the aggregate import metrics only. Return one compact JSON object with exactly these keys:
-			summary (<=400 chars), overallAssessment (<=600), findings (max 5), recommendedActions (max 5,
-			each <=300 chars), limitations (<=400). Each finding has exactly title (<=120), severity
-			(INFO, LOW, MEDIUM or HIGH), evidenceMetric (one of the allowed metric keys), evidenceValue
-			(copied exactly from allowedEvidenceValues), explanation (<=400) and recommendedAction (<=300).
-			Copy every evidenceValue character-for-character: no symbols, spaces, currency marks or formatting.
-			Never invent numbers. Never change marks, grades, pass/fail decisions, counters or accepted rows.
-			Never mention student names, IDs, emails, dates of birth, marks, row messages or line numbers.
+			Return one compact JSON object with exactly one key: findings. It contains one entry per
+			approved finding, and each entry has exactly findingId and explanation (<=400 chars).
+			Copy findingId character-for-character from approvedFindings. NEVER add, omit or rename a finding.
+			Write only plain English in explanation: no JSON, no quoted prompt text and no Java field names.
+			Do not copy, echo or mention javaExplanation, javaRecommendedAction or any other field label.
+			Do not write summaries, assessments, limitations or recommendations: Java owns all of those.
+			Explain only why this approved issue matters. Use only canonical numbers supplied below and keep
+			the same denominator as rowsRead when describing a ratio. Never mention student names, IDs,
+			emails, dates of birth, marks, row messages or line numbers.
 			Facts (JSON):
 			""";
 
 	private InsightPromptFactory() {
 	}
 
-	public static String prompt(ImportQualityContext context, int maxPromptChars) {
+	public static String prompt(QualityAssessment assessment, int maxPromptChars) {
+		ImportQualityContext context = assessment.context();
 		Map<String, Object> facts = new LinkedHashMap<>();
 		facts.put("rowsRead", context.rowsRead());
 		facts.put("importedCount", context.importedCount());
@@ -49,8 +54,21 @@ public final class InsightPromptFactory {
 		for (InsightEvidenceMetric metric : InsightEvidenceMetric.values()) {
 			allowed.put(metric.name(), context.evidenceValue(metric));
 		}
-		facts.put("allowedEvidenceValues", allowed);
+		facts.put("canonicalEvidenceValues", allowed);
 		facts.put("schemaColumns", context.schemaColumns());
+
+		List<Map<String, Object>> approved = new java.util.ArrayList<>();
+		for (ApprovedInsightFinding finding : assessment.approvedFindings()) {
+			Map<String, Object> entry = new LinkedHashMap<>();
+			entry.put("findingId", finding.id().name());
+			entry.put("title", finding.title());
+			entry.put("severity", finding.severity());
+			entry.put("evidenceMetric", finding.evidenceMetric().name());
+			entry.put("evidenceValue", finding.evidenceValue());
+			entry.put("javaExplanation", finding.explanation());
+			approved.add(entry);
+		}
+		facts.put("approvedFindings", approved);
 
 		String prompt = INSTRUCTION + write(facts);
 		if (prompt.length() > maxPromptChars) {
@@ -82,41 +100,25 @@ public final class InsightPromptFactory {
 		Map<String, Object> finding = new LinkedHashMap<>();
 		finding.put("type", "object");
 		Map<String, Object> properties = new LinkedHashMap<>();
-		properties.put("title", text("Short finding title", withMaxLengths ? 120 : null));
-		Map<String, Object> severity = new LinkedHashMap<>();
-		severity.put("type", "string");
-		severity.put("enum", List.of("INFO", "LOW", "MEDIUM", "HIGH"));
-		properties.put("severity", severity);
-		Map<String, Object> metric = new LinkedHashMap<>();
-		metric.put("type", "string");
-		metric.put("enum", Arrays.stream(InsightEvidenceMetric.values()).map(Enum::name).toList());
-		properties.put("evidenceMetric", metric);
-		properties.put("evidenceValue", text("Exact value copied from allowedEvidenceValues", withMaxLengths ? 80 : null));
-		properties.put("explanation", text("Plain-language interpretation", withMaxLengths ? 400 : null));
-		properties.put("recommendedAction", text("Advisory next step", withMaxLengths ? 300 : null));
+		Map<String, Object> findingId = new LinkedHashMap<>();
+		findingId.put("type", "string");
+		findingId.put("enum", Arrays.stream(InsightFindingId.values()).map(Enum::name).toList());
+		properties.put("findingId", findingId);
+		properties.put("explanation", text("Why this approved finding matters, using only canonical values",
+				withMaxLengths ? 400 : null));
 		finding.put("properties", properties);
-		finding.put("required", List.of("title", "severity", "evidenceMetric", "evidenceValue",
-				"explanation", "recommendedAction"));
+		finding.put("required", List.of("findingId", "explanation"));
 
 		Map<String, Object> root = new LinkedHashMap<>();
 		root.put("type", "object");
 		Map<String, Object> rootProperties = new LinkedHashMap<>();
-		rootProperties.put("summary", text("Short summary", withMaxLengths ? 400 : null));
-		rootProperties.put("overallAssessment", text("Overall assessment", withMaxLengths ? 600 : null));
 		Map<String, Object> findings = new LinkedHashMap<>();
 		findings.put("type", "array");
-		findings.put("maxItems", 5);
+		findings.put("maxItems", InsightFindingId.values().length);
 		findings.put("items", finding);
 		rootProperties.put("findings", findings);
-		Map<String, Object> actions = new LinkedHashMap<>();
-		actions.put("type", "array");
-		actions.put("maxItems", 5);
-		actions.put("items", text("Advisory action", withMaxLengths ? 300 : null));
-		rootProperties.put("recommendedActions", actions);
-		rootProperties.put("limitations", text("Brief limitations", withMaxLengths ? 400 : null));
 		root.put("properties", rootProperties);
-		root.put("required", List.of("summary", "overallAssessment", "findings",
-				"recommendedActions", "limitations"));
+		root.put("required", List.of("findings"));
 		return root;
 	}
 

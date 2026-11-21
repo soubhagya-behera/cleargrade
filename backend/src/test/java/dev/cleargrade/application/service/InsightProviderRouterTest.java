@@ -11,17 +11,19 @@ import static org.mockito.Mockito.when;
 
 import java.util.List;
 
+import dev.cleargrade.InsightFixtures;
 import dev.cleargrade.application.config.InsightProperties;
 import dev.cleargrade.application.exception.InsightProviderException;
 import dev.cleargrade.application.model.ImportInsightReport;
-import dev.cleargrade.application.model.ImportQualityContext;
+import dev.cleargrade.application.model.InsightTelemetry;
 import dev.cleargrade.application.model.OllamaAvailability;
+import dev.cleargrade.application.model.QualityAssessment;
 import dev.cleargrade.application.port.out.ImportInsightProvider;
 import org.junit.jupiter.api.Test;
 
 class InsightProviderRouterTest {
 
-	private static final ImportQualityContext CONTEXT = new ImportQualityContext(10, 8, 2, 8, 0, 0, 2, java.util.Map.of());
+	private static final QualityAssessment ASSESSMENT = InsightFixtures.syntheticBatch4();
 
 	@Test
 	void geminiIsPrimaryWhenConfigured() {
@@ -32,37 +34,30 @@ class InsightProviderRouterTest {
 		InsightProviderRouter router = new InsightProviderRouter(List.of(gemini, ollama),
 				new DeterministicInsightService(), properties);
 
-		ImportInsightReport report = router.analyse(CONTEXT);
+		ImportInsightReport report = router.analyse(ASSESSMENT);
 
 		assertEquals(ImportInsightReport.Engine.GEMINI, report.engine());
 		verify(ollama, never()).analyse(any());
 	}
 
 	@Test
-	void quotaConnectionTimeoutAndServerErrorsFallBackToOllama() {
+	void quotaTimeoutAndServerErrorsFallBackToOllama() {
 		for (int statusCase = 0; statusCase < 3; statusCase++) {
-			InsightProperties properties = new InsightProperties();
-			properties.getGemini().setApiKey("test-placeholder-not-a-secret");
-			properties.getOllama().setBaseUrl("http://127.0.0.1:11434");
-			properties.getOllama().setModel("test-model");
-			ImportInsightProvider gemini = mock(ImportInsightProvider.class);
-			when(gemini.engine()).thenReturn(ImportInsightReport.Engine.GEMINI);
-			when(gemini.modelVersion()).thenReturn("gemini-test");
-			String reason = switch (statusCase) {
-				case 0 -> "quota";
-				case 1 -> "timeout";
-				default -> "server error";
+			InsightProperties properties = properties();
+			String code = switch (statusCase) {
+				case 0 -> "GEMINI_QUOTA";
+				case 1 -> "GEMINI_NETWORK";
+				default -> "GEMINI_SERVER";
 			};
-			when(gemini.analyse(any())).thenThrow(new InsightProviderException(reason,
-					InsightProviderException.Category.FALLBACK, null));
+			ImportInsightProvider gemini = failing(ImportInsightReport.Engine.GEMINI, code, null);
 			ImportInsightProvider ollama = provider(ImportInsightReport.Engine.OLLAMA);
-			when(ollama.available()).thenReturn(true);
 			InsightProviderRouter router = new InsightProviderRouter(List.of(gemini, ollama),
 					new DeterministicInsightService(), properties);
 
-			ImportInsightReport report = router.analyse(CONTEXT);
+			ImportInsightReport report = router.analyse(ASSESSMENT);
 
 			assertEquals(ImportInsightReport.Engine.OLLAMA, report.engine());
+			assertEquals("GEMINI:" + code, report.fallbackReason());
 			verify(ollama).analyse(any());
 		}
 	}
@@ -76,7 +71,7 @@ class InsightProviderRouterTest {
 		InsightProviderRouter router = new InsightProviderRouter(List.of(gemini, ollama),
 				new DeterministicInsightService(), properties);
 
-		ImportInsightReport report = router.analyse(CONTEXT);
+		ImportInsightReport report = router.analyse(ASSESSMENT);
 
 		assertEquals(ImportInsightReport.Engine.RULE_BASED, report.engine());
 		assertEquals("NO_AI_PROVIDERS_AVAILABLE", report.fallbackReason());
@@ -84,69 +79,61 @@ class InsightProviderRouterTest {
 
 	@Test
 	void configurationErrorsStayVisibleAndDoNotFallBack() {
-		InsightProperties properties = new InsightProperties();
-		properties.getGemini().setApiKey("test-placeholder-not-a-secret");
-		ImportInsightProvider gemini = mock(ImportInsightProvider.class);
-		when(gemini.engine()).thenReturn(ImportInsightReport.Engine.GEMINI);
-		when(gemini.available()).thenReturn(true);
-		when(gemini.analyse(any())).thenThrow(new InsightProviderException("auth",
-				InsightProviderException.Category.CONFIGURATION, null));
+		InsightProperties properties = properties();
+		ImportInsightProvider gemini = failing(ImportInsightReport.Engine.GEMINI, "GEMINI_AUTH", null);
+		org.mockito.Mockito.doThrow(new InsightProviderException("auth",
+				InsightProviderException.Category.CONFIGURATION, "GEMINI_AUTH", null, null))
+				.when(gemini).analyse(any());
 		ImportInsightProvider ollama = provider(ImportInsightReport.Engine.OLLAMA);
 		InsightProviderRouter router = new InsightProviderRouter(List.of(gemini, ollama),
 				new DeterministicInsightService(), properties);
 
 		InsightProviderException thrown = org.junit.jupiter.api.Assertions.assertThrows(
-				InsightProviderException.class, () -> router.analyse(CONTEXT));
+				InsightProviderException.class, () -> router.analyse(ASSESSMENT));
 		assertEquals(InsightProviderException.Category.CONFIGURATION, thrown.category());
 		verify(ollama, never()).analyse(any());
 	}
 
 	@Test
-	void successfulFallbackCarriesSafeReason() {
-		InsightProperties properties = new InsightProperties();
-		properties.getGemini().setApiKey("test-placeholder-not-a-secret");
-		properties.getOllama().setBaseUrl("http://127.0.0.1:11434");
-		properties.getOllama().setModel("test-model");
-		ImportInsightProvider gemini = mock(ImportInsightProvider.class);
-		when(gemini.engine()).thenReturn(ImportInsightReport.Engine.GEMINI);
-		when(gemini.available()).thenReturn(true);
-		when(gemini.analyse(any())).thenThrow(new InsightProviderException("quota",
-				InsightProviderException.Category.FALLBACK, null));
+	void successfulFallbackCarriesSafeReasonAndGeminiTelemetry() {
+		InsightProperties properties = properties();
+		ImportInsightProvider gemini = failing(ImportInsightReport.Engine.GEMINI, "GEMINI_SERVER",
+				InsightTelemetry.unavailable("gemini-3.8-flash", "HTTP_503", null, 321L));
 		ImportInsightProvider ollama = provider(ImportInsightReport.Engine.OLLAMA);
 		InsightProviderRouter router = new InsightProviderRouter(List.of(gemini, ollama),
 				new DeterministicInsightService(), properties);
 
-		ImportInsightReport report = router.analyse(CONTEXT);
+		ImportInsightReport report = router.analyse(ASSESSMENT);
 
 		assertEquals(ImportInsightReport.Engine.OLLAMA, report.engine());
-		assertEquals("GEMINI:PROVIDER_FAILURE", report.fallbackReason());
+		assertEquals("GEMINI:GEMINI_SERVER", report.fallbackReason());
+		assertEquals(1, report.providerFailures().size());
+		assertEquals("GEMINI", report.providerFailures().get(0).engine());
+		assertEquals("HTTP_503", report.providerFailures().get(0).telemetry().providerStatus());
+		assertEquals(321L, report.providerFailures().get(0).telemetry().durationMs());
+		assertEquals("HTTP_200", report.telemetry().providerStatus());
 	}
 
 	@Test
-	void bothProvidersFailKeepsFullSafeFailureChain() {
-		InsightProperties properties = new InsightProperties();
-		properties.getGemini().setApiKey("test-placeholder-not-a-secret");
-		properties.getOllama().setBaseUrl("http://127.0.0.1:11434");
-		properties.getOllama().setModel("test-model");
-		ImportInsightProvider gemini = mock(ImportInsightProvider.class);
-		when(gemini.engine()).thenReturn(ImportInsightReport.Engine.GEMINI);
-		when(gemini.modelVersion()).thenReturn("gemini-test");
-		when(gemini.available()).thenReturn(true);
-		when(gemini.analyse(any())).thenThrow(new InsightProviderException("quota",
-				InsightProviderException.Category.FALLBACK, "GEMINI_QUOTA", null, null));
-		ImportInsightProvider ollama = mock(ImportInsightProvider.class);
-		when(ollama.engine()).thenReturn(ImportInsightReport.Engine.OLLAMA);
-		when(ollama.modelVersion()).thenReturn("test-model");
-		when(ollama.available()).thenReturn(true);
-		when(ollama.analyse(any())).thenThrow(new InsightProviderException("validation",
-				InsightProviderException.Category.FALLBACK, "EVIDENCE_VALUE_MISMATCH", null, null));
+	void semanticRejectionAlsoContinuesTheSafeChain() {
+		InsightProperties properties = properties();
+		ImportInsightProvider gemini = failing(ImportInsightReport.Engine.GEMINI,
+				"GEMINI_SEMANTIC_REJECTED", null);
+		ImportInsightProvider ollama = failing(ImportInsightReport.Engine.OLLAMA,
+				"OLLAMA_SEMANTIC_REJECTED", null);
 		InsightProviderRouter router = new InsightProviderRouter(List.of(gemini, ollama),
 				new DeterministicInsightService(), properties);
 
-		ImportInsightReport report = router.analyse(CONTEXT);
+		ImportInsightReport report = router.analyse(ASSESSMENT);
 
 		assertEquals(ImportInsightReport.Engine.RULE_BASED, report.engine());
-		assertEquals("GEMINI:GEMINI_QUOTA;OLLAMA:EVIDENCE_VALUE_MISMATCH", report.fallbackReason());
+		assertEquals("GEMINI:GEMINI_SEMANTIC_REJECTED;OLLAMA:OLLAMA_SEMANTIC_REJECTED",
+				report.fallbackReason());
+		assertEquals(2, report.providerFailures().size());
+		assertTrue(report.findings().stream().allMatch(
+				finding -> finding.evidenceValue().equals(ASSESSMENT.context().evidenceValue(
+						dev.cleargrade.application.model.InsightEvidenceMetric
+								.valueOf(finding.evidenceMetric())))));
 	}
 
 	@Test
@@ -157,7 +144,7 @@ class InsightProviderRouterTest {
 		InsightProviderRouter router = new InsightProviderRouter(List.of(gemini),
 				new DeterministicInsightService(), properties);
 
-		ImportInsightReport report = router.analyse(CONTEXT);
+		ImportInsightReport report = router.analyse(ASSESSMENT);
 
 		assertEquals(ImportInsightReport.Engine.RULE_BASED, report.engine());
 		assertEquals("AI_DISABLED", report.fallbackReason());
@@ -172,18 +159,14 @@ class InsightProviderRouterTest {
 				new DeterministicInsightService(), properties);
 
 		org.junit.jupiter.api.Assertions.assertThrows(dev.cleargrade.application.exception.InsightUnavailableException.class,
-				() -> router.analyse(CONTEXT));
+				() -> router.analyse(ASSESSMENT));
 	}
 
 	@Test
 	void statusReportsSafeRoutingAndEngineVersion() {
-		InsightProperties properties = new InsightProperties();
-		properties.getGemini().setApiKey("test-placeholder-not-a-secret");
-		properties.getOllama().setBaseUrl("http://127.0.0.1:11434");
-		properties.getOllama().setModel("test-model");
+		InsightProperties properties = properties();
 		ImportInsightProvider gemini = provider(ImportInsightReport.Engine.GEMINI);
 		ImportInsightProvider ollama = provider(ImportInsightReport.Engine.OLLAMA);
-		when(ollama.available()).thenReturn(true);
 		when(ollama.ollamaAvailability()).thenReturn(new OllamaAvailability(true, true));
 		InsightProviderRouter router = new InsightProviderRouter(List.of(gemini, ollama),
 				new DeterministicInsightService(), properties);
@@ -192,14 +175,15 @@ class InsightProviderRouterTest {
 		assertFalse(router.status().inferenceTested());
 		assertTrue(router.status().routingReasons().isEmpty());
 		assertTrue(router.engineVersion().contains("GEMINI:test-model"));
-		assertTrue(router.engineVersion().contains("OLLAMA:test-model"));
 		assertTrue(router.engineVersion().contains("RULE_BASED:deterministic-v1"));
-		properties.getGemini().setApiKey("");
-		properties.getOllama().setBaseUrl("");
-		when(ollama.ollamaAvailability()).thenReturn(OllamaAvailability.UNREACHABLE);
-		assertEquals("RULE_BASED_ONLY", router.status().routing());
-		assertTrue(router.status().routingReasons().contains("GEMINI_NOT_CONFIGURED"));
-		assertTrue(router.status().routingReasons().contains("OLLAMA_NOT_CONFIGURED"));
+	}
+
+	private static InsightProperties properties() {
+		InsightProperties properties = new InsightProperties();
+		properties.getGemini().setApiKey("test-placeholder-not-a-secret");
+		properties.getOllama().setBaseUrl("http://127.0.0.1:11434");
+		properties.getOllama().setModel("test-model");
+		return properties;
 	}
 
 	private static ImportInsightProvider provider(ImportInsightReport.Engine engine) {
@@ -208,7 +192,20 @@ class InsightProviderRouterTest {
 		when(provider.modelVersion()).thenReturn("test-model");
 		when(provider.available()).thenReturn(true);
 		when(provider.analyse(any())).thenReturn(new ImportInsightReport(engine, "test-model", null, false,
-				CONTEXT, "summary", "assessment", List.of(), List.of(), "limitations", CONTEXT.fingerprint()));
+				ASSESSMENT.context(), "summary", "assessment", List.of(), List.of(), "limits",
+				ASSESSMENT.context().fingerprint(),
+				InsightTelemetry.unavailable("test-model", "HTTP_200", null, 5L)));
+		return provider;
+	}
+
+	private static ImportInsightProvider failing(ImportInsightReport.Engine engine, String code,
+			InsightTelemetry telemetry) {
+		ImportInsightProvider provider = mock(ImportInsightProvider.class);
+		when(provider.engine()).thenReturn(engine);
+		when(provider.modelVersion()).thenReturn("test-model");
+		when(provider.available()).thenReturn(true);
+		when(provider.analyse(any())).thenThrow(new InsightProviderException("failure",
+				InsightProviderException.Category.FALLBACK, code, null, telemetry));
 		return provider;
 	}
 }

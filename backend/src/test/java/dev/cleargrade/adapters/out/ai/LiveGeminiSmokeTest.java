@@ -6,6 +6,7 @@ import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 import java.util.Map;
 
+import dev.cleargrade.InsightFixtures;
 import dev.cleargrade.adapters.out.ai.gemini.GeminiInteractionsAdapter;
 import dev.cleargrade.application.config.InsightProperties;
 import dev.cleargrade.application.model.ImportInsightReport;
@@ -35,7 +36,8 @@ class LiveGeminiSmokeTest {
 				Map.of("MISSING_REQUIRED", 5, "INVALID_FORMAT", 5, "OUT_OF_RANGE", 5,
 						"DUPLICATE_ID", 5, "WRONG_FIELD_COUNT", 0));
 
-		ImportInsightReport report = new GeminiInteractionsAdapter(properties).analyse(context);
+		ImportInsightReport report = new GeminiInteractionsAdapter(properties)
+				.analyse(InsightFixtures.assessment(context));
 
 		assertNotNull(report);
 		assertFalse(report.summary().isBlank());

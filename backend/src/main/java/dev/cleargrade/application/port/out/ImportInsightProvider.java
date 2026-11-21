@@ -3,8 +3,8 @@ package dev.cleargrade.application.port.out;
 import dev.cleargrade.application.exception.InsightProviderException;
 import dev.cleargrade.application.model.ImportInsightReport;
 import dev.cleargrade.application.model.ImportInsightReport.Engine;
-import dev.cleargrade.application.model.ImportQualityContext;
 import dev.cleargrade.application.model.OllamaAvailability;
+import dev.cleargrade.application.model.QualityAssessment;
 
 /** Application-owned AI provider contract. Provider protocols stay in adapters. */
 public interface ImportInsightProvider {
@@ -13,7 +13,8 @@ public interface ImportInsightProvider {
 
 	String modelVersion();
 
-	ImportInsightReport analyse(ImportQualityContext context) throws InsightProviderException;
+	/** Providers receive the Java-approved assessment, never the raw freedom to pick findings. */
+	ImportInsightReport analyse(QualityAssessment assessment) throws InsightProviderException;
 
 	/** External providers override this; the deterministic engine is always available. */
 	default boolean available() {

@@ -8,6 +8,7 @@ import java.sql.Timestamp;
 import java.time.Instant;
 import java.util.Map;
 
+import dev.cleargrade.InsightFixtures;
 import dev.cleargrade.adapters.out.ai.InsightPromptFactory;
 import dev.cleargrade.application.model.BatchSummary;
 import dev.cleargrade.application.model.ImportQualityContext;
@@ -103,7 +104,7 @@ class InsightAggregateQueryTest {
 		assertEquals("1.10", context.errorsPerRejectedRow());
 		assertEquals(5, context.errorCounts().size(), "context contains all five allowlisted codes only");
 
-		String prompt = InsightPromptFactory.prompt(context, 8000);
+		String prompt = InsightPromptFactory.prompt(InsightFixtures.assessment(context), 8000);
 		assertFalse(prompt.contains(SENSITIVE_ID));
 		assertFalse(prompt.contains(SENSITIVE_MESSAGE));
 		assertFalse(prompt.contains("line_number"));

@@ -196,6 +196,51 @@ class ImportInsightServiceTest {
 		assertEquals("RULE_BASED", fixture.service.lastAnalysis().engine());
 		assertEquals(null, fixture.service.lastAnalysis().reason());
 		assertFalse(fixture.service.lastAnalysis().cached());
+		assertTrue(fixture.service.lastAnalysis().providerFailures().isEmpty());
+	}
+
+	@Test
+	void lastAnalysisRetainsGeminiFailureTelemetryWhenAnotherEngineSucceeds() {
+		Fixture fixture = fixture(600);
+		var geminiFailure = new dev.cleargrade.application.model.ProviderFailure("GEMINI", "GEMINI_SERVER",
+				dev.cleargrade.application.model.InsightTelemetry.unavailable(
+						"gemini-3.8-flash", "HTTP_503", null, 321L));
+		when(fixture.router.analyse(any())).thenAnswer(invocation -> new ImportInsightReport(
+				ImportInsightReport.Engine.OLLAMA, "llama3.2:1b", "GEMINI:GEMINI_SERVER", false,
+				fixture.report().measuredFacts(), "summary", "assessment", List.of(), List.of(), "limits", "hash",
+				dev.cleargrade.application.model.InsightTelemetry.unavailable("llama3.2:1b", "HTTP_200", null, 5L),
+				List.of(geminiFailure)));
+		fixture.service.analyse(1L);
+
+		assertEquals("OLLAMA", fixture.service.lastAnalysis().engine());
+		assertEquals("HTTP_200", fixture.service.lastAnalysis().telemetry().providerStatus());
+		assertEquals(1, fixture.service.lastAnalysis().providerFailures().size());
+		assertEquals("HTTP_503", fixture.service.lastAnalysis().providerFailures().get(0).telemetry().providerStatus());
+	}
+
+	@Test
+	void cacheHitPreservesProviderFailuresAndMarksLastAnalysisCached() {
+		Fixture fixture = fixture(600);
+		var geminiFailure = new dev.cleargrade.application.model.ProviderFailure("GEMINI", "GEMINI_SERVER",
+				dev.cleargrade.application.model.InsightTelemetry.unavailable(
+						"gemini-3.8-flash", "HTTP_503", null, 321L));
+		when(fixture.router.analyse(any())).thenAnswer(invocation -> new ImportInsightReport(
+				ImportInsightReport.Engine.OLLAMA, "llama3.2:1b", "GEMINI:GEMINI_SERVER", false,
+				fixture.report().measuredFacts(), "summary", "assessment", List.of(), List.of(), "limits", "hash",
+				dev.cleargrade.application.model.InsightTelemetry.unavailable("llama3.2:1b", "HTTP_200", null, 5L),
+				List.of(geminiFailure)));
+
+		ImportInsightReport first = fixture.service.analyse(1L);
+		ImportInsightReport cached = fixture.service.analyse(1L);
+
+		assertFalse(first.cached());
+		assertTrue(cached.cached());
+		assertEquals(1, cached.providerFailures().size());
+		assertEquals("GEMINI_SERVER", cached.providerFailures().get(0).code());
+		assertTrue(fixture.service.lastAnalysis().cached());
+		assertEquals(1, fixture.service.lastAnalysis().providerFailures().size());
+		assertEquals("HTTP_503", fixture.service.lastAnalysis().providerFailures().get(0).telemetry().providerStatus());
+		verify(fixture.router, times(1)).analyse(any());
 	}
 
 	private static Fixture fixture(int ttlSeconds) {
@@ -217,9 +262,10 @@ class ImportInsightServiceTest {
 		when(router.engineVersion()).thenReturn("rule-based:v1");
 		when(router.analyse(any())).thenAnswer(invocation -> new ImportInsightReport(
 				ImportInsightReport.Engine.RULE_BASED, "deterministic-v1", null, false,
-				invocation.getArgument(0), "summary", "assessment", List.of(), List.of(), "limits", "hash"));
+				new ImportQualityContext(100, 80, 20, 80, 0, 0, 20, Map.of("DUPLICATE_ID", 4)),
+				"summary", "assessment", List.of(), List.of(), "limits", "hash"));
 		ImportInsightService service = new ImportInsightService(batches, rowErrors,
-				new ImportQualityContextBuilder(), router, properties, clock);
+				new ImportQualityContextBuilder(), new DeterministicInsightService(), router, properties, clock);
 		return new Fixture(batches, rowErrors, router, properties, clock, service);
 	}
 

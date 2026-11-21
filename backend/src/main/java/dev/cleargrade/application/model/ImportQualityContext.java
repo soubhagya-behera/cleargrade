@@ -82,6 +82,24 @@ public final class ImportQualityContext {
 				.divide(BigDecimal.valueOf(this.rejectedCount), 2, RoundingMode.HALF_UP).toPlainString();
 	}
 
+	/** True when the measured totals satisfy the ImportCounts invariant. */
+	public boolean totalsConsistent() {
+		return this.importedCount + this.rejectedCount == this.rowsRead;
+	}
+
+	/** Plain-language rejected-row statement built only from canonical counters. */
+	public String rejectedRowSummary() {
+		if (!totalsConsistent()) {
+			return "Some rows could not be imported. Check the original import results for details.";
+		}
+		return this.rejectedCount + " of " + this.rowsRead + " rows could not be imported ("
+				+ wholePercentage(this.rejectedPercentage()) + "%).";
+	}
+
+	private static String wholePercentage(String value) {
+		return value.endsWith(".0") ? value.substring(0, value.length() - 2) : value;
+	}
+
 	public int errorCount(RowErrorCode code) {
 		return this.errorCounts.getOrDefault(code.name(), 0);
 	}

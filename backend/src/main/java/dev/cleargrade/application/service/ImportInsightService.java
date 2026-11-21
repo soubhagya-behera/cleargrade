@@ -5,6 +5,7 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
@@ -18,6 +19,7 @@ import dev.cleargrade.application.model.BatchSummary;
 import dev.cleargrade.application.model.ImportInsightReport;
 import dev.cleargrade.application.model.ImportQualityContext;
 import dev.cleargrade.application.model.LastAnalysis;
+import dev.cleargrade.application.model.QualityAssessment;
 import dev.cleargrade.domain.batch.ImportStatus;
 import dev.cleargrade.application.port.out.ImportBatchQueryPort;
 import dev.cleargrade.application.port.out.ImportRowErrorQueryPort;
@@ -30,6 +32,7 @@ public class ImportInsightService {
 	private final ImportBatchQueryPort batches;
 	private final ImportRowErrorQueryPort rowErrors;
 	private final ImportQualityContextBuilder contextBuilder;
+	private final DeterministicInsightService deterministic;
 	private final InsightProviderRouter router;
 	private final InsightProperties properties;
 	private final Clock clock;
@@ -39,11 +42,12 @@ public class ImportInsightService {
 	private volatile LastAnalysis lastAnalysis = LastAnalysis.NONE;
 
 	public ImportInsightService(ImportBatchQueryPort batches, ImportRowErrorQueryPort rowErrors,
-			ImportQualityContextBuilder contextBuilder, InsightProviderRouter router,
-			InsightProperties properties, Clock clock) {
+			ImportQualityContextBuilder contextBuilder, DeterministicInsightService deterministic,
+			InsightProviderRouter router, InsightProperties properties, Clock clock) {
 		this.batches = batches;
 		this.rowErrors = rowErrors;
 		this.contextBuilder = contextBuilder;
+		this.deterministic = deterministic;
 		this.router = router;
 		this.properties = properties;
 		this.clock = clock;
@@ -64,6 +68,7 @@ public class ImportInsightService {
 			throw new InsightBatchNotCompletedException(batchId);
 		}
 		ImportQualityContext context = this.contextBuilder.build(batch, this.rowErrors.countByCode(batchId));
+		QualityAssessment assessment = this.deterministic.assess(context);
 		String key = batchId + "|" + context.fingerprint() + "|" + this.router.engineVersion();
 
 		if (!refresh) {
@@ -87,7 +92,7 @@ public class ImportInsightService {
 		}
 
 		CompletableFuture<ImportInsightReport> future = this.inFlight.computeIfAbsent(key,
-				ignored -> CompletableFuture.supplyAsync(() -> this.router.analyse(context)));
+				ignored -> CompletableFuture.supplyAsync(() -> this.router.analyse(assessment)));
 		try {
 			ImportInsightReport report = future.join();
 			writeCache(key, report);
@@ -115,14 +120,15 @@ public class ImportInsightService {
 
 	private void recordSuccess(ImportInsightReport report, boolean cached) {
 		this.lastAnalysis = new LastAnalysis(report.engine().name(), report.fallbackReason(),
-				cached, report.telemetry());
+				cached, report.telemetry(), List.copyOf(report.providerFailures()));
 	}
 
 	private void recordFailure(RuntimeException error) {
 		String reason = error instanceof InsightProviderException providerError ? providerError.code()
 				: error instanceof InsightCooldownException ? "ANALYSIS_COOLDOWN" : "ANALYSIS_FAILED";
 		this.lastAnalysis = new LastAnalysis(null, reason, false,
-				error instanceof InsightProviderException providerError ? providerError.telemetry() : null);
+				error instanceof InsightProviderException providerError ? providerError.telemetry() : null,
+				List.of());
 	}
 
 	private void pruneCooldownHistory(Instant now) {
@@ -161,7 +167,7 @@ public class ImportInsightService {
 		return new ImportInsightReport(report.engine(), report.engineModel(), report.fallbackReason(), cached,
 				report.measuredFacts(), report.summary(), report.overallAssessment(), report.findings(),
 				report.recommendedActions(), report.limitations(), report.contextFingerprint(),
-				report.telemetry());
+				report.telemetry(), List.copyOf(report.providerFailures()));
 	}
 
 	private record CacheEntry(ImportInsightReport report, Instant createdAt) {

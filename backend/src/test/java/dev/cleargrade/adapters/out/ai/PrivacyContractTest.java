@@ -14,6 +14,7 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import com.sun.net.httpserver.HttpServer;
 
+import dev.cleargrade.InsightFixtures;
 import dev.cleargrade.adapters.out.ai.gemini.GeminiInteractionsAdapter;
 import dev.cleargrade.adapters.out.ai.ollama.OllamaChatAdapter;
 import dev.cleargrade.application.config.InsightProperties;
@@ -60,9 +61,11 @@ class PrivacyContractTest {
 	@Test
 	void aggregateContextIsTheOnlyProviderInput() {
 		ImportQualityContext context = context();
-		String prompt = InsightPromptFactory.prompt(context, 8000);
+		String prompt = InsightPromptFactory.prompt(InsightFixtures.assessment(context), 8000);
 
 		assertNoSensitiveValues(prompt);
+		assertTrue(prompt.contains("\"approvedFindings\""));
+		assertTrue(prompt.contains("\"findingId\""));
 		assertEquals(5, context.errorCounts().size());
 		assertNoSensitiveValues(String.valueOf(context.errorCounts()));
 		assertNoSensitiveValues(String.valueOf(context.schemaColumns()));
@@ -78,7 +81,7 @@ class PrivacyContractTest {
 	void geminiOutboundPayloadContainsNoStudentData() {
 		InsightProperties properties = geminiProperties();
 		this.responseBody = geminiResponse();
-		new GeminiInteractionsAdapter(properties).analyse(context());
+		new GeminiInteractionsAdapter(properties).analyse(InsightFixtures.assessment(context()));
 
 		String body = this.outbound.get();
 		assertNoSensitiveValues(body);
@@ -97,14 +100,15 @@ class PrivacyContractTest {
 	@Test
 	void ollamaOutboundPayloadContainsNoStudentData() {
 		InsightProperties properties = ollamaProperties();
-		this.responseBody = "{\"message\":{\"role\":\"assistant\",\"content\":" + quote(insightJson())
+		this.responseBody = "{\"message\":{\"role\":\"assistant\",\"content\":"
+				+ quote(InsightFixtures.validAiJson(InsightFixtures.assessment(context())))
 				+ "},\"done\":true}";
-		new OllamaChatAdapter(properties).analyse(context());
+		new OllamaChatAdapter(properties).analyse(InsightFixtures.assessment(context()));
 
 		String body = this.outbound.get();
 		assertNoSensitiveValues(body);
 		assertTrue(body.contains("\"format\""));
-		assertTrue(body.contains("\"maxItems\":5"));
+		assertTrue(body.contains("\"maxItems\":7"));
 		assertFalse(body.contains("line_number"));
 	}
 
@@ -142,16 +146,8 @@ class PrivacyContractTest {
 
 	private static String geminiResponse() {
 		return "{\"status\":\"completed\",\"steps\":[{\"type\":\"model_output\","
-				+ "\"content\":[{\"type\":\"text\",\"text\":" + quote(insightJson()) + "}]}]}";
-	}
-
-	private static String insightJson() {
-		return "{\"summary\":\"Aggregate summary\",\"overallAssessment\":\"Aggregate assessment\","
-				+ "\"findings\":[{\"title\":\"Finding\",\"severity\":\"LOW\","
-				+ "\"evidenceMetric\":\"DUPLICATE_ID_COUNT\",\"evidenceValue\":\"5\","
-				+ "\"explanation\":\"Measured duplicate count.\",\"recommendedAction\":\"Review source export.\"}],"
-				+ "\"recommendedActions\":[\"Review source export.\"],"
-				+ "\"limitations\":\"Aggregate data only.\"}";
+				+ "\"content\":[{\"type\":\"text\",\"text\":"
+				+ quote(InsightFixtures.validAiJson(InsightFixtures.assessment(context()))) + "}]}]}";
 	}
 
 	private static String quote(String value) {

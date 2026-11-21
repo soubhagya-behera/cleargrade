@@ -21,7 +21,8 @@ public record AiStatusResponse(
 		List<String> routingReasons,
 		String lastAnalysisEngine,
 		String lastAnalysisReason,
-		InsightUsageResponse lastAnalysisUsage) {
+		InsightUsageResponse lastAnalysisUsage,
+		List<InsightFailureResponse> lastAnalysisFailures) {
 
 	public static AiStatusResponse from(AiProviderStatus status, LastAnalysis lastAnalysis) {
 		return new AiStatusResponse(status.featureEnabled(), status.geminiConfigured(),
@@ -31,6 +32,20 @@ public record AiStatusResponse(
 				List.copyOf(status.routingReasons()),
 				lastAnalysis == null ? null : lastAnalysis.engine(),
 				lastAnalysis == null ? null : lastAnalysis.reason(),
-				InsightUsageResponse.from(lastAnalysis == null ? null : lastAnalysis.telemetry()));
+				InsightUsageResponse.from(lastAnalysis == null ? null : lastAnalysis.telemetry()),
+				lastAnalysis == null ? List.of() : failures(lastAnalysis));
+	}
+
+	private static List<InsightFailureResponse> failures(LastAnalysis lastAnalysis) {
+		return lastAnalysis.providerFailures().stream()
+				.map(failure -> new InsightFailureResponse(failure.engine(), failure.code(),
+						failure.telemetry() == null ? "" : nullToEmpty(failure.telemetry().providerStatus()),
+						failure.telemetry() == null ? 0L : failure.telemetry().durationMs(),
+						lastAnalysis.engine() != null && !failure.engine().equals(lastAnalysis.engine())))
+				.toList();
+	}
+
+	private static String nullToEmpty(String value) {
+		return value == null ? "" : value;
 	}
 }

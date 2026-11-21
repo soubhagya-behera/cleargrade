@@ -20,8 +20,8 @@ import dev.cleargrade.adapters.out.ai.InsightResponseParser;
 import dev.cleargrade.application.config.InsightProperties;
 import dev.cleargrade.application.exception.InsightProviderException;
 import dev.cleargrade.application.model.ImportInsightReport;
-import dev.cleargrade.application.model.ImportQualityContext;
 import dev.cleargrade.application.model.InsightTelemetry;
+import dev.cleargrade.application.model.QualityAssessment;
 import dev.cleargrade.application.model.OllamaAvailability;
 import dev.cleargrade.application.port.out.ImportInsightProvider;
 import org.springframework.stereotype.Component;
@@ -96,13 +96,13 @@ public class OllamaChatAdapter implements ImportInsightProvider {
 	}
 
 	@Override
-	public ImportInsightReport analyse(ImportQualityContext context) throws InsightProviderException {
+	public ImportInsightReport analyse(QualityAssessment assessment) throws InsightProviderException {
 		InsightProperties.Ollama config = this.properties.getOllama();
 		if (!config.configured() || !availability().usable()) {
 			throw new InsightProviderException("Ollama is not available",
 					InsightProviderException.Category.FALLBACK, "OLLAMA_UNAVAILABLE", null, null);
 		}
-		String prompt = InsightPromptFactory.prompt(context, this.properties.getMaxPromptChars());
+		String prompt = InsightPromptFactory.prompt(assessment, this.properties.getMaxPromptChars());
 		Map<String, Object> request = new LinkedHashMap<>();
 		request.put("model", config.getModel());
 		request.put("messages", List.of(Map.of("role", "user", "content", prompt)));
@@ -157,7 +157,7 @@ public class OllamaChatAdapter implements ImportInsightProvider {
 						"OLLAMA_NO_TEXT", providerStatus, durationMs, telemetry);
 			}
 			try {
-				return InsightResponseParser.parse(content, context, engine(), modelVersion(),
+				return InsightResponseParser.parse(content, assessment, engine(), modelVersion(),
 						null, telemetry);
 			}
 			catch (InsightProviderException error) {

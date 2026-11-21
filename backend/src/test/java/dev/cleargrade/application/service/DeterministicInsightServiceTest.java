@@ -6,6 +6,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.util.Map;
 
+import dev.cleargrade.InsightFixtures;
 import dev.cleargrade.application.model.ImportInsightFinding;
 import dev.cleargrade.application.model.ImportInsightReport;
 import dev.cleargrade.application.model.ImportQualityContext;
@@ -20,10 +21,10 @@ class DeterministicInsightServiceTest {
 	@Test
 	void analysesAllMeasuredCategoriesWithEvidenceBackedRules() {
 		ImportQualityContext context = mixedContext();
-		ImportInsightReport report = this.engine.analyse(context);
+		ImportInsightReport report = this.engine.analyse(InsightFixtures.assessment(context));
 
 		assertEquals(ImportInsightReport.Engine.RULE_BASED, report.engine());
-		assertTrue(report.limitations().startsWith("Rule-based analysis uses aggregate counters only."));
+		assertEquals(context.rejectedRowSummary(), report.limitations());
 		assertEquals(7, report.findings().size());
 		assertEquals("HIGH", report.findings().get(0).severity());
 		assertEquals(InsightEvidenceMetric.REJECTED_PERCENTAGE.name(),
@@ -44,7 +45,7 @@ class DeterministicInsightServiceTest {
 	@Test
 	void cleanImportProducesNoConcerns() {
 		ImportQualityContext context = new ImportQualityContext(10, 10, 0, 10, 0, 0, 0, Map.of());
-		ImportInsightReport report = this.engine.analyse(context);
+		ImportInsightReport report = this.engine.analyse(InsightFixtures.assessment(context));
 
 		assertTrue(report.findings().isEmpty());
 		assertTrue(report.recommendedActions().isEmpty());
@@ -53,14 +54,14 @@ class DeterministicInsightServiceTest {
 
 	@Test
 	void sameContextAlwaysProducesSameReport() {
-		assertEquals(this.engine.analyse(mixedContext()), this.engine.analyse(mixedContext()));
+		assertEquals(this.engine.analyse(InsightFixtures.assessment(mixedContext())), this.engine.analyse(InsightFixtures.assessment(mixedContext())));
 	}
 
 	@Test
 	void thresholdsAreGroundedInActualCounters() {
 		ImportQualityContext oneError = new ImportQualityContext(100, 99, 1, 99, 0, 0, 1,
 				Map.of("MISSING_REQUIRED", 1));
-		ImportInsightReport report = this.engine.analyse(oneError);
+		ImportInsightReport report = this.engine.analyse(InsightFixtures.assessment(oneError));
 
 		assertEquals(1, report.findings().size());
 		assertEquals("MEDIUM", report.findings().get(0).severity());

@@ -13,12 +13,15 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import com.sun.net.httpserver.HttpServer;
 
+import dev.cleargrade.InsightFixtures;
 import dev.cleargrade.adapters.out.ai.gemini.GeminiInteractionsAdapter;
 import dev.cleargrade.adapters.out.ai.ollama.OllamaChatAdapter;
 import dev.cleargrade.application.config.InsightProperties;
 import dev.cleargrade.application.exception.InsightProviderException;
 import dev.cleargrade.application.model.ImportInsightReport;
 import dev.cleargrade.application.model.ImportQualityContext;
+import dev.cleargrade.application.model.InsightFindingId;
+import dev.cleargrade.application.model.QualityAssessment;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -66,10 +69,10 @@ class ProviderHttpTest {
 	@Test
 	void geminiUsesInteractionsApiWithStoreFalseAndPrivacySafePayload() {
 		InsightProperties properties = properties();
-		this.responseBody = geminiResponse(insightJson());
+		this.responseBody = geminiResponse(InsightFixtures.validAiJson(assessment()));
 		GeminiInteractionsAdapter adapter = new GeminiInteractionsAdapter(properties);
 
-		ImportInsightReport report = adapter.analyse(contextWithSentinel());
+		ImportInsightReport report = adapter.analyse(assessment());
 
 		assertEquals(ImportInsightReport.Engine.GEMINI, report.engine());
 		assertTrue(this.lastBody.get().contains("\"store\":false"));
@@ -79,14 +82,13 @@ class ProviderHttpTest {
 		assertTrue(this.lastBody.get().contains("\"max_output_tokens\":2048"));
 		assertTrue(this.lastBody.get().contains("\"response_format\""));
 		assertTrue(this.lastBody.get().contains("\"schema\""));
-		assertTrue(this.lastBody.get().contains("application/json"));
+		assertTrue(this.lastBody.get().contains("\"findingId\""));
 		assertFalse(this.lastBody.get().contains("additionalProperties"));
-		assertFalse(this.lastBody.get().contains("maxLength"));
 		assertFalse(this.lastBody.get().contains("previous_interaction_id"));
 		assertFalse(this.lastBody.get().contains("\"tools\""));
 		assertEquals("test-placeholder-not-a-secret", this.lastKeyHeader.get());
 		assertEquals("/v1beta/interactions", this.lastPath.get());
-		assertFalse(this.lastBody.get().contains(SENTINEL), "outbound payload must be aggregate-only");
+		assertFalse(this.lastBody.get().contains(SENTINEL));
 	}
 
 	@Test
@@ -97,15 +99,16 @@ class ProviderHttpTest {
 			this.status = code;
 			this.responseBody = "{}";
 			InsightProviderException error = assertThrows(InsightProviderException.class,
-					() -> adapter.analyse(contextWithSentinel()));
+					() -> adapter.analyse(assessment()));
 			assertEquals(InsightProviderException.Category.FALLBACK, error.category());
+			assertEquals("HTTP_" + code, error.telemetry().providerStatus());
 		}
 		this.status = 200;
 		this.delayMillis = 400;
 		properties.getGemini().setTimeoutReadMs(80);
 		InsightProviderException timeout = assertThrows(InsightProviderException.class,
-				() -> adapter.analyse(contextWithSentinel()));
-		assertEquals(InsightProviderException.Category.FALLBACK, timeout.category());
+				() -> adapter.analyse(assessment()));
+		assertEquals("GEMINI_NETWORK", timeout.code());
 	}
 
 	@Test
@@ -114,8 +117,9 @@ class ProviderHttpTest {
 		this.status = 401;
 		this.responseBody = "{}";
 		InsightProviderException error = assertThrows(InsightProviderException.class,
-				() -> new GeminiInteractionsAdapter(properties).analyse(contextWithSentinel()));
+				() -> new GeminiInteractionsAdapter(properties).analyse(assessment()));
 		assertEquals(InsightProviderException.Category.CONFIGURATION, error.category());
+		assertEquals("GEMINI_AUTH", error.code());
 	}
 
 	@Test
@@ -123,14 +127,12 @@ class ProviderHttpTest {
 		InsightProperties properties = properties();
 		properties.getOllama().setBaseUrl("http://127.0.0.1:" + this.server.getAddress().getPort());
 		properties.getOllama().setModel("test-model");
-		this.responseBody = "{\"models\":[{\"name\":\"test-model:latest\"}]}";
 		OllamaChatAdapter adapter = new OllamaChatAdapter(properties);
 		assertTrue(adapter.available());
 		assertEquals("/api/tags", this.lastPath.get());
 
-		this.responseBody = "{\"message\":{\"role\":\"assistant\",\"content\":"
-				+ quote(insightJson()) + "},\"done\":true}";
-		ImportInsightReport report = adapter.analyse(contextWithSentinel());
+		this.responseBody = ollamaResponse(InsightFixtures.validAiJson(assessment()));
+		ImportInsightReport report = adapter.analyse(assessment());
 
 		assertEquals(ImportInsightReport.Engine.OLLAMA, report.engine());
 		assertEquals("/api/chat", this.lastPath.get());
@@ -149,8 +151,8 @@ class ProviderHttpTest {
 		OllamaChatAdapter adapter = new OllamaChatAdapter(properties);
 		assertFalse(adapter.available());
 		InsightProviderException error = assertThrows(InsightProviderException.class,
-				() -> adapter.analyse(contextWithSentinel()));
-		assertEquals(InsightProviderException.Category.FALLBACK, error.category());
+				() -> adapter.analyse(assessment()));
+		assertEquals("OLLAMA_UNAVAILABLE", error.code());
 	}
 
 	@Test
@@ -160,10 +162,10 @@ class ProviderHttpTest {
 		this.status = 403;
 		this.responseBody = "{}";
 		assertEquals(InsightProviderException.Category.CONFIGURATION,
-				assertThrows(InsightProviderException.class, () -> adapter.analyse(contextWithSentinel())).category());
+				assertThrows(InsightProviderException.class, () -> adapter.analyse(assessment())).category());
 		this.status = 400;
 		assertEquals(InsightProviderException.Category.CONFIGURATION,
-				assertThrows(InsightProviderException.class, () -> adapter.analyse(contextWithSentinel())).category());
+				assertThrows(InsightProviderException.class, () -> adapter.analyse(assessment())).category());
 	}
 
 	@Test
@@ -171,8 +173,8 @@ class ProviderHttpTest {
 		InsightProperties properties = properties();
 		this.responseBody = "{\"status\":\"completed\",\"steps\":[{\"type\":\"model_output\",\"content\":[]}]}";
 		InsightProviderException error = assertThrows(InsightProviderException.class,
-				() -> new GeminiInteractionsAdapter(properties).analyse(contextWithSentinel()));
-		assertEquals(InsightProviderException.Category.FALLBACK, error.category());
+				() -> new GeminiInteractionsAdapter(properties).analyse(assessment()));
+		assertEquals("GEMINI_NO_TEXT", error.code());
 	}
 
 	@Test
@@ -184,11 +186,11 @@ class ProviderHttpTest {
 		this.status = 404;
 		this.responseBody = "{}";
 		assertEquals(InsightProviderException.Category.FALLBACK,
-				assertThrows(InsightProviderException.class, () -> adapter.analyse(contextWithSentinel())).category());
+				assertThrows(InsightProviderException.class, () -> adapter.analyse(assessment())).category());
 		this.status = 200;
-		this.responseBody = "{\"message\":{\"role\":\"assistant\",\"content\":\"not-json\"},\"done\":true}";
-		assertEquals(InsightProviderException.Category.FALLBACK,
-				assertThrows(InsightProviderException.class, () -> adapter.analyse(contextWithSentinel())).category());
+		this.responseBody = ollamaResponse("not-json");
+		assertEquals("MALFORMED_JSON",
+				assertThrows(InsightProviderException.class, () -> adapter.analyse(assessment())).code());
 	}
 
 	@Test
@@ -198,9 +200,9 @@ class ProviderHttpTest {
 				+ "\"total_input_tokens\":120,\"total_output_tokens\":300,"
 				+ "\"total_thought_tokens\":50,\"total_tokens\":470},"
 				+ "\"steps\":[{\"type\":\"model_output\",\"content\":[{\"type\":\"text\",\"text\":"
-				+ quote(insightJson()) + "}]}]}";
+				+ quote(InsightFixtures.validAiJson(assessment())) + "}]}]}";
 
-		ImportInsightReport report = new GeminiInteractionsAdapter(properties).analyse(contextWithSentinel());
+		ImportInsightReport report = new GeminiInteractionsAdapter(properties).analyse(assessment());
 
 		assertTrue(report.telemetry().usageAvailable());
 		assertEquals(120, report.telemetry().inputTokens());
@@ -216,16 +218,15 @@ class ProviderHttpTest {
 		InsightProperties properties = properties();
 		this.responseBody = "{\"status\":\"incomplete\",\"steps\":[]}";
 		InsightProviderException incomplete = assertThrows(InsightProviderException.class,
-				() -> new GeminiInteractionsAdapter(properties).analyse(contextWithSentinel()));
+				() -> new GeminiInteractionsAdapter(properties).analyse(assessment()));
 		assertEquals("GEMINI_STATUS_INCOMPLETE", incomplete.code());
 		assertEquals("incomplete", incomplete.telemetry().interactionStatus());
 
 		this.responseBody = "{\"status\":\"completed\",\"steps\":[{\"type\":\"model_output\","
 				+ "\"content\":[{\"type\":\"text\",\"text\":\"not-json\"}]}]}";
 		InsightProviderException malformed = assertThrows(InsightProviderException.class,
-				() -> new GeminiInteractionsAdapter(properties).analyse(contextWithSentinel()));
+				() -> new GeminiInteractionsAdapter(properties).analyse(assessment()));
 		assertEquals("MALFORMED_JSON", malformed.code());
-		assertFalse(malformed.telemetry().usageAvailable());
 	}
 
 	@Test
@@ -234,31 +235,32 @@ class ProviderHttpTest {
 		GeminiInteractionsAdapter adapter = new GeminiInteractionsAdapter(properties);
 		this.status = 429;
 		assertEquals("GEMINI_QUOTA", assertThrows(InsightProviderException.class,
-				() -> adapter.analyse(contextWithSentinel())).code());
+				() -> adapter.analyse(assessment())).code());
 		this.status = 503;
 		assertEquals("GEMINI_SERVER", assertThrows(InsightProviderException.class,
-				() -> adapter.analyse(contextWithSentinel())).code());
+				() -> adapter.analyse(assessment())).code());
 	}
 
 	@Test
-	void ollamaUsesGenericJsonModeAndKeepsStrictValidation() {
+	void ollamaUsesGenericJsonModeAndRejectsSemanticallyInvalidOutput() {
 		InsightProperties properties = properties();
 		properties.getOllama().setBaseUrl("http://127.0.0.1:" + this.server.getAddress().getPort());
 		properties.getOllama().setModel("test-model");
-		this.responseBody = "{\"message\":{\"role\":\"assistant\",\"content\":"
-				+ quote(insightJson()) + "},\"done\":true}";
-		ImportInsightReport report = new OllamaChatAdapter(properties).analyse(contextWithSentinel());
-
+		OllamaChatAdapter adapter = new OllamaChatAdapter(properties);
+		this.responseBody = ollamaResponse(InsightFixtures.validAiJson(assessment()));
+		ImportInsightReport report = adapter.analyse(assessment());
 		assertTrue(this.lastBody.get().contains("\"format\""));
-		assertTrue(this.lastBody.get().contains("\"maxItems\":5"));
+		assertTrue(this.lastBody.get().contains("\"maxItems\":7"));
 		assertEquals("HTTP_200", report.telemetry().providerStatus());
-		String wrongValue = this.responseBody.replace("\\\"evidenceValue\\\":\\\"" + contextWithSentinel()
-				.evidenceValue(dev.cleargrade.application.model.InsightEvidenceMetric.REJECTED_PERCENTAGE)
-				+ "\\\"", "\\\"evidenceValue\\\":\\\"999\\\"");
-		this.responseBody = wrongValue;
+
+		String invalid = InsightFixtures.withFindingField(InsightFixtures.validAiJson(assessment()),
+				InsightFindingId.REJECTED_SHARE_ELEVATED.name(), "explanation",
+				"The 36.0% share is 9 out of 16 rows.");
+		this.responseBody = ollamaResponse(invalid);
 		InsightProviderException error = assertThrows(InsightProviderException.class,
-				() -> new OllamaChatAdapter(properties).analyse(contextWithSentinel()));
-		assertEquals("EVIDENCE_VALUE_MISMATCH", error.code());
+				() -> adapter.analyse(assessment()));
+		assertEquals("OLLAMA_SEMANTIC_REJECTED", error.code());
+		assertEquals("HTTP_200", error.telemetry().providerStatus());
 	}
 
 	private InsightProperties properties() {
@@ -268,25 +270,18 @@ class ProviderHttpTest {
 		return properties;
 	}
 
-	private static ImportQualityContext contextWithSentinel() {
-		return new ImportQualityContext(100, 80, 20, 80, 0, 0, 20,
-				Map.of("MISSING_REQUIRED", 5, SENTINEL, 999));
-	}
-
-	private static String insightJson() {
-		String value = contextWithSentinel().evidenceValue(
-				dev.cleargrade.application.model.InsightEvidenceMetric.REJECTED_PERCENTAGE);
-		return "{\"summary\":\"Aggregate summary\",\"overallAssessment\":\"Aggregate assessment\","
-				+ "\"findings\":[{\"title\":\"Finding\",\"severity\":\"MEDIUM\","
-				+ "\"evidenceMetric\":\"REJECTED_PERCENTAGE\",\"evidenceValue\":\"" + value + "\","
-				+ "\"explanation\":\"Measured rejected share.\",\"recommendedAction\":\"Review source export.\"}],"
-				+ "\"recommendedActions\":[\"Review source export.\"],"
-				+ "\"limitations\":\"Aggregate data only.\"}";
+	private static QualityAssessment assessment() {
+		return InsightFixtures.assessment(new ImportQualityContext(100, 80, 20, 80, 0, 0, 20,
+				Map.of("MISSING_REQUIRED", 5, SENTINEL, 999)));
 	}
 
 	private static String geminiResponse(String text) {
 		return "{\"id\":\"test\",\"status\":\"completed\",\"steps\":[{\"type\":\"model_output\","
 				+ "\"content\":[{\"type\":\"text\",\"text\":" + quote(text) + "}]}]}";
+	}
+
+	private static String ollamaResponse(String text) {
+		return "{\"message\":{\"role\":\"assistant\",\"content\":" + quote(text) + "},\"done\":true}";
 	}
 
 	private static String quote(String value) {

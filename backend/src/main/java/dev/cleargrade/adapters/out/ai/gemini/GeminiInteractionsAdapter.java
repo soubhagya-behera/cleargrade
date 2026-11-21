@@ -19,8 +19,8 @@ import dev.cleargrade.adapters.out.ai.InsightResponseParser;
 import dev.cleargrade.application.config.InsightProperties;
 import dev.cleargrade.application.exception.InsightProviderException;
 import dev.cleargrade.application.model.ImportInsightReport;
-import dev.cleargrade.application.model.ImportQualityContext;
 import dev.cleargrade.application.model.InsightTelemetry;
+import dev.cleargrade.application.model.QualityAssessment;
 import dev.cleargrade.application.port.out.ImportInsightProvider;
 import org.springframework.stereotype.Component;
 
@@ -52,13 +52,13 @@ public class GeminiInteractionsAdapter implements ImportInsightProvider {
 	}
 
 	@Override
-	public ImportInsightReport analyse(ImportQualityContext context) throws InsightProviderException {
+	public ImportInsightReport analyse(QualityAssessment assessment) throws InsightProviderException {
 		InsightProperties.Gemini config = this.properties.getGemini();
 		if (!config.configured()) {
 			throw new InsightProviderException("Gemini is not configured",
 					InsightProviderException.Category.CONFIGURATION, "GEMINI_NOT_CONFIGURED", null, null);
 		}
-		String prompt = InsightPromptFactory.prompt(context, this.properties.getMaxPromptChars());
+		String prompt = InsightPromptFactory.prompt(assessment, this.properties.getMaxPromptChars());
 		Map<String, Object> request = new LinkedHashMap<>();
 		request.put("model", config.getModel());
 		request.put("input", prompt);
@@ -132,7 +132,7 @@ public class GeminiInteractionsAdapter implements ImportInsightProvider {
 			}
 			String text = extractOutputText(root, providerStatus, interactionStatus, durationMs);
 			try {
-				return InsightResponseParser.parse(text, context, engine(), modelVersion(),
+				return InsightResponseParser.parse(text, assessment, engine(), modelVersion(),
 						null, telemetry);
 			}
 			catch (InsightProviderException error) {
