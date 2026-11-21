@@ -19,7 +19,7 @@
 ![Ollama](https://img.shields.io/badge/Ollama-local_fallback-5034C4?style=for-the-badge)
 ![Rule-based](https://img.shields.io/badge/Rule_based-offline_fallback-6B7190?style=for-the-badge)
 
-*CI badge tracks the repository's `main` workflow; this local feature-branch work is not pushed and is verified separately in [Testing](#testing-and-quality). PostgreSQL 18 is used for native Windows development; PostgreSQL 16 is used by Docker Compose and Testcontainers.*
+*The CI badge tracks the repository's `main` workflow only; it does not report CI for this feature branch. Verification evidence for this branch is reported separately in [Testing](#testing-and-quality). PostgreSQL 18 is used for native Windows development; PostgreSQL 16 is used by Docker Compose and Testcontainers.*
 
 [Overview](#what-is-cleargrade) · [Highlights](#product-highlights) · [Tour](#visual-tour) · [Workflow](#how-cleargrade-works) · [CSV engine](#csv-ingestion-and-validation) · [Grading](#grading-system) · [Intelligence](#cleargrade-intelligence) · [Architecture](#architecture) · [Data](#database-and-data-integrity) · [API](#api-reference) · [Stack](#technology-stack) · [Run locally](#getting-started-windows-native-development) · [Docker](#optional-docker-workflow) · [Testing](#testing-and-quality) · [Security](#security-and-privacy) · [Decisions](#engineering-decisions-and-limitations) · [Roadmap](#roadmap)
 
