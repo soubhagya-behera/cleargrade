@@ -27,10 +27,14 @@ export function FileDropzone({ onFile, disabled = false, maxBytes }: FileDropzon
           setDragging(false);
           if (!disabled) select(event.dataTransfer.files[0]);
         }}
-        className={`rounded-xl border-2 border-dashed p-8 text-center transition-colors ${dragging ? 'border-brand-600 bg-brand-100/60' : 'border-line bg-surface hover:border-brand-600/50'}`}
+        className={`cg-dropzone ${dragging && !disabled ? 'is-dragging' : ''} ${disabled ? 'opacity-60' : ''}`}
       >
-        <FileUp aria-hidden="true" className="mx-auto size-8 text-ink-500" />
-        <p className="mt-3 text-sm font-medium">Drag and drop a CSV file here, or</p>
+        <span className="cg-dropzone-icon">
+          <FileUp aria-hidden="true" className="size-6" />
+        </span>
+        <p className="mt-3 text-[15px] font-semibold leading-snug text-navy-950">
+          Drag and drop a CSV file here, or
+        </p>
         <input
           ref={inputRef}
           type="file"
@@ -44,12 +48,14 @@ export function FileDropzone({ onFile, disabled = false, maxBytes }: FileDropzon
           type="button"
           disabled={disabled}
           onClick={() => inputRef.current?.click()}
-          className="cg-btn-secondary mt-4"
+          className="cg-btn-accent mt-3 px-5.5"
         >
           Choose file
         </button>
-        <p className="mt-4 text-xs text-ink-500">Required columns: {REQUIRED_COLUMNS}</p>
-        <p className="mt-1 text-xs text-ink-500">Maximum file size: {Math.round(maxBytes / 1024)} KiB</p>
+      </div>
+      <div className="mt-3.5 space-y-1 text-[13px] leading-relaxed text-ink-500">
+        <p>Required columns: {REQUIRED_COLUMNS}</p>
+        <p>Maximum file size: {Math.round(maxBytes / 1024)} KiB</p>
       </div>
     </div>
   );

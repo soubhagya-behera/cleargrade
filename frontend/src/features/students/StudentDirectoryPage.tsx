@@ -35,46 +35,50 @@ export function StudentDirectoryPage() {
 
   return (
     <section aria-labelledby="page-heading">
-      <p className="text-xs font-semibold uppercase tracking-wider text-brand-700">Students</p>
-      <h2 id="page-heading" className="mt-2 text-2xl font-semibold tracking-tight">Student directory</h2>
+      <header className="mb-7">
+        <p className="cg-eyebrow">Students</p>
+        <h2 id="page-heading" className="cg-page-title">Student directory</h2>
+      </header>
 
-      <div className="mt-6 flex flex-wrap items-end gap-3">
-        <div className="min-w-56 flex-1">
-          <label htmlFor="student-search" className="cg-label">Search by name or student ID</label>
-          <input
-            id="student-search"
-            value={queryInput}
-            onChange={(event) => setQueryInput(event.target.value)}
-            placeholder="e.g. Alice or STU001"
-            className="cg-input mt-2 w-full"
-          />
+      <div className="cg-card cg-rise-1 p-5 sm:p-6">
+        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-[minmax(0,1fr)_repeat(3,minmax(0,160px))]">
+          <div>
+            <label htmlFor="student-search" className="cg-label">Search by name or student ID</label>
+            <input
+              id="student-search"
+              value={queryInput}
+              onChange={(event) => setQueryInput(event.target.value)}
+              placeholder="e.g. Alice or STU001"
+              className="cg-input mt-2"
+            />
+          </div>
+          <label className="cg-label" htmlFor="grade-filter">
+            Class
+            <select id="grade-filter" value={grade} onChange={(event) => { setGrade(event.target.value); setPage(0); }} className="cg-input mt-2">
+              <option value="">All</option>
+              {Array.from({ length: 12 }, (_, index) => index + 1).map((value) => <option key={value} value={value}>{value}</option>)}
+            </select>
+          </label>
+          <label className="cg-label" htmlFor="section-filter">
+            Section
+            <select id="section-filter" value={section} onChange={(event) => { setSection(event.target.value); setPage(0); }} className="cg-input mt-2">
+              <option value="">All</option>
+              {['A', 'B', 'C', 'D', 'E', 'F'].map((value) => <option key={value} value={value}>{value}</option>)}
+            </select>
+          </label>
+          <label className="cg-label" htmlFor="sort-select">
+            Sort
+            <select id="sort-select" value={sort} onChange={(event) => { setSort(event.target.value); setPage(0); }} className="cg-input mt-2">
+              <option value="studentId,asc">Student ID ↑</option>
+              <option value="studentId,desc">Student ID ↓</option>
+              <option value="fullName,asc">Name ↑</option>
+              <option value="fullName,desc">Name ↓</option>
+            </select>
+          </label>
         </div>
-        <label className="text-xs text-ink-700" htmlFor="grade-filter">
-          Class
-          <select id="grade-filter" value={grade} onChange={(event) => { setGrade(event.target.value); setPage(0); }} className="cg-input ml-2 !min-h-10 !py-1">
-            <option value="">All</option>
-            {Array.from({ length: 12 }, (_, index) => index + 1).map((value) => <option key={value} value={value}>{value}</option>)}
-          </select>
-        </label>
-        <label className="text-xs text-ink-700" htmlFor="section-filter">
-          Section
-          <select id="section-filter" value={section} onChange={(event) => { setSection(event.target.value); setPage(0); }} className="cg-input ml-2 !min-h-10 !py-1">
-            <option value="">All</option>
-            {['A', 'B', 'C', 'D', 'E', 'F'].map((value) => <option key={value} value={value}>{value}</option>)}
-          </select>
-        </label>
-        <label className="text-xs text-ink-700" htmlFor="sort-select">
-          Sort
-          <select id="sort-select" value={sort} onChange={(event) => { setSort(event.target.value); setPage(0); }} className="cg-input ml-2 !min-h-10 !py-1">
-            <option value="studentId,asc">Student ID ↑</option>
-            <option value="studentId,desc">Student ID ↓</option>
-            <option value="fullName,asc">Name ↑</option>
-            <option value="fullName,desc">Name ↓</option>
-          </select>
-        </label>
       </div>
 
-      <p className="mt-5 text-xs text-ink-500" aria-live="polite">
+      <p className="mt-6 text-xs font-medium text-ink-500" aria-live="polite">
         {students.data
           ? students.data.totalElements === 0
             ? 'No students match the current filters.'
@@ -101,11 +105,11 @@ export function StudentDirectoryPage() {
         )}
         {students.data && students.data.totalElements > 0 && <StudentTable students={students.data.content} />}
         {students.data && (
-          <div className="mt-3 flex items-center gap-3">
+          <div className="mt-5 flex flex-wrap items-center justify-between gap-3">
             <Pagination page={students.data.page} totalPages={students.data.totalPages} onPageChange={setPage} label="Student pages" />
-            <label className="text-xs text-ink-500" htmlFor="page-size">
+            <label className="text-xs font-medium text-ink-500" htmlFor="page-size">
               Rows per page
-              <select id="page-size" value={size} onChange={(event) => { setSize(Number(event.target.value)); setPage(0); }} className="cg-input ml-2 !min-h-9 !py-1">
+              <select id="page-size" value={size} onChange={(event) => { setSize(Number(event.target.value)); setPage(0); }} className="cg-input ml-2 !inline-flex !min-h-9 w-auto !py-1.5 align-middle">
                 {[25, 50, 100].map((value) => <option key={value} value={value}>{value}</option>)}
               </select>
             </label>

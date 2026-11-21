@@ -9,12 +9,12 @@ export function Pagination({ page, totalPages, onPageChange, label }: Pagination
   if (totalPages <= 1) return null;
   const pages = Array.from({ length: Math.min(totalPages, 7) }, (_, index) => index);
   return (
-    <nav aria-label={label} className="mt-4 flex flex-wrap items-center gap-2">
+    <nav aria-label={label} className="flex flex-wrap items-center gap-2">
       <button
         type="button"
         disabled={page === 0}
         onClick={() => onPageChange(page - 1)}
-        className="cg-btn-secondary !min-h-0 disabled:opacity-50"
+        className="cg-btn-secondary !min-h-10 !px-4 disabled:opacity-50"
       >
         Previous
       </button>
@@ -24,7 +24,11 @@ export function Pagination({ page, totalPages, onPageChange, label }: Pagination
           type="button"
           aria-current={index === page ? 'page' : undefined}
           onClick={() => onPageChange(index)}
-          className={`inline-flex min-h-10 items-center justify-center rounded-md px-3 text-sm font-medium ${index === page ? 'bg-brand-600 text-white' : 'cg-btn-secondary !min-h-0'}`}
+          className={`inline-flex min-h-10 min-w-10 items-center justify-center rounded-xl px-3 text-sm font-semibold transition-all duration-200 ${
+            index === page
+              ? 'bg-navy-900 text-white shadow-md shadow-navy-900/20'
+              : 'border border-line bg-surface text-ink-700 hover:border-lake-500 hover:bg-lake-050 hover:text-navy-900'
+          }`}
         >
           {index + 1}
         </button>
@@ -33,7 +37,7 @@ export function Pagination({ page, totalPages, onPageChange, label }: Pagination
         type="button"
         disabled={page >= totalPages - 1}
         onClick={() => onPageChange(page + 1)}
-        className="cg-btn-secondary !min-h-0 disabled:opacity-50"
+        className="cg-btn-secondary !min-h-10 !px-4 disabled:opacity-50"
       >
         Next
       </button>

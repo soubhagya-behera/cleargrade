@@ -79,6 +79,14 @@ export interface InsightUsage {
   durationMs: number;
 }
 
+export interface InsightFailureResponse {
+  engine: string;
+  code: string;
+  providerStatus: string;
+  durationMs: number;
+  fallbackSucceeded: boolean;
+}
+
 export interface AiStatusResponse {
   enabled: boolean;
   geminiConfigured: boolean;
@@ -95,6 +103,7 @@ export interface AiStatusResponse {
   lastAnalysisEngine: string | null;
   lastAnalysisReason: string | null;
   lastAnalysisUsage: InsightUsage;
+  lastAnalysisFailures?: InsightFailureResponse[];
 }
 
 

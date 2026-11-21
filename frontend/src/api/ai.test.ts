@@ -7,10 +7,16 @@ afterEach(() => vi.unstubAllGlobals());
 describe('intelligence API client', () => {
   it('reads provider status from the documented endpoint', async () => {
     const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({
-      enabled: true, geminiConfigured: true, geminiAvailable: true, geminiModel: 'gemini-3.8-flash',
-      ollamaConfigured: false, ollamaAvailable: false, ollamaModel: '',
-      deterministicAvailable: true, defaultEngine: 'GEMINI', routing: 'GEMINI_THEN_RULE_BASED',
-      routingReasons: [],
+      enabled: true, geminiConfigured: true, geminiModel: 'gemini-3.8-flash',
+      ollamaConfigured: false, ollamaReachable: false, ollamaModelPresent: false, ollamaModel: '',
+      inferenceTested: false, deterministicAvailable: true,
+      defaultEngine: 'GEMINI', routing: 'GEMINI_THEN_RULE_BASED',
+      routingReasons: [], lastAnalysisEngine: null, lastAnalysisReason: null,
+      lastAnalysisUsage: {
+        available: false, inputTokens: null, outputTokens: null, thinkingTokens: null,
+        totalTokens: null, modelId: '', providerStatus: '', interactionStatus: '', durationMs: 0,
+      },
+      lastAnalysisFailures: [],
     }), { status: 200 }));
     vi.stubGlobal('fetch', fetchMock);
 

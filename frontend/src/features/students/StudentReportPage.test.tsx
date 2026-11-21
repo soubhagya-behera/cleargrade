@@ -19,15 +19,17 @@ const report: StudentReport = {
   total: '410.0', maximum: 500, passed: true,
 };
 
-function renderReport() {
+function renderReport(initialEntry = '/students/stu001') {
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false } },
     queryCache: new QueryCache({ onError: () => {} }),
   });
   return render(
     <QueryClientProvider client={client}>
-      <MemoryRouter initialEntries={['/students/stu001']}>
-        <Routes><Route path="/students/:studentId" element={<StudentReportPage />} /></Routes>
+      <MemoryRouter initialEntries={[initialEntry]}>
+        <Routes>
+          <Route path="/students/:studentId" element={<StudentReportPage />} />
+        </Routes>
       </MemoryRouter>
     </QueryClientProvider>,
   );
@@ -36,7 +38,7 @@ function renderReport() {
 beforeEach(() => vi.mocked(getStudent).mockReset());
 
 describe('StudentReportPage', () => {
-  it('renders the real report with derived grade and PASS badge', async () => {
+  it('renders the real report with derived grade and PASS badge when studentId is provided', async () => {
     vi.mocked(getStudent).mockResolvedValue(report);
     renderReport();
     expect(await screen.findByText('Alice Smith')).toBeInTheDocument();

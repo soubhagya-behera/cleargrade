@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useMutation, useQueries, useQuery } from '@tanstack/react-query';
+import { ListFilter, SearchCheck } from 'lucide-react';
 import { ApiError } from '../../api/client';
 import { getBatch, getBatchErrors, importKeys, uploadCsv } from '../../api/imports';
 import { DataQualitySummary } from '../../components/ui/DataQualitySummary';
@@ -87,16 +88,18 @@ export function ImportPage() {
 
   return (
     <section aria-labelledby="page-heading">
-      <p className="text-xs font-semibold uppercase tracking-wider text-brand-700">Data quality</p>
-      <h2 id="page-heading" className="mt-2 text-2xl font-semibold tracking-tight">Import student results</h2>
-      <p className="mt-3 max-w-2xl text-sm text-ink-700">
-        Valid rows are imported; problem rows are listed below with their physical line numbers.
-      </p>
+      <header className="mb-6">
+        <p className="cg-eyebrow text-[11px] font-bold uppercase text-lake-700">Data quality</p>
+        <h2 id="page-heading" className="cg-page-title cg-page-title-plain">Import student results</h2>
+        <p className="mt-2 max-w-2xl text-sm leading-relaxed text-ink-700 sm:text-[15px]">
+          Valid rows are imported; problem rows are listed below with their physical line numbers.
+        </p>
+      </header>
 
-      <div className="mt-8 grid gap-6 lg:grid-cols-3">
-        <div className="lg:col-span-2">
+      <div className="grid grid-cols-1 items-start gap-6 lg:grid-cols-[minmax(0,1fr)_360px]">
+        <section className="cg-card cg-rise-1 p-4 sm:p-6">
           <FileDropzone onFile={choose} disabled={upload.isPending} maxBytes={MAX_UPLOAD_BYTES} />
-          <div className="mt-4 flex flex-wrap items-center gap-3">
+          <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-3 border-t border-line pt-4">
             <button
               type="button"
               disabled={!file || upload.isPending}
@@ -105,33 +108,45 @@ export function ImportPage() {
             >
               {upload.isPending ? 'Uploading and importing…' : 'Upload and import'}
             </button>
-            {file && <span className="text-xs text-ink-500">{file.name} · {Math.round(file.size / 1024)} KiB</span>}
+            {file && (
+              <span className="min-w-0 max-w-full truncate rounded-lg bg-lake-050 px-3 py-1.5 text-[13px] font-semibold text-navy-900 ring-1 ring-inset ring-lake-500/30">
+                {file.name} · {Math.round(file.size / 1024)} KiB
+              </span>
+            )}
+            <p className="text-[13px] leading-snug text-ink-500">
+              Valid rows import; problem rows appear below.
+            </p>
           </div>
           {error && <div className="mt-4"><ErrorState message={error} /></div>}
-        </div>
+        </section>
 
-        <aside className="cg-card p-5 text-sm">
-          <h3 className="font-semibold">Check an earlier import</h3>
-          <label htmlFor="batch-id" className="cg-label mt-4">Batch id</label>
-          <div className="mt-1 flex gap-2">
+        <aside className="cg-card cg-rise-2 p-4 text-sm sm:p-6">
+          <div className="flex items-center gap-3">
+            <span className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-lake-100 text-lake-700">
+              <SearchCheck aria-hidden="true" className="size-5" />
+            </span>
+            <h3 className="text-base font-bold tracking-tight text-navy-900">Check an earlier import</h3>
+          </div>
+          <label htmlFor="batch-id" className="cg-label mt-5">Batch id</label>
+          <div className="mt-2 flex gap-2">
             <input
               id="batch-id"
               inputMode="numeric"
               value={lookupId}
               onChange={(event) => setLookupId(event.target.value)}
-              className="cg-input min-w-0 flex-1"
+              className="cg-input flex-1"
             />
             <button
               type="button"
               onClick={() => setSearchedId(Number(lookupId))}
-              className="cg-btn-secondary"
+              className="cg-btn-accent px-4.5"
             >
               Look up
             </button>
           </div>
-          {lookup.isError && <p className="mt-3 text-xs text-red-700">{friendlyError(lookup.error as Error)}</p>}
+          {lookup.isError && <p className="mt-3 text-xs font-semibold text-danger">{friendlyError(lookup.error as Error)}</p>}
           {lookup.data && (
-            <p className="mt-3 text-xs text-ink-700" aria-live="polite">
+            <p className="mt-4 rounded-xl bg-lake-050 px-4 py-3 text-sm leading-relaxed text-navy-900" aria-live="polite">
               Batch {lookup.data.id}: {lookup.data.status} · {lookup.data.rowsRead ?? 0} rows read · {lookup.data.imported ?? 0} imported
             </p>
           )}
@@ -139,24 +154,29 @@ export function ImportPage() {
       </div>
 
       {result && (
-        <div className="mt-10 space-y-6" aria-live="polite">
+        <div className="mt-8 space-y-5" aria-live="polite">
           <DataQualitySummary batch={result} breakdown={breakdown} />
-          <div className="grid gap-4 sm:grid-cols-3">
-            <StatCard label="Rows read" value={result.rowsRead ?? 0} />
-            <StatCard label="Imported" value={result.imported ?? 0} hint={`${result.newCount ?? 0} new · ${result.changedCount ?? 0} changed · ${result.unchangedCount ?? 0} unchanged`} tone="success" />
-            <StatCard label="Rows rejected" value={result.rejected ?? 0} tone="danger" />
+          <div className="cg-stat-row">
+            <StatCard label="Rows read" value={result.rowsRead ?? 0} reveal="1" />
+            <StatCard label="Imported" value={result.imported ?? 0} hint={`${result.newCount ?? 0} new · ${result.changedCount ?? 0} changed · ${result.unchangedCount ?? 0} unchanged`} tone="success" reveal="2" />
+            <StatCard label="Rows rejected" value={result.rejected ?? 0} tone="danger" reveal="3" />
           </div>
 
           <section aria-labelledby="problems-heading">
-            <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
-              <h3 id="problems-heading" className="text-lg font-semibold">Row problems</h3>
-              <label className="text-xs text-ink-500" htmlFor="code-filter">
+            <div className="mb-4 flex flex-wrap items-center justify-between gap-4">
+              <div className="flex items-center gap-4">
+                <span className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-lake-100 text-lake-700 shadow-[0_0_0_4px_rgba(128,180,227,0.16)]">
+                  <ListFilter aria-hidden="true" className="size-5" />
+                </span>
+                <h3 id="problems-heading" className="text-lg font-bold tracking-tight text-navy-900">Row problems</h3>
+              </div>
+              <label className="flex items-center gap-2 text-xs font-medium text-ink-500" htmlFor="code-filter">
                 Filter by code
                 <select
                   id="code-filter"
                   value={code}
                   onChange={(event) => { setCode(event.target.value as RowErrorCode | ''); setPage(0); }}
-                  className="ml-2 rounded-md border border-line px-2 py-1"
+                  className="cg-input !min-h-9 w-auto border-line/80 !py-1.5"
                 >
                   <option value="">All problems</option>
                   {CODES.map((item) => <option key={item} value={item}>{item}</option>)}
