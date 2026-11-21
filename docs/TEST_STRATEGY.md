@@ -1,6 +1,6 @@
 # ClearGrade — Test Strategy
 
-Status: **Implemented and green (257 backend tests + 26 frontend tests, 1 opt-in live smoke test skipped, JDK 21, real PostgreSQL Testcontainers).** Backend: CSV/validation focus 41, CSV import integration 12, mandatory benchmark 2, application transactions 12, REST API 11. Frontend (Vitest + Testing Library): API client 4, upload workflow 4, directory 4, report 2. Goal: convince a teammate the import is correct, including cases the supplied files do not contain. `[REQ]`
+Status: **Implemented and green (286 backend tests across 40 test classes, 0 failures, 0 errors, 1 opt-in live smoke test skipped; 45 frontend tests, 0 failures; JDK 21, real PostgreSQL Testcontainers).** Backend coverage includes CSV/validation, import integration, mandatory benchmarks, transactions, REST API and ClearGrade Intelligence; frontend coverage includes API client, import, directory, student report finder, individual report and intelligence panel. Goal: convince a teammate the import is correct, including cases the supplied files do not contain. `[REQ]`
 
 ## 1. Validation unit tests (domain, pure JUnit 5)
 
@@ -64,9 +64,9 @@ Benchmark numbers are **regression fixtures only**, never parameters to validati
 
 Real MockMvc → application service → PostgreSQL Testcontainers coverage: multipart upload `201` with counts/`Location`; repeated COMPLETED digest `200` with `deduplicated: true`; active digest `409 BATCH_PROCESSING` with `batchId`; empty/missing-column/malformed uploads `400`; non-CSV `415`; oversized `413`; batch summary `200`/`404`; paged row errors with physical lines, code filter, `404` and invalid-parameter `400`; student directory search/filter/sort/paging and sort allowlist; student report derived grading and `404`; `/actuator/health` available outside `/api`. No broad `@Transactional` test wrapper is used, so T1–T4 boundaries remain real.
 
-## 6. Frontend tests (implemented — Vitest + Testing Library, 14 tests)
+## 6. Frontend tests (implemented — Vitest + Testing Library, 45 tests)
 
-Typed API client success/query-string/error-envelope/network-failure/multipart cases; ImportPage upload success with real summary and physical-line problem rows, `409`/`413` friendly messages, client-side size rejection and batch lookup not-found; directory loading, real rows, search/grade/section filters, pagination, empty/error states; report rendering with derived grade/PASS and not-found state.
+Typed API client success/query-string/error-envelope/network-failure/multipart cases; ImportPage upload success with real summary and physical-line problem rows, `409`/`413` friendly messages, client-side size rejection and batch lookup not-found; directory loading, real rows, search/grade/section filters, pagination, empty/error states; individual report rendering with derived grade/PASS and not-found state; student report finder search, results, retry and navigation; responsive `ProblemTable` card/table switching; intelligence panel and report states.
 
 
 - `POST /api/imports`: `201`, `200` deduplicated, `409 BATCH_PROCESSING`, `400`, `413`, `415`, `500` with correlation id; counters shape correct.
@@ -79,7 +79,7 @@ Typed API client success/query-string/error-envelope/network-failure/multipart c
 
 - Component tests: `FileDropzone`, `StatCard`, `DataQualitySummary`, `ProblemTable`, `StudentTable`, `Pagination`, `ResultBadge`.
 - State coverage: upload loading/success/error/already-processing; directory loading/empty/error; report not-found.
-- Interaction: search updates results, pagination changes page, report link uses `/students/:id`; TanStack Query loading/error states.
+- Interaction: search updates results, pagination changes page, the `/student-report` finder navigates to `/students/{studentId}`; TanStack Query loading/error states.
 - Type-check and production build as gates. No decorative snapshot suite initially.
 
 ## 7. Performance verification

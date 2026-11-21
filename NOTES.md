@@ -42,7 +42,7 @@ Gemini (Interactions REST, `store=false`, explicit JSON schema, no retries), the
 failures remain controlled `503`s; quota/timeouts/5xx/unusable output fall forward safely. Every report names
 the engine that generated it and carries a safe fallback category, never a provider body or key.
 
-Only counts, backend percentages/ratios, the five code counts, `allowedEvidenceValues` and static schema
+Only counts, backend percentages/ratios, the five code counts, `canonicalEvidenceValues` and static schema
 metadata reach a provider. Handler tests capture real outbound payloads and assert sensitive sentinels are
 absent; strict response validation rejects unknown fields, unsupported metrics/severities, oversized content,
 array overflow and blocked markers, and replaces model-supplied evidence values with backend facts. Reports are

@@ -1,6 +1,6 @@
 # ClearGrade — UX Specification
 
-Status: **Core three-screen journey implemented against the real API (G4→G5, 2026-11-20).** Wireframes are in the assignment PDF (pp. 4–5); their numbers are illustrative, not data to reproduce. Bonus affordances (`BONUS` CSV download, mark bars, print) remain deferred (D-17). `[REQ]`
+Status: **Four-screen journey plus the ClearGrade Intelligence panel implemented against the real API.** Wireframes are in the assignment PDF (pp. 4–5); their numbers are illustrative, not data to reproduce. Bonus affordances (`BONUS` CSV download, mark bars, print) remain deferred (D-17). `[REQ]`
 
 ## 1. Product design direction
 
@@ -12,13 +12,14 @@ Calm, premium and restrained — an information tool, not a marketing site. The 
 
 | Role | Token | Use |
 |---|---|---|
-| Primary | violet `#6D4AFF` | Active nav, primary CTA, links, progress |
-| Text | slate `#1F2440` | Headings/body |
-| Muted | `#6B7190` | Captions, helper text |
-| Surface / canvas | `#FFFFFF` / `#F7F8FC` | Cards / page |
-| Border | `#E4E7F0` | Tables, inputs, cards |
-| Success / Danger | `#1E8E5A` / `#C0392B` | Imported/rejected counts, PASS/FAIL |
-| Bonus | amber `#E0A800` | `BONUS` pill |
+| Primary | navy `#0D2143` / lake `#2C6AA1` | Sidebar, active navigation, primary CTA, links |
+| Accent | lake `#80B4E3` | Highlighted controls and active sidebar items |
+| Text | ink `#0D2143` / `#3A4A66` | Headings/body |
+| Muted | `#64748B` | Captions, helper text |
+| Surface / canvas | `#FFFFFF` / `#F5F8FD` | Cards / page |
+| Border | `#DCE7F3` | Tables, inputs, cards |
+| Success / Danger | `#167A4C` / `#B83227` | Imported/rejected counts, PASS/FAIL |
+| Bonus | sun `#FEDF17` / amber `#A67C00` | Highlight badges and `BONUS` pill |
 
 **Spacing scale (4px base):** `4 / 8 / 12 / 16 / 24 / 32 / 48` px. Consistent gutters (24–32px) and card padding (24px).
 
@@ -30,14 +31,15 @@ Calm, premium and restrained — an information tool, not a marketing site. The 
 
 ## 3. Layout and navigation
 
-- Persistent 64px top bar: brand mark + "Results Portal"; links **Import** and **Students**, underline on active route.
-- Centred content column, max width ~1200px, spacing scale gutters.
-- Routes via **React Router**: `/import`, `/students`, `/students/:id`. Browser URL is shareable; report links open directly. **TanStack Query** owns server state (loading/error/retry); local component state handles forms and UI. No Redux.
-- `AppShell` provides `<main>`, skip link, routed content; no sidebar in v1.
+- Persistent top bar: ClearGrade logo, page title and a local/trusted status pill.
+- Left sidebar: **Import Quality Center** (`/import`), **Student Directory** (`/students`) and **Student Report** (`/student-report`); the active item carries a sun marker.
+- Centred content column, max width ~1340px, spacing scale gutters.
+- Routes via **React Router**: `/import`, `/students`, `/student-report` and `/students/{studentId}`. Browser URLs are shareable; report links open directly. **TanStack Query** owns server state (loading/error/retry); local component state handles forms and UI. No Redux.
+- `AppShell` provides `<main>`, skip link and routed content around the top bar and sidebar.
 
 ## 4. Component inventory
 
-`AppShell`, `TopNav`, `PageHeader`, `FileDropzone`, `FileSummary`, `PrimaryButton`, `StatCard`, `DataQualitySummary`, `ProblemTable`, `Pagination`, `SearchInput`, `FilterSelect`, `StudentTable`, `ResultBadge`, `MarkBar`, `Avatar`, `InfoCard`, `EmptyState`, `ErrorState`, `SkeletonTable`, `NotFoundPanel`, `BonusPill`, `Toast`.
+Layout: `AppShell`, `Sidebar`, `Topbar`, `ClearGradeLogo`. Shared UI: `FileDropzone`, `DataQualitySummary`, `StatCard`, `ProblemTable`, `Pagination`, `States`, `StudentTable`, `ResultBadge`, `PlaceholderPage`, `IntelligencePanel`, `IntelligenceReport`. Pages: `ImportPage`, `StudentDirectoryPage`, `StudentReportFinder`, `StudentReportPage`, `NotFoundPage`.
 
 ## 5. Import workspace (`/import`)
 
@@ -54,11 +56,19 @@ Calm, premium and restrained — an information tool, not a marketing site. The 
 1. **Header** — "Students".
 2. **Controls** — `SearchInput` "Search by name or student ID" (debounced, server-side); class `FilterSelect` is BONUS (D-17).
 3. **Summary line** — "Showing 1 to 25 of 1,000 students" (page size 25, T-4).
-4. **Table** — `Student ID | Name | Class | Section | Percentage | Grade`. Name links to `/students/:id`; percentage/grade from D-07. Stable ID sort; optional column sorting.
+4. **Table** — `Student ID | Name | Class | Section | Percentage | Grade`. Name links to `/students/{studentId}`; percentage/grade from D-07. Stable ID sort; optional column sorting.
 5. **Pagination** — Previous / numbered pages / Next, rows-per-page selector (default 25, max 100).
 6. **States** — loading skeleton rows; empty ("No students match 'xyz'" + **Clear search**); error (friendly message + **Retry**); zero students ("No students imported yet" + link to `/import`).
 
-## 7. Student report (`/students/:id`)
+## 7. Student Report Finder (`/student-report`)
+
+1. **Header** — "Student Report"; the sidebar item points here rather than directly to a student id.
+2. **Search** — debounced, server-side lookup by student name or ID using the existing students API.
+3. **Results** — matching students with ID, name, class, section and grade; selecting one opens
+   `/students/{studentId}`.
+4. **States** — loading, no results, error/retry and empty-result feedback using the shared `States` component.
+
+## 8. Individual student report (`/students/{studentId}`)
 
 1. **Back link** — "‹ Back to students", preserving prior search/page where practical.
 2. **Identity card** — initials `Avatar`, full name, `ID | Class N, Section X`, email, "Date of birth: 1 January 2010" (human-readable long date).
@@ -67,14 +77,14 @@ Calm, premium and restrained — an information tool, not a marketing site. The 
 5. **Not found** — `NotFoundPanel` with clear message and link back (unknown ID is a normal case).
 6. **BONUS** "Print report" deferred (D-17).
 
-## 8. Responsive behaviour
+## 9. Responsive behaviour
 
 - Desktop (>1024px): full tables; identity/overall cards side by side.
 - Tablet (640–1024px): cards stack; tables keep columns with horizontal scroll.
 - Mobile (<640px): nav wraps; stat cards stack; tables horizontally scrollable with a visible cue; actions full-width tap targets.
 - Touch targets ≥44px; no hover-only interactions.
 
-## 9. Loading, empty, success and error states
+## 10. Loading, empty, success and error states
 
 | Context | State | Behaviour |
 |---|---|---|
@@ -89,7 +99,7 @@ Calm, premium and restrained — an information tool, not a marketing site. The 
 | Report | Not found | `NotFoundPanel` + link back |
 | Global | Unexpected | Friendly toast with correlation id for support |
 
-## 10. Accessibility
+## 11. Accessibility
 
 - Semantic landmarks (`header`, `main`, `nav`), one `h1` per page, logical heading order.
 - Visible labels for every input; accessible names for search/filters.
@@ -98,11 +108,11 @@ Calm, premium and restrained — an information tool, not a marketing site. The 
 - Visible `:focus-visible` rings, full keyboard operation, skip-to-content link.
 - WCAG AA contrast; text alternatives for icon-only controls; errors linked via `aria-describedby`.
 
-## 11. Access note
+## 12. Access note
 
 No authentication is implemented (U-03). This UI is for local/trusted evaluation only and must not be publicly exposed without authentication.
 
-## 12. ClearGrade Intelligence panel (post-release)
+## 13. ClearGrade Intelligence panel
 
 A signature, enterprise-style analysis section appears **below** a completed import result — not a chat widget.
 It uses the existing UX tokens: restrained palette, precise typography, generous whitespace, `cg-card`,
@@ -111,7 +121,7 @@ It uses the existing UX tokens: restrained palette, precise typography, generous
 | State | Presentation |
 |---|---|
 | Identity | "ClearGrade Intelligence" heading, signature-feature label, aggregate-only privacy disclosure linked from the CTA via `aria-describedby` |
-| Provider availability | Compact list: Gemini ready/not configured (with model), Ollama available/unavailable (with model), rule-based always available; routing string shown as plain text |
+| Provider availability | Compact list driven by `geminiConfigured`/`geminiModel`, `ollamaReachable`/`ollamaModelPresent`/`ollamaModel`, `inferenceTested` and `deterministicAvailable`; reachability and configuration are never conflated; routing string shown as plain text |
 | Trigger | Explicit **Analyse import** / **Run new analysis** CTA. Upload/import never triggers analysis |
 | Loading | Spinner plus "Analysing aggregate import metrics…", `role="status"`; original import result stays visible |
 | Result | Engine label (Gemini/Ollama/Rule-based), model, fresh/cached indicator, safe fallback note |

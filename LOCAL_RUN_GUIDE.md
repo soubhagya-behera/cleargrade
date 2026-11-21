@@ -119,7 +119,7 @@ No other setup step requires administrator rights.
 |---|---|
 | Backend fails to connect | Confirm `postgresql-x64-18` is running and `.env` has the correct `CLEARGRADE_LOCAL_DB_PASSWORD`. The URL/username are defaults in `application.properties`. |
 | Port 8080/5173 busy | Stop the other workflow (Docker containers or native terminals) before starting this one. |
-| `ollamaAvailable: false` | Start `ollama serve`, confirm `/api/tags` lists `llama3.2:1b`, restart backend. |
+| `ollamaReachable: false` or `ollamaModelPresent: false` | Start `ollama serve`, confirm `/api/tags` lists `llama3.2:1b`, restart backend. |
 | Rule-based despite Ollama available | Small model returned output that failed strict validation; safe fallback. Retry or configure a larger installed model. |
 | `AI_CONFIGURATION_ERROR` | Check `GEMINI_API_KEY` in `.env`; the model default is in `application.properties` (override with `GEMINI_MODEL` if needed). Restart backend. |
 | pgAdmin connection prompt | Enter the `cleargrade_local` password from `.env`, or connect with your `postgres` login. |

@@ -1,6 +1,6 @@
 # ClearGrade — Architecture
 
-Status: **Design documentation with implemented Phase 3 ingestion.** Domain, V1 schema, JPA adapters, application ports/T1–T4 services, the production CSV adapter and the import use case are implemented; REST/SPA remain planned. Conventions: `[REQ]` assignment/README requirement; `[REC]` engineering choice; `[INF]` data-confirmed inference; `[SPIKE]` resolved pre-implementation verification.
+Status: **Design documentation with the full delivery implemented.** Domain, V1 schema, JPA adapters, application ports/T1–T4 services, the production CSV adapter, the REST API, the React SPA and ClearGrade Intelligence are implemented. Conventions: `[REQ]` assignment/README requirement; `[REC]` engineering choice; `[INF]` data-confirmed inference; `[SPIKE]` resolved pre-implementation verification.
 
 ## 1. Context and system overview
 
@@ -19,7 +19,7 @@ flowchart LR
     Seed[Seed generator] -->|POST /api/imports| API
 ```
 
-The SPA is served as static assets by the same Spring Boot process (one origin, `localhost:8080`). Actuator management endpoints are **not** under `/api` (§7). `[REC]`
+In Docker Compose the SPA is served by nginx on the single published host port `8080`, which proxies same-origin `/api` and `/actuator/health` to the Spring Boot container; in native development Vite serves the SPA on `localhost:3000` and proxies `/api` to `localhost:8080`. Actuator management endpoints are **not** under `/api` (§7). `[REC]`
 
 ## 2. Component responsibilities
 
@@ -31,11 +31,11 @@ The SPA is served as static assets by the same Spring Boot process (one origin, 
 | `adapters.in.csv` | BOM/line-ending handling, header mapping, quoted fields, **physical line numbers (C-4 spike)** | Decide validity beyond structural shape |
 | `adapters.out.persistence` | JPA entities, repositories, Flyway migrations | Expose entities beyond this adapter |
 | `configuration` | Bean wiring, injected `Clock` (I-04), properties, CORS | Contain business logic |
-| `frontend` | Three screens, states, API client, typed models | Duplicate validation rules |
+| `frontend` | Four screens plus the intelligence panel, states, API client, typed models | Duplicate validation rules |
 
 Dependencies point inward: `adapters → application → domain`. Domain depends on nothing (plain Java 21). Enforced by package discipline plus an architecture test (G2→G3). No Maven multi-module split initially (D-01, D-02). `[REC]`
 
-**Frontend architecture `[REC]`:** React 18+, **React Router** for `/import`, `/students`, `/students/:id`; **TanStack Query** for server state (caching, loading/error states, retry); **local component state** for form/dropzone/UI state. **No Redux** unless a justified need appears. TanStack Query is a planned dependency, not installed in this phase.
+**Frontend architecture `[REC]`:** React 19, **React Router** for `/import`, `/students`, `/student-report` and `/students/{studentId}`; **TanStack Query** for server state (caching, loading/error states, retry); **local component state** for form/dropzone/UI state. **No Redux.** `/student-report` is the Student Report Finder; `/students/{studentId}` is the individual student report.
 
 ## 3. Data flow
 
@@ -179,7 +179,7 @@ cleargrade/
 
 | Assignment requirement | Design location |
 |---|---|
-| Three screens | UX_SPEC.md |
+| Four screens | UX_SPEC.md |
 | Upload never crashes on bad data/files | §5, SECURITY.md |
 | Explain rejections in administrator language | API_CONTRACT.md, UX_SPEC.md |
 | Searchable, paginated directory | API_CONTRACT.md, DATA_MODEL.md |

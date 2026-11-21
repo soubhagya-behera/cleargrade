@@ -188,9 +188,12 @@ Implementation notes (G4→G5): the configurable limit is `cleargrade.upload.max
 
 ## 10. ClearGrade Intelligence (post-release)
 
-`GET /api/ai/status` returns `enabled`, `geminiConfigured`, `geminiAvailable`, `geminiModel`, `ollamaConfigured`,
-`ollamaAvailable`, `ollamaModel`, `deterministicAvailable`, `defaultEngine` (`GEMINI|OLLAMA|RULE_BASED`),
-`routing` and safe `routingReasons`. It never contains a key, endpoint, provider body or credential.
+`GET /api/ai/status` returns `enabled`, `geminiConfigured`, `geminiModel`, `ollamaConfigured`,
+`ollamaReachable`, `ollamaModelPresent`, `ollamaModel`, `inferenceTested`, `deterministicAvailable`,
+`defaultEngine` (`GEMINI|OLLAMA|RULE_BASED`), `routing`, safe `routingReasons`, `lastAnalysisEngine`,
+`lastAnalysisReason`, `lastAnalysisUsage` and `lastAnalysisFailures`. Configuration, reachability, model
+presence and inference testing are deliberately distinct; `inferenceTested` is always `false` because status
+never performs an inference. The response never contains a key, endpoint, provider body or credential.
 
 `POST /api/imports/{id}/insights` has **no request body** and never persists a report. It requires a completed
 batch, reads batch counters and persisted error-occurrence counts, builds the aggregate privacy context and
@@ -201,7 +204,7 @@ routes it through Gemini → Ollama → deterministic rules. Example response (i
   "batchId": 12,
   "engine": "OLLAMA",
   "engineModel": "llama3.2",
-  "fallbackReason": "GEMINI_UNAVAILABLE",
+  "fallbackReason": "GEMINI:GEMINI_SERVER",
   "cached": false,
   "measured": {
     "rowsRead": 1000,
@@ -237,16 +240,17 @@ routes it through Gemini → Ollama → deterministic rules. Example response (i
 }
 ```
 
-`measured` is always Java-measured; `summary`/`findings` are the selected engine's interpretation;
-`recommendedActions` are advisory. `engine` names the actual generator. `fallbackReason` is a safe category or
-`null`. `cached` distinguishes cache hits from fresh analysis.
+`measured` is always Java-measured. Finding selection, severity, evidence, `summary`, `overallAssessment`,
+`limitations` and `recommendedActions` are Java-authored; a provider may only supply each finding's
+`explanation` wording. `engine` names the actual generator. `fallbackReason` is a safe engine:code chain (for
+example `GEMINI:GEMINI_SERVER`) or `null`. `cached` distinguishes cache hits from fresh analysis.
 
 | Code | HTTP | Meaning |
 |---|---|---|
 | `BATCH_NOT_FOUND` | 404 | Unknown batch id |
 | `BATCH_NOT_COMPLETED` | 409 | Batch has not reached `COMPLETED` |
 | `ANALYSIS_COOLDOWN` | 429 | Optional per-batch cooldown is active |
-| `ANALYSIS_PROVIDER_FAILED` | 502 | All configured external providers failed and no safe fallback was available |
+| `ANALYSIS_PROVIDER_FAILED` | 502 | Non-configuration provider failure with no usable result (mapped by `GlobalExceptionHandler`) |
 | `AI_CONFIGURATION_ERROR` | 503 | Provider authentication/configuration error (never falls back) |
 | `ANALYSIS_UNAVAILABLE` | 503 | No analysis engine is available (both AI providers and deterministic engine disabled) |
 

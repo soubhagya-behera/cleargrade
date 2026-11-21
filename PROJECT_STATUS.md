@@ -56,7 +56,7 @@ Last updated: 2026-11-20 · **Release engineering complete: all eight phases (0�
 | Application transaction integration | `.\mvnw.cmd -B "-Dtest=ApplicationTransactionIntegrationTest,ImportApplicationServiceUnitTest,DigestViolationClassificationTest" test` (JDK 21, `postgres:16-alpine`) | 18 tests, 0 failures/errors; T1–T4 boundaries (including T2 failure → T4), exact digest index, upsert counts, concurrency and suppressed failure-finalisation error |
 | Backend full verify | `.\mvnw.cmd -B verify` | Passed, 206 tests green, 0 skipped |
 | REST API integration | `.\mvnw.cmd -B "-Dtest=RestApiIntegrationTest" test` | 11 tests, 0 failures/errors; real MockMvc → application → PostgreSQL path for upload outcomes, batch/error reads, directory/report and health |
-| Frontend tests | `npm test` (Vitest + Testing Library) | 14 tests, 0 failures; API client, upload workflow/states, row problems, directory search/filter/pagination/states, report/not-found |
+| Frontend tests | `npm test` (Vitest + Testing Library) | 45 tests, 0 failures; API client, upload workflow/states, row problems, directory search/filter/pagination/states, report/not-found, student report finder and intelligence panel |
 | Frontend typecheck | `npm run typecheck` | Passed |
 | Frontend production build | `npm run build` | Passed (Vite build, 2,212 modules) |
 | Packaged JAR config safety | `jar tf` on built JAR | Only `application.properties` packaged; no local profile |
