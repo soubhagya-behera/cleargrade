@@ -1,361 +1,759 @@
+<div align="center">
+
 # ClearGrade
 
-**Student Results & Data Quality Portal** — upload a messy results CSV, import the valid rows, and see a plain-language explanation for every rejected row.
+### Student Results & Data Quality Intelligence Platform
 
-> **Release status:** Phases 0–7 remain complete and their history is unchanged. This branch adds the post-release **ClearGrade Intelligence** enhancement (AI Data Quality Copilot) on `feat/cleargrade-intelligence`. Backend, REST API and the React app are implemented and tested; Docker Compose runs the full stack. No authentication is implemented — see [Security and trust boundary](#security-and-trust-boundary).
+**Turn messy student-result spreadsheets into validated student records, explainable import reports and actionable data-quality intelligence.**
 
-## Contents
+[![Java 21](https://img.shields.io/badge/Java-21-ED8B00?style=for-the-badge&logo=openjdk&logoColor=white)](https://openjdk.org/projects/jdk/21/)
+[![Spring Boot 4.1.2](https://img.shields.io/badge/Spring_Boot-4.1.2-6DB33F?style=for-the-badge&logo=springboot&logoColor=white)](https://spring.io/projects/spring-boot)
+[![React 19.3](https://img.shields.io/badge/React-19.3-087EA4?style=for-the-badge&logo=react&logoColor=white)](https://react.dev/)
+[![TypeScript 5.9](https://img.shields.io/badge/TypeScript-5.9-3178C6?style=for-the-badge&logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
+[![PostgreSQL 18 / 16](https://img.shields.io/badge/PostgreSQL-18%2F16-336791?style=for-the-badge&logo=postgresql&logoColor=white)](https://www.postgresql.org/)
 
-- [Product overview](#product-overview)
-- [Screenshots](#screenshots)
-- [Features](#features)
-- [ClearGrade Intelligence](#cleargrade-intelligence)
-- [Architecture and tech stack](#architecture-and-tech-stack)
-- [Prerequisites](#prerequisites)
-- [Quick Start (Windows — everyday native development)](#quick-start-windows--everyday-native-development)
-- [Optional Docker Compose environment](#optional-docker-compose-environment)
-- [Environment configuration](#environment-configuration)
-- [Seed workflow](#seed-workflow)
-- [API endpoints](#api-endpoints)
-- [Testing](#testing)
-- [Project structure](#project-structure)
-- [Security and trust boundary](#security-and-trust-boundary)
-- [Limitations](#limitations)
-- [Troubleshooting](#troubleshooting)
+[![CI (main)](https://github.com/soubhagya-behera/cleargrade-student-results/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/soubhagya-behera/cleargrade-student-results/actions/workflows/ci.yml)
+![Backend tests](https://img.shields.io/badge/Backend_tests-266_run%2C_0_failed-2E7D32?style=for-the-badge)
+![Frontend tests](https://img.shields.io/badge/Frontend_tests-27_passed-6D4AFF?style=for-the-badge)
+![Gemini](https://img.shields.io/badge/Gemini-configured_primary-8E75F6?style=for-the-badge)
+![Ollama](https://img.shields.io/badge/Ollama-local_fallback-5034C4?style=for-the-badge)
+![Rule-based](https://img.shields.io/badge/Rule_based-offline_fallback-6B7190?style=for-the-badge)
 
-## Product overview
+*CI badge tracks the repository's `main` workflow; this local feature-branch work is not pushed and is verified separately in [Testing](#testing-and-quality). PostgreSQL 18 is used for native Windows development; PostgreSQL 16 is used by Docker Compose and Testcontainers.*
 
-An administrator uploads a student-results CSV. ClearGrade:
+[Overview](#what-is-cleargrade) · [Highlights](#product-highlights) · [Tour](#visual-tour) · [Workflow](#how-cleargrade-works) · [CSV engine](#csv-ingestion-and-validation) · [Grading](#grading-system) · [Intelligence](#cleargrade-intelligence) · [Architecture](#architecture) · [Data](#database-and-data-integrity) · [API](#api-reference) · [Stack](#technology-stack) · [Run locally](#getting-started-windows-native-development) · [Docker](#optional-docker-workflow) · [Testing](#testing-and-quality) · [Security](#security-and-privacy) · [Decisions](#engineering-decisions-and-limitations) · [Roadmap](#roadmap)
 
-- imports valid rows into a searchable, paginated student directory;
-- explains every rejected row with its **physical file line**, field, error code and message;
-- reports *rows rejected* separately from *problem occurrences*, because one row can have several problems;
-- computes total, percentage, grade and PASS/FAIL on read using the ratified D-07 scheme;
-- records each upload as an import batch with counts and concurrency-safe identical-file detection (SHA-256).
+**[Run locally →](#getting-started-windows-native-development)**
 
-The source format has no term/year field, so the portal stores a **current-result snapshot** only (D-11).
+<table>
+<tr>
+<td align="center"><strong>Terminal 1 · backend</strong><br/><code>cd backend</code><br/><code>mvn spring-boot:run</code></td>
+<td align="center"><strong>Terminal 2 · frontend</strong><br/><code>cd frontend</code><br/><code>npm run dev</code></td>
+</tr>
+</table>
 
-## Screenshots
+</div>
 
-> Placeholder — real screenshots have not been captured in this environment.
->
-> | Screen | Placeholder |
-> |---|---|
-> | Import workspace (`/import`) | *Pending capture: dropzone, upload result summary, row-problem table* |
-> | Student directory (`/students`) | *Pending capture: search, filters, pagination, derived grade column* |
-> | Student report (`/students/:id`) | *Pending capture: identity, overall result, marks by subject* |
+---
 
-No screenshot images are committed; the above placeholders are intentionally explicit.
+## What is ClearGrade?
 
-## Features
+School administrators routinely receive inconsistent CSV exports of student results. A single malformed cell can silently corrupt a record, and a rejected row reported only as "row failed" gives no clue how to fix the source file. ClearGrade makes the import **traceable, deterministic and explainable** — and then, optionally, interprets the measured import quality with an advisory AI copilot.
 
-- **CSV ingestion** — header-based mapping (order/case/whitespace tolerant, extra columns ignored), UTF-8 with/without BOM, LF/CRLF/mixed/lone-CR, quoted commas and embedded newlines, blank/all-empty rows, Unicode names, supplementary characters.
-- **Physical line numbers** — header is line 1; blank lines and embedded newlines are counted using `CSVRecord.getCharacterPosition()` plus an independent physical-line map (adopted from the approved C-4 spike).
-- **Validation** — required fields, existing domain validators, five exact row error codes, complete error lists, first-normalized-ID-wins duplicate reservation.
-- **Transactions** — T1 `RECEIVED` reservation → T2 `PROCESSING` → parse/validate → T3 atomic upserts/errors/counts/`COMPLETED`; T4 commits `FAILED` after any failure (including T2 failure) with no partial writes.
-- **Idempotency and concurrency** — partial unique index on active SHA-256 digests; `200` completed replay, `409` active digest, retry after `FAILED`, real PostgreSQL concurrency coverage.
-- **REST API** — multipart upload, batch summary, paginated row errors, paginated student directory with filters/sort, student report, consistent error envelope.
-- **Frontend** — TanStack Query state, file dropzone, upload/completion/failure states, per-code problem breakdown, physical-line problem table, batch-ID lookup, searchable directory with filters and pagination, report with derived grade and PASS/FAIL.
-- **ClearGrade Intelligence** — explicit-trigger, aggregate-only import analysis with Gemini → Ollama → deterministic routing, strict structured-output validation, bounded caching, and a separated measured-facts/interpretation/advice UI.
+In 20 seconds: an administrator uploads one CSV; ClearGrade validates every row, imports the valid students into a searchable directory, reports each rejected row with its **physical file line, field, error code and readable message**, computes grades from fixed backend rules, and can summarise the import's data quality with privacy-safe aggregate analysis.
 
-Bonus features (error-CSV download, mark bars, print report) are deferred per D-17.
+| Problem | ClearGrade solution |
+|---|---|
+| CSV exports differ in header case, order and whitespace | Header normalization with order-independent, case-insensitive column mapping; extra columns ignored |
+| A bad cell can corrupt imported student records | Row-level validation; a row is rejected if **any** field fails |
+| "Row 14 failed" is not enough to repair a spreadsheet | One problem record per issue with physical line, field, code and message |
+| Re-uploading the same file duplicates students | SHA-256 digest reservation with `200` deduplicated replay and `409` active-batch conflict |
+| Case variants of the same student ID can overwrite each other | Case-insensitive ID normalization and first-occurrence reservation |
+| Grades differ between hand-maintained spreadsheets | Deterministic `GradingPolicy` derived on read — never generated by AI |
+| It is hard to tell whether data quality is improving | Import counters plus an explicit, aggregate-only ClearGrade Intelligence analysis |
+
+> **Scope note:** the source CSV has no term or year column, so ClearGrade stores a **current-result snapshot**, not academic history. There is **no authentication** — this is a local/trusted evaluation application, not a public multi-tenant service.
+
+## Product highlights
+
+<table>
+<tr>
+<td width="50%" valign="top">
+
+**Robust CSV ingestion**
+
+Apache Commons CSV 1.14.1 with an explicit format; quoted commas, embedded newlines and blank rows handled.
+
+</td>
+<td width="50%" valign="top">
+
+**Header normalization**
+
+Required columns mapped by stripped, lower-cased names; order and surrounding whitespace tolerant, extra columns ignored.
+
+</td>
+</tr>
+<tr>
+<td width="50%" valign="top">
+
+**UTF-8 and line-ending support**
+
+BOM stripping plus LF, CRLF and lone-CR handling with independent physical-line mapping.
+
+</td>
+<td width="50%" valign="top">
+
+**Physical line numbers**
+
+Header is line 1, data starts at line 2; every reported problem points at the real file line.
+
+</td>
+</tr>
+<tr>
+<td width="50%" valign="top">
+
+**Row-level validation**
+
+Five exact error codes, all problems collected per row, whole-row field-count errors reported separately.
+
+</td>
+<td width="50%" valign="top">
+
+**Idempotent batches**
+
+SHA-256 digest plus a PostgreSQL partial unique index; replay-safe, conflict-aware, retryable after failure.
+
+</td>
+</tr>
+<tr>
+<td width="50%" valign="top">
+
+**PostgreSQL student upserts**
+
+Insert-on-conflict, then row-locked comparison classifies each row as new, changed or unchanged.
+
+</td>
+<td width="50%" valign="top">
+
+**Directory and reports**
+
+Server-side search, grade/section filters, sorting and pagination; deterministic result reports with derived grades.
+
+</td>
+</tr>
+<tr>
+<td width="50%" valign="top">
+
+**ClearGrade Intelligence**
+
+Explicit-trigger, advisory-only interpretation of measured import counters — not a chatbot and never a write path.
+
+</td>
+<td width="50%" valign="top">
+
+**Provider routing**
+
+Gemini → Ollama → deterministic Java rules, with strict structured-output validation and honest engine attribution.
+
+</td>
+</tr>
+<tr>
+<td width="50%" valign="top">
+
+**Privacy-safe analysis**
+
+Providers receive aggregates only; no names, IDs, emails, dates of birth, marks, rows, messages or line numbers.
+
+</td>
+<td width="50%" valign="top">
+
+**Cache and coalescing**
+
+Bounded TTL/LRU cache plus single-flight request coalescing; one Gemini inference per explicit fresh analysis.
+
+</td>
+</tr>
+<tr>
+<td width="50%" valign="top">
+
+**Native Windows development**
+
+Two terminals, native PostgreSQL and pgAdmin, root `.env` imported automatically by Spring Boot.
+
+</td>
+<td width="50%" valign="top">
+
+**Docker Compose alternative**
+
+Three health-checked containers, loopback-only published ports and a persistent named PostgreSQL volume.
+
+</td>
+</tr>
+</table>
+
+## Visual tour
+
+Real browser captures of the running application. All records shown are **synthetic demonstration data** (`... Demo`, `example.test`); no assignment sample CSV, confidential PDF or real student information appears in any image.
+
+[![Import Quality Center — upload, summary and row-problem table](docs/screenshots/01-import-quality-center.png)](docs/screenshots/01-import-quality-center.png)
+
+**Import Quality Center** — drop zone, plain-language import summary, stat cards and the physical-line problem table with error-code filter.
+
+[![ClearGrade Intelligence — evidence-backed analysis](docs/screenshots/02-cleargrade-intelligence.png)](docs/screenshots/02-cleargrade-intelligence.png)
+
+**ClearGrade Intelligence** — measured facts kept separate from engine interpretation, severity-ranked findings with exact evidence values, recommended actions and provider attribution.
+
+[![Student Directory](docs/screenshots/03-student-directory.png)](docs/screenshots/03-student-directory.png)
+
+**Student Directory** — debounced search, class/section filters, sortable columns, pagination and derived percentage/grade.
+
+[![Student Report](docs/screenshots/04-student-report.png)](docs/screenshots/04-student-report.png)
+
+**Student Report** — identity, overall result with PASS/FAIL and grade, and all five subject marks.
+
+[![Mobile Import Quality Center](docs/screenshots/05-mobile-import.png)](docs/screenshots/05-mobile-import.png)
+
+**Responsive layout** — the same workspace collapses to a mobile navigation drawer and single-column flow.
+
+## How ClearGrade works
+
+```mermaid
+flowchart LR
+    A["Administrator"] --> B["React 19 + Vite SPA<br/>Import Quality Center"]
+    B -->|"POST /api/imports (multipart)"| C["Spring Boot 4.1.2 API<br/>ImportController"]
+    C --> D["SHA-256 reservation<br/>BatchReservationTx (T1)"]
+    D --> E["CommonsCsvFileParser<br/>BOM-aware, physical lines"]
+    E --> F["CsvRowValidator<br/>domain validation, 5 codes"]
+    F -->|"valid rows"| G["StudentPersistenceAdapter<br/>upsertAll (T3)"]
+    F -->|"invalid rows"| H["ImportRowErrorPersistenceAdapter<br/>one row per problem (T3)"]
+    G --> I[("PostgreSQL 18 native / 16 containers<br/>student · import_batch · import_row_error")]
+    H --> I
+    I --> J["Import summary + counters<br/>201 Created + Location"]
+    I --> K["Student Directory<br/>GET /api/students"]
+    I --> L["Student Report<br/>GET /api/students/{studentId}"]
+    J --> M["Row-problem table<br/>GET /api/imports/{id}/errors"]
+    M --> B
+    K --> B
+    L --> B
+    B -->|"explicit trigger only"| N["ClearGrade Intelligence<br/>POST /api/imports/{id}/insights"]
+    N --> O["Aggregate-only context<br/>Gemini → Ollama → Java rules"]
+    O --> B
+```
+
+**Import lifecycle.** The controller checks file type, encoding and the 10 MiB cap; `ImportApplicationService` hashes the raw bytes and runs four independently committed transactions:
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant FE as React client
+    participant API as ImportController
+    participant SVC as ImportApplicationService
+    participant PG as PostgreSQL
+    FE->>API: POST /api/imports (multipart "file")
+    API->>SVC: importFile(bytes, filename)
+    SVC->>PG: T1: reserve RECEIVED batch with SHA-256 digest
+    alt digest already COMPLETED
+        PG-->>SVC: existing batch
+        SVC-->>API: deduplicated = true
+        API-->>FE: 200 OK (no new import)
+    else new or retriable digest
+        SVC->>PG: T2: RECEIVED → PROCESSING
+        SVC->>SVC: parse + validate (outside a transaction)
+        SVC->>PG: T3: upserts + error rows + counts + COMPLETED (atomic)
+        SVC-->>API: ImportResponse
+        API-->>FE: 201 Created + Location
+    end
+    Note over SVC,PG: Any failure → T4 commits FAILED separately; no partial writes
+```
+
+**Valid rows** become `Student` aggregates and are upserted into `student`. **Invalid rows** are excluded from `student`; each of their problems is persisted as an `import_row_error` with a physical line number.
+
+**Rejected rows vs. error occurrences.** `rejected` counts each rejected *row once*. `errorCount` counts *problem occurrences* — a single row with an invalid email and an out-of-range mark is one rejected row but two error occurrences. The schema enforces `error_count >= rejected_count`, and the UI explains the difference explicitly.
+
+## CSV ingestion and validation
+
+**Required columns** (all eleven, header names normalized by `strip()` + lowercase):
+
+```text
+student_id, full_name, email, date_of_birth, grade_level, section,
+maths, science, english, social_studies, second_language
+```
+
+| Concern | Implemented behavior |
+|---|---|
+| Header matching | Case- and whitespace-insensitive, order-independent; duplicate normalized headers are a fatal error; extra columns are ignored; a missing required column is a fatal `400` |
+| Encoding | Strict UTF-8 decode; a leading UTF-8 BOM is stripped |
+| Line endings | LF, CRLF and lone CR; newlines inside quoted fields counted correctly by `PhysicalLineMap` |
+| Quoting | Quoted commas and embedded newlines via Commons CSV; surrounding spaces are preserved |
+| Blank rows | All-blank records are skipped and not counted |
+| File size | 10 MiB default (`cleargrade.upload.max-file-size`), enforced by multipart settings and the controller (`413 FILE_TOO_LARGE`) |
+| Dates | `yyyy-MM-dd` first, then strict `dd/MM/yyyy`; age window 5–25 in business zone `Asia/Kolkata` |
+| Marks | Five marks, each numeric in `0..100`; total and percentage stay exact `BigDecimal` |
+| Identity | `student_id` normalized to uppercase; duplicates detected case-insensitively; the **first occurrence reserves the ID** even if that row later fails other fields |
+| Reporting | `PhysicalLineNumber`: header = 1, first data row = 2; every problem stores its line, field, code and message |
+
+**Row error codes** (`dev.cleargrade.domain.batch.RowErrorCode`, also enforced by a database `CHECK`):
+
+| Code | Meaning |
+|---|---|
+| `MISSING_REQUIRED` | A required value is absent or blank |
+| `INVALID_FORMAT` | A value cannot be parsed into its expected type (date, mark, ID, name, …) |
+| `OUT_OF_RANGE` | A parsed value is outside its allowed bounds (age, grade, section, mark, …) |
+| `DUPLICATE_ID` | The normalized student ID was already reserved by an earlier row in this file |
+| `WRONG_FIELD_COUNT` | Record width differs from the header; reported against the whole row and not field-validated |
+
+File-level failures use a separate vocabulary — `EMPTY_FILE`, `MISSING_REQUIRED_COLUMNS`, `MALFORMED_CSV` and `INVALID_ENCODING` — and return `400` with the same error envelope. Deep implementation notes live in [ARCHITECTURE.md](docs/ARCHITECTURE.md) and [API_CONTRACT.md](docs/API_CONTRACT.md).
+
+## Grading system
+
+Grades are **pure backend rules** in `dev.cleargrade.domain.grading.GradingPolicy`. They are derived when a report or directory row is read and are **never persisted or AI-generated**.
+
+| Band | Condition on exact percentage | Result |
+|---|---|---|
+| A | `>= 80` | PASS |
+| B | `>= 70` | PASS |
+| C | `>= 60` | PASS |
+| D | `>= 50` | PASS |
+| F | `< 50` | FAIL |
+
+- Exact percentage = sum of the five marks / 5, using exact `BigDecimal` division.
+- PASS when exact percentage `>= 50`; there is no per-subject pass threshold.
+- Only **display** is rounded: `setScale(1, RoundingMode.HALF_UP)`. Grading and pass/fail always use the unrounded value.
+- Maximum total is `500`; `StudentOutcome` re-validates internal consistency on every read.
 
 ## ClearGrade Intelligence
 
-A signature, advisory-only analysis panel appears on a completed import result. It is **not** a chatbot and
-never changes student data. The provider route is **Gemini Cloud AI → Ollama Local AI → deterministic Java
-rule engine**, with the actual engine labelled on every report.
+ClearGrade Intelligence is an **AI data-quality copilot**, not a general-purpose chatbot. It is triggered explicitly from a completed import, interprets only counters the backend already measured, and is **advisory only**: it cannot change marks, grades, pass/fail decisions, accepted or rejected rows, students or import counters.
 
-- Default model: `gemini-3.8-flash` (configurable via `GEMINI_MODEL`). Gemini 2.5 Flash is not the default.
-- Gemini uses the stateless Interactions REST API with `x-goog-api-key`, `store=false` and a strict JSON
-  schema; there are no automatic POST retries.
-- Ollama is optional and verified via `/api/tags`; a configured URL alone is not treated as availability.
-  No model is downloaded at startup or during image builds.
-- Providers receive **only aggregates**: counts, backend-calculated percentages/ratios, five error-code
-  counts, `allowedEvidenceValues` and static schema metadata. No names, IDs, emails, dates of birth, marks,
-  raw rows, messages or physical lines are sent. `store=false` does not remove all provider processing or
-  retention obligations; provider terms and free-vs-paid tier differences still apply.
-- An offline/no-key install still starts, imports and analyses via the rule engine labelled
-  `RULE_BASED` — never presented as AI-generated.
-- Analysis is explicit, cached with TTL/LRU bounds and coalesced per batch/context; import never calls a
-  provider. `CLEARGRADE_AI_ENABLED=false` disables both AI providers while leaving rule-based analysis.
-- Token policy: exactly one stateless Gemini request per explicit analysis (`store:false`, `stream:false`,
-  `thinking_level:low`, `max_output_tokens:2048`, no history/tools), compact aggregate-only prompt, max five
-  findings and five actions. **Run new analysis** explicitly spends another request; reopening a cached report does not.
-- Status reports configuration and local reachability separately and never claims inference works until an
-  analysis actually runs; safe usage counters are shown when the provider returns them.
+### Provider routing
 
-Full configuration, Ollama setup (Windows/macOS/Linux and Docker host access), privacy contract, provider
-terms guidance, fallback matrix and cost controls: [docs/AI_INTELLIGENCE.md](docs/AI_INTELLIGENCE.md).
-
-## Architecture and tech stack
-
-Modular monolith; dependencies point inward (`adapters → application → domain`).
-
-| Layer | Technology |
-|---|---|
-| Backend | Java 21, Spring Boot 4.1.2, Maven wrapper 3.9.14 |
-| Persistence | PostgreSQL 16, Flyway (`ddl-auto=validate`), Spring Data JPA + JdbcTemplate adapters |
-| CSV | Apache Commons CSV 1.14.1 with explicit format and BOM-aware input |
-| Frontend | React 19, TypeScript 5.9 (strict), Vite 7, Tailwind CSS 4, React Router 7, TanStack Query 5, Lucide React |
-| AI copilot | Application-owned provider port/router; Java `HttpClient` adapters for Gemini Interactions and Ollama chat; deterministic Java rule engine; no AI framework dependency |
-| Tests | JUnit 5, Mockito, MockMvc, Testcontainers PostgreSQL, localhost mock HTTP servers; Vitest + Testing Library |
-| Delivery | Multi-stage Dockerfiles, nginx unprivileged static host, Docker Compose v2 |
-
-The SPA and API are served from one origin in containers: nginx proxies `/api` and `/actuator/health` to the backend. Actuator exposes **health only** and is never under `/api`.
-
-Detailed decisions: [ARCHITECTURE.md](docs/ARCHITECTURE.md), [DATA_MODEL.md](docs/DATA_MODEL.md), [DECISIONS.md](DECISIONS.md), [API_CONTRACT.md](docs/API_CONTRACT.md), [UX_SPEC.md](docs/UX_SPEC.md), [SECURITY.md](docs/SECURITY.md), [TEST_STRATEGY.md](docs/TEST_STRATEGY.md), [NOTES.md](NOTES.md).
-
-## Quick Start (Windows — everyday native development)
-
-1. Install **JDK 21**, Maven (or use the included wrapper), **Node.js/npm**, **PostgreSQL** and **pgAdmin**.
-   Set `JAVA_HOME` to your JDK 21 directory if `java -version` reports 17.
-2. In pgAdmin (or `psql`), create an empty database named `cleargrade`. **Do not create any tables** — Flyway
-   creates and updates them automatically on backend startup.
-3. Copy the committed template: `Copy-Item .env.example .env`. The root `.env` is git-ignored.
-4. Create a least-privilege application role in pgAdmin (Query Tool on `cleargrade`), choosing your own password:
-
-   ```sql
-   CREATE ROLE cleargrade_local LOGIN PASSWORD '<choose-a-local-password>';
-   GRANT CONNECT ON DATABASE cleargrade TO cleargrade_local;
-   GRANT USAGE, CREATE ON SCHEMA public TO cleargrade_local;
-   GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO cleargrade_local;
-   GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO cleargrade_local;
-   ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO cleargrade_local;
-   ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT USAGE, SELECT ON SEQUENCES TO cleargrade_local;
-   ```
-
-   Put the **same password** in `.env` as `CLEARGRADE_LOCAL_DB_PASSWORD`. Open `.env` in an editor when you need
-   that value for pgAdmin's password prompt; never paste it into chat, issues or committed files.
-5. **Optional:** add your existing Gemini key to `.env` as `GEMINI_API_KEY=…`. Leave it blank and the app still
-   starts; Ollama or the rule engine will handle analysis.
-6. **Terminal 1 — backend:**
-
-   ```powershell
-   cd backend
-   mvn spring-boot:run
-   ```
-
-   Watch the log for `Successfully applied ... migration` — Flyway owns the schema.
-7. **Terminal 2 — frontend:**
-
-   ```powershell
-   cd frontend
-   npm run dev
-   ```
-
-8. Open <http://localhost:5173>. Health: <http://localhost:8080/actuator/health>. API: <http://localhost:8080/api>.
-
-Spring Boot imports the root `.env` automatically (`spring.config.import`), so no environment variables need to be
-exported manually. All non-secret defaults (ports, database URL/username, model names, Ollama URL) live in
-`application.properties`; only credentials and the optional API key live in `.env`. Full details:
-[LOCAL_RUN_GUIDE.md](LOCAL_RUN_GUIDE.md).
-
-## Prerequisites
-
-- JDK 21, Node.js 22+ and npm for the native workflow; Maven wrapper is also included/pinned.
-- Docker Engine 24+ with Compose v2 only for the optional release/demo stack.
-- Ports `5173` (native Vite), `8080` (backend), `5432` (native PostgreSQL) or `3000`/`55432` (Docker) available.
-
-## Optional Docker Compose environment
-
-Windows (PowerShell):
-
-```powershell
-powershell -ExecutionPolicy Bypass -File scripts/start.ps1
+```mermaid
+flowchart LR
+    T["Explicit Analyse import action"] --> G{"Gemini configured<br/>and request succeeds?"}
+    G -->|yes| GR["GEMINI report<br/>gemini-3.8-flash default"]
+    G -->|"quota / 5xx / network / invalid output"| O{"Ollama available<br/>(GET /api/tags)?"}
+    G -->|"401 / 403 / bad config"| E["503 AI_CONFIGURATION_ERROR<br/>no fallback"]
+    O -->|yes| OR["OLLAMA report<br/>llama3.2:1b default"]
+    O -->|no| RR["RULE_BASED report<br/>deterministic-v1, offline"]
+    OR -->|"output fails strict validation"| RR
+    GR -->|"output fails strict validation"| O
 ```
 
-Unix-like:
+| Priority | Engine | Label | Selected when |
+|---|---|---|---|
+| 1 | Gemini Interactions REST API | `GEMINI` | Key configured and a request succeeds |
+| 2 | Ollama local chat API | `OLLAMA` | Gemini absent or fallback-class failure, and `/api/tags` confirms the model |
+| 3 | Java rule engine | `RULE_BASED` | Both AI providers absent/failed; network-free, reproducible, explicitly not AI-generated |
+
+### Privacy boundary
+
+Every provider receives the **same purpose-built aggregate DTO** built by `ImportQualityContextBuilder`: row/import/reject/new/changed/unchanged/error counts, the five error-code counts, backend-calculated percentages and ratios, canonical evidence values, and static schema-column metadata.
+
+| Never sent to any provider | Reason |
+|---|---|
+| Student names, IDs, emails, dates of birth, marks or grades | Direct identifiers / personal data |
+| Raw CSV rows, row messages or physical line numbers | Row-level content that can identify a person |
+| Uploaded filenames or full import responses | Unnecessary context |
+| API keys or credentials | Keys stay server-side and never reach the frontend |
+
+`PrivacyContractTest` and provider HTTP tests assert that sensitive sentinels cannot appear in captured request bodies. The strict `InsightResponseParser` rejects unknown fields, over-long text, unsupported severities/metrics and blocked markers; every `evidenceValue` is replaced with the backend-computed value, so a model cannot alter measured counters.
+
+### Findings, evidence and safety
+
+- Findings carry a severity of `INFO`, `LOW`, `MEDIUM` or `HIGH`, one allowlisted evidence metric, its **exact** backend value, an explanation and a recommended remediation action.
+- Measured facts, engine interpretation and advisory guidance are separate fields in both the API and the UI.
+- `advisoryOnly=true` on every response; the UI repeats the disclaimer. `store:false`, `stream:false`, `thinking_level=low`, `max_output_tokens=2048`, no history and no tools; **one Gemini inference per explicit fresh analysis**, with no automatic POST retries.
+- A bounded TTL/LRU cache (600 s, 64 entries) reuses a report for the same batch/context/engine, and single-flight coalescing makes simultaneous requests share one generation — including explicit refresh. An optional per-batch cooldown returns `429 ANALYSIS_COOLDOWN`.
+- `GET /api/ai/status` reports configuration and reachability **separately** and never claims inference works: `geminiConfigured` only means a key is present, `/api/tags` drives Ollama availability, and status never spends quota.
+- Safe usage telemetry (input/output/thinking/total tokens, model, interaction status, duration) is shown when the provider returns it; otherwise it is reported as unavailable, never estimated.
+
+**Verification honesty:** Gemini is the **configured primary provider**; live cloud generation has **not** been verified in this environment — the most recent live attempt returned HTTP 5xx — so no successful live Gemini result is claimed. Routing and configuration were validated with a local mock server, and Ollama structured output passed synthetic provider tests; a genuine browser run produced the Ollama-labelled report shown above on synthetic data. See [docs/AI_INTELLIGENCE.md](docs/AI_INTELLIGENCE.md) for the full contract, fallback matrix and cost controls.
+
+## Architecture
+
+ClearGrade is a **modular monolith** with inward dependencies (`adapters → application → domain`). The domain is framework-free; provider SDKs and wire DTOs never leak past `adapters.out.ai`.
+
+```mermaid
+flowchart TB
+    subgraph CLIENT["Client · localhost:5173"]
+        UI["React 19 + Vite 7 SPA<br/>ImportPage · StudentDirectoryPage<br/>StudentReportPage · IntelligencePanel"]
+    end
+
+    subgraph WEB["adapters.in.web"]
+        IC["ImportController"]
+        SC["StudentController"]
+        AC["AiController"]
+        EH["GlobalExceptionHandler"]
+    end
+
+    subgraph APP["application"]
+        IAS["ImportApplicationService"]
+        TX["BatchReservationTx · BatchDigestLookupTx<br/>BatchProcessingTransitionTx · BatchFinalisationTx · BatchFailureTx"]
+        VAL["CsvRowValidator"]
+        QRY["StudentQueryService · ImportQueryService"]
+        INSIGHT["ImportInsightService · InsightProviderRouter<br/>ImportQualityContextBuilder · DeterministicInsightService"]
+    end
+
+    subgraph DOM["domain · framework-free"]
+        DM["student.* · batch.* · grading.GradingPolicy"]
+    end
+
+    subgraph INCSV["adapters.in.csv"]
+        P["CommonsCsvFileParser · PhysicalLineMap"]
+    end
+
+    subgraph DB["adapters.out.persistence"]
+        PA["Student / ImportBatch / ImportRowError adapters<br/>JPA entities · repositories · mappers · JdbcTemplate"]
+    end
+
+    subgraph AI["adapters.out.ai"]
+        GEM["GeminiInteractionsAdapter"]
+        OLL["OllamaChatAdapter"]
+        PROMPT["InsightPromptFactory · InsightResponseParser"]
+    end
+
+    PG[("PostgreSQL 18 native / 16 Compose<br/>Flyway V1__create_core_schema.sql")]
+
+    UI --> IC
+    UI --> SC
+    UI --> AC
+    IC --> EH
+    SC --> EH
+    AC --> EH
+    IC --> IAS
+    IC --> QRY
+    SC --> QRY
+    AC --> INSIGHT
+    IAS --> TX
+    IAS --> P
+    IAS --> VAL
+    IAS --> PA
+    QRY --> PA
+    INSIGHT --> GEM
+    INSIGHT --> OLL
+    INSIGHT --> DM
+    GEM --> PROMPT
+    OLL --> PROMPT
+    VAL --> DM
+    IAS --> DM
+    PA --> PG
+```
+
+**Why a modular monolith?** The correctness-critical path — CSV validation, batch state transitions and student upserts — needs one transactional boundary in one process. A single deployable with PostgreSQL transactions is simpler to reason about and test than a distributed saga; no microservices, queues or Kubernetes are involved. Ollama deliberately runs as a separate host process and is reached via the JDK `HttpClient`, not through an AI framework.
+
+## Database and data integrity
+
+PostgreSQL is the **single source of truth**. Flyway owns the schema via one migration, `V1__create_core_schema.sql`; Hibernate runs with `ddl-auto=validate` and never modifies DDL. Developers must not create application tables manually in pgAdmin.
+
+```mermaid
+erDiagram
+    IMPORT_BATCH ||--o{ STUDENT : "first_seen / last_updated"
+    IMPORT_BATCH ||--o{ IMPORT_ROW_ERROR : "batch_id"
+    IMPORT_BATCH {
+        bigint id PK
+        char sha256
+        varchar status
+        int rows_read
+        int imported_count
+        int rejected_count
+        int error_count
+    }
+    STUDENT {
+        bigint id PK
+        varchar student_id UK
+        varchar full_name
+        varchar email
+        date date_of_birth
+        smallint grade_level
+        char section
+        bigint first_seen_batch_id FK
+        bigint last_updated_batch_id FK
+    }
+    IMPORT_ROW_ERROR {
+        bigint id PK
+        bigint batch_id FK
+        int line_number
+        varchar field_name
+        varchar error_code
+        text message
+    }
+```
+
+| Table | Purpose and integrity rules |
+|---|---|
+| `import_batch` | Filename, size, SHA-256, status, timing and the full count breakdown; `CHECK` constraints keep counts non-negative and consistent (`imported = new + changed + unchanged`, `rows_read = imported + rejected`, `error_count >= rejected`). |
+| `student` | Unique `student_id`; five numeric marks with `0..100` checks; grade `1..12`; section `A..F`; carries `first_seen_batch_id` and `last_updated_batch_id` for traceability. Indexes on lower(full_name), grade/section and both batch FKs. |
+| `import_row_error` | `batch_id` FK, physical `line_number >= 2`, field, one of the five permitted `error_code` values, and a readable message. Indexed by `(batch_id, line_number)` and `(batch_id, error_code)`. |
+
+**Idempotency and upserts.** A partial unique index on `import_batch(sha256)` for `RECEIVED/PROCESSING/COMPLETED` rows makes digest handling database-backed: a completed replay returns `200 deduplicated`, an active digest returns `409 BATCH_PROCESSING`, and a `FAILED` batch can be retried. `upsertAll` sorts by `student_id`, inserts with `ON CONFLICT DO NOTHING`, then takes `SELECT … FOR UPDATE` and compares the full aggregate to classify **new**, **unchanged** or **changed** while preserving `first_seen_batch_id`. All upserts, error inserts, counts and the `COMPLETED` transition commit in one transaction (T3); failures are committed separately as `FAILED` (T4), so partial imports are never visible.
+
+## API reference
+
+All JSON responses use the same `ErrorResponse` envelope on failure: `{ timestamp, status, code, message, details, correlationId, path }`. Spring MVC serves these paths; Actuator health sits outside `/api`.
+
+| Method | Path | Purpose | Request | Success | Key error statuses |
+|---|---|---|---|---|---|
+| `POST` | `/api/imports` | Upload and import a CSV | `multipart/form-data`, field `file` | `201` + `Location`; `200` + `deduplicated=true` on replay | `400`, `413`, `415`, `409`, `500` |
+| `GET` | `/api/imports/{id}` | Batch summary and counters | path `id` | `200 ImportResponse` | `404 BATCH_NOT_FOUND` |
+| `GET` | `/api/imports/{id}/errors` | Paginated row problems | `page` (0), `size` (50, max 100), optional `code` | `200 PageResponse<RowErrorResponse>` | `400`, `404` |
+| `GET` | `/api/students` | Search / paginate directory | `query`, `grade`, `section`, `page` (0), `size` (25, max 100), `sort` (`studentId,asc`) | `200 PageResponse<StudentSummaryResponse>` | `400 INVALID_PARAMETER` |
+| `GET` | `/api/students/{studentId}` | Student report with derived grading | path `studentId` | `200 StudentReportResponse` | `404 STUDENT_NOT_FOUND` |
+| `GET` | `/api/ai/status` | Safe provider configuration / reachability | none | `200 AiStatusResponse` | — |
+| `POST` | `/api/imports/{batchId}/insights` | Explicit aggregate analysis | path `batchId`, `refresh=false` query flag | `200 InsightResponse` | `404`, `409`, `429`, `502`, `503` |
+| `GET` | `/actuator/health` | Liveness / readiness (health only) | none | `200` | `503` when unhealthy |
+
+**Sanitized example** (all values are illustrative demo data):
 
 ```bash
-bash scripts/start.sh
+curl -X POST http://localhost:8080/api/imports \
+  -F "file=@demo-results.csv;type=text/csv"
 ```
 
-The script:
+```json
+{
+  "id": 7,
+  "filename": "demo-results.csv",
+  "status": "COMPLETED",
+  "rowsRead": 9,
+  "imported": 5,
+  "newCount": 5,
+  "changedCount": 0,
+  "unchangedCount": 0,
+  "rejected": 4,
+  "errorCount": 4,
+  "startedAt": "2026-11-21T02:00:20Z",
+  "finishedAt": "2026-11-21T02:00:20.218Z",
+  "durationMs": 218,
+  "deduplicated": false
+}
+```
 
-1. checks Docker and Compose;
-2. creates a git-ignored `.env` from `.env.example` with a generated local password if absent;
-3. builds and starts PostgreSQL, backend and frontend;
-4. waits for `GET /actuator/health` to return `200` (database readiness is enforced by Compose healthchecks, not just container start);
-5. prints the frontend, health and API URLs plus the seed command;
-6. exits non-zero on any failure.
+Full request/response shapes and the error-code matrix are in [docs/API_CONTRACT.md](docs/API_CONTRACT.md).
 
-Then:
+## Technology stack
 
-- Frontend: <http://localhost:3000>
-- Backend health: <http://localhost:8080/actuator/health>
-- API base: <http://localhost:8080/api>
-
-Published host ports are bound to `127.0.0.1` only (frontend, backend and PostgreSQL), so the unauthenticated
-app is not reachable from another machine.
-
-Stop with `docker compose down`; delete the named PostgreSQL volume with `docker compose down -v` for a clean database.
-
-### Docker notes and troubleshooting
-
-To use the alternative container stack:
-
-1. Stop the native backend/frontend terminals (Ctrl+C). The native PostgreSQL service may remain running; Docker
-   uses its own database on `127.0.0.1:55432`.
-2. Start the containers from the repository root:
-
-   ```powershell
-   docker compose up -d --build
-   ```
-
-3. Open <http://localhost:3000>. Backend health is <http://localhost:8080/actuator/health>.
-
-Useful commands (all from the repository root):
-
-| Action | Command |
+| Group | Technologies |
 |---|---|
-| Start / rebuild | `docker compose up -d --build` |
-| Stop (keeps data) | `docker compose stop` |
-| Stop and remove containers (keeps volume) | `docker compose down` |
-| Start again after stopping | `docker compose up -d` |
-| Container status | `docker compose ps` |
-| All logs | `docker compose logs -f` |
-| Backend logs only | `docker compose logs -f backend` |
-| Frontend logs only | `docker compose logs -f frontend` |
-| Provider status | `Invoke-RestMethod http://localhost:8080/api/ai/status` |
-| Disable both AI providers | set `CLEARGRADE_AI_ENABLED=false` in `.env`, then `docker compose up -d --force-recreate backend` |
+| Backend | Java 21 · Spring Boot 4.1.2 (Web MVC, JSON, Validation, Data JPA, Actuator) · Maven wrapper · Jackson `2.21.7` |
+| Frontend | React `19.3.1` · TypeScript `5.9.3` (strict) · Vite `7.3.8` · React Router `7.18.6` · TanStack Query `5.108.1` · Tailwind CSS `4.3.5` · Lucide React `1.76.0` · native `fetch` |
+| Database / persistence | PostgreSQL 18 (native Windows) · PostgreSQL 16 (Docker Compose / Testcontainers) · Flyway `12.4.0` · JDBC driver `42.7.14` · Spring Data JPA with `ddl-auto=validate` · JdbcTemplate |
+| CSV | Apache Commons CSV `1.14.1` with an explicit format and BOM-aware decoding |
+| AI | JDK `java.net.http.HttpClient` · Gemini Interactions REST · Ollama chat API · deterministic Java rules · no AI framework |
+| Testing | JUnit 5 · Mockito · AssertJ · MockMvc · Testcontainers `2.0.5` (PostgreSQL 16) · local mock HTTP servers · Vitest `5.1.1` · Testing Library · jsdom `29.1.1` |
+| Delivery / tooling | Multi-stage Dockerfiles · nginx-unprivileged 1.27 · Docker Compose v2 · GitHub Actions CI · `.env.example` templates · PowerShell/Bash scripts |
 
-Ollama runs **outside** Docker Compose. It was installed with the official `Ollama.Ollama` winget
-package (v0.40.16) and the selected model is **`llama3.2:1b`** (1.23 GB download, ~2 GB RAM needed).
-It listens only on `127.0.0.1:11434`; the backend reaches it from Compose via `host.docker.internal`.
-If Ollama is not running after a reboot, launch the Ollama desktop app or run:
+**PostgreSQL versions:** native Windows development uses the installed PostgreSQL **18** service (`postgresql-x64-18`); Docker Compose pins `postgres:16-alpine` and Testcontainers uses the same 16 image. The single Flyway migration is compatible with both.
+
+## Getting started (Windows native development)
+
+This is the everyday development workflow: **two terminals**, native PostgreSQL and pgAdmin. Docker is not required.
+
+### Prerequisites
+
+- JDK 21, Maven (or the included wrapper), Node.js 22+ with npm, Git.
+- PostgreSQL 18 with pgAdmin for native development (service `postgresql-x64-18`), and optionally Ollama with a local model.
+- Ports `5173` (Vite), `8080` (backend) and `5432` (PostgreSQL) available.
+
+### 1. Create the database and application role
+
+With the native PostgreSQL 18 service (`postgresql-x64-18`) running, use pgAdmin (or `psql`) to create an **empty** database named `cleargrade`. **Do not create tables** — Flyway creates and updates them at backend startup. Then run this in the `cleargrade` Query Tool, choosing your own local password:
+
+```sql
+CREATE ROLE cleargrade_local LOGIN PASSWORD '<choose-a-local-password>';
+GRANT CONNECT ON DATABASE cleargrade TO cleargrade_local;
+GRANT USAGE, CREATE ON SCHEMA public TO cleargrade_local;
+GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO cleargrade_local;
+GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO cleargrade_local;
+ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO cleargrade_local;
+ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT USAGE, SELECT ON SEQUENCES TO cleargrade_local;
+```
+
+### 2. Configure local secrets
+
+From the repository root:
+
+```powershell
+Copy-Item .env.example .env
+```
+
+Put the same password as `CLEARGRADE_LOCAL_DB_PASSWORD` in the git-ignored `.env`. `GEMINI_API_KEY` is **optional**: leave it blank and Ollama or the rule engine handles analysis. Spring Boot imports the root `.env` automatically via `spring.config.import`; non-secret defaults (ports, database URL/username, models, Ollama URL) live in the committed `application.properties`.
+
+| Variable | Needed for | Required | Purpose |
+|---|---|---|---|
+| `CLEARGRADE_LOCAL_DB_PASSWORD` | Native development | Yes | Password for the `cleargrade_local` role |
+| `GEMINI_API_KEY` | Native + Docker | No | Enables the configured Gemini primary path |
+
+### 3. Start the backend
+
+```powershell
+cd backend
+mvn spring-boot:run
+```
+
+Watch the log for a successful Flyway migration. The API binds to `http://localhost:8080` and health to `http://localhost:8080/actuator/health`.
+
+### 4. Start the frontend
+
+```powershell
+cd frontend
+npm run dev
+```
+
+Open `http://localhost:5173`. Vite proxies `/api` and `/actuator/health` to `http://localhost:8080`.
+
+### 5. Optional local AI fallback
+
+Install Ollama and a model (for example `llama3.2:1b`) and keep the service on `127.0.0.1:11434`. If Ollama is not running, start it with:
 
 ```powershell
 & "$env:LOCALAPPDATA\Programs\Ollama\ollama.exe" serve
 ```
 
-Troubleshooting:
+With no Gemini key and no Ollama, the app still imports normally and analysis is labelled `RULE_BASED`.
 
-| Symptom | Action |
-|---|---|
-| `ollamaAvailable: false` | Confirm `ollama serve` is running and `Invoke-RestMethod http://127.0.0.1:11434/api/tags` returns the model; then recreate the backend container. |
-| `Generated by Rule-based` while Ollama is available | The small model returned output that failed strict validation; ClearGrade safely fell back. Retry once, or use a larger installed model via `OLLAMA_MODEL`. |
-| `401` / `AI_CONFIGURATION_ERROR` | The Gemini key is invalid or the model is unavailable for your key; check `GEMINI_API_KEY` in `.env` (model default is in `application.properties`). No fallback is attempted for auth errors. |
-| Port conflict | Override `APP_PORT` / `FRONTEND_PORT` / `POSTGRES_PORT` in `.env` and recreate. |
-| Need a clean database | `docker compose down -v` **deletes all data**; only do this intentionally. |
+### 6. Seed demonstration data (optional)
 
-A condensed version of this guide is in [LOCAL_RUN_GUIDE.md](LOCAL_RUN_GUIDE.md).
-
-## Environment configuration
-
-Copy `.env.example` to `.env` (git-ignored). Placeholders only are committed.
-
-Non-secret defaults live in `application.properties`. The ignored root `.env` should contain only the following
-private/deployment-specific names (see `.env.example` for the full documentation):
-
-| Variable | Needed for | Required? | Purpose |
-|---|---|---|---|
-| `CLEARGRADE_LOCAL_DB_PASSWORD` | Native development | Yes | Password of the `cleargrade_local` application role |
-| `GEMINI_API_KEY` | Native + Docker | No | Optional Gemini key; without it Ollama/rule engine is used |
-| `POSTGRES_PASSWORD` | Docker only | Yes (Docker) | Password for the Docker PostgreSQL superuser |
-| `POSTGRES_PORT`, `APP_PORT`, `FRONTEND_PORT` | Docker only | No | Optional host port overrides (Compose has defaults) |
-| `OLLAMA_BASE_URL`, `OLLAMA_MODEL` | Docker only | No | Host Ollama URL/model for the backend container |
-| `CLEARGRADE_UPLOAD_MAX_FILE_SIZE` | Docker only | No | Optional upload cap override |
-
-Optional overrides such as `GEMINI_MODEL`, `GEMINI_ENDPOINT`, `CLEARGRADE_AI_ENABLED` and timeout values can be set
-in `.env` or the environment, but their defaults are committed in `application.properties`. Never add secret values
-to that file. The root `.env` is git-ignored; `.env.example` documents every variable without real values.
-
-## Seed workflow
-
-Seed data is imported **through `POST /api/imports`** — there are no direct SQL inserts.
+Seed data is imported through the real `POST /api/imports` endpoint, never by direct SQL inserts:
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File scripts/seed.ps1
 ```
 
-```bash
-bash scripts/seed.sh
-```
+The two committed fixtures are deterministic, synthetic and PII-free. Re-uploading the same fixture is idempotent (`200` when completed, `409` while active). See [LOCAL_RUN_GUIDE.md](LOCAL_RUN_GUIDE.md) for the full native guide, including service commands and troubleshooting.
 
-The two committed fixtures are deterministic, synthetic and PII-free:
+## Optional Docker workflow
 
-| Fixture | Demonstrates | Expected outcome (clean DB) |
-|---|---|---|
-| `scripts/seed/initial.csv` | 8 new students, invalid email, invalid section, out-of-range mark, duplicate ID | `201`, rowsRead 12, imported 8, rejected 4, problems 4 |
-| `scripts/seed/update.csv` | 3 changed students, 5 unchanged students, invalid email, invalid section, wrong field count, duplicate ID | `201`, rowsRead 12, imported 8 (3 changed + 5 unchanged), rejected 4, problems 4 |
+Docker Compose is an **alternative release/demo setup**, not required for daily development.
 
-Re-running the same fixture is **not** a new import: the SHA-256 reservation returns `200 deduplicated` when the prior batch is `COMPLETED`, or `409 BATCH_PROCESSING` while one is active. The script prints the status and counts and never hides either case. To replay as new imports, reset with `docker compose down -v`, restart and seed again.
+| Container | Image / build | Host port | Role |
+|---|---|---|---|
+| `postgres` | `postgres:16-alpine` | `127.0.0.1:5432` (configurable) | Database; persisted in the named `postgres-data` volume |
+| `backend` | multi-stage from `maven:3.9.14-eclipse-temurin-21` → `eclipse-temurin:21-jre-alpine` | `127.0.0.1:8080` | Spring Boot API; Flyway migrates on start |
+| `frontend` | `node:22-alpine` → `nginxinc/nginx-unprivileged:1.27-alpine` | `127.0.0.1:3000` | Static SPA; nginx proxies `/api` and health to the backend |
 
-Note: dates of birth in the seed are 2010; age validation uses the real clock, so re-seed expected counts hold while those students remain 5–25 years old.
-
-## API endpoints
-
-| Method | Path | Purpose |
-|---|---|---|
-| POST | `/api/imports` | Multipart CSV upload (`file` field). `201` new, `200` deduplicated, `409` active digest, `400/413/415/500` failures |
-| GET | `/api/imports/{id}` | Batch summary and counters |
-| GET | `/api/imports/{id}/errors?page&size&code` | Paged row problems (default size 50, max 100) |
-| GET | `/api/students?query&grade&section&page&size&sort` | Paged directory (default size 25, max 100) |
-| GET | `/api/students/{studentId}` | Student report with derived grading |
-| GET | `/api/ai/status` | Safe provider availability/routing status (no secrets) |
-| POST | `/api/imports/{id}/insights` | Explicit aggregate analysis (`200`; `404/409/429/502/503` failures) |
-| GET | `/actuator/health` | Health (outside `/api`; health only) |
-
-Full request/response examples, the error envelope and pagination contract are in [API_CONTRACT.md](docs/API_CONTRACT.md).
-
-## Testing
-
-One command for all release checks:
+All published ports are **loopback-bound**, containers run health checks with dependency ordering, and the backend reaches host Ollama via `host.docker.internal` (mapped to `host-gateway`). Restarting with `docker compose down` keeps the volume; `docker compose down -v` deletes all data.
 
 ```powershell
+# One-command startup (creates .env with a generated password if absent)
+powershell -ExecutionPolicy Bypass -File scripts/start.ps1
+
+# Or directly
+docker compose up -d --build
+docker compose ps
+docker compose logs -f backend
+docker compose down
+```
+
+Browser: `http://localhost:3000` · Health: `http://localhost:8080/actuator/health` · API: `http://localhost:8080/api`
+
+**Difference from native development:** the frontend is served by nginx on port `3000` instead of Vite on `5173`, PostgreSQL 16 runs in a container with a named volume instead of the native PostgreSQL 18 Windows service, and both stacks share the same backend API contract. Stop your two native terminals before switching, since they bind the same backend port.
+
+## Testing and quality
+
+Latest verification evidence for this implementation:
+
+| Area | Evidence |
+|---|---|
+| Backend | **266 tests run, 0 failures, 0 errors, 1 skipped** (38 Surefire classes). The skipped test is the opt-in `LiveGeminiSmokeTest`, which requires a real Gemini key. |
+| Integration | Testcontainers PostgreSQL 16 covers Flyway migration, persistence, transaction/idempotency and concurrency, REST endpoints and aggregate queries. |
+| CSV engine | Parser, physical-line spike, validation, error accounting and benchmark fixtures. |
+| AI provider | Routing, privacy contract, strict JSON validation, deterministic rules, insight caching/coalescing, provider HTTP behaviour and web controllers. |
+| Frontend | **27 Vitest tests passed across 6 files** (API client, AI panel, import page, directory, report) with Testing Library and jsdom. |
+| Static / build | `npm run typecheck` (`tsc --noEmit`), `npm run build` (`tsc --noEmit && vite build`), `docker compose config --quiet` and `git diff --check`. |
+
+Copyable commands:
+
+```powershell
+# All release checks in one script
 powershell -ExecutionPolicy Bypass -File scripts/test.ps1
-```
 
-```bash
-bash scripts/test.sh
-```
+# Backend
+cd backend
+.\mvnw.cmd -B verify
 
-Individual commands:
+# Frontend
+cd frontend
+npm ci
+npm test
+npm run typecheck
+npm run build
 
-```powershell
-cd backend; .\mvnw.cmd -B "-Dtest=ProviderHttpTest,PrivacyContractTest,InsightResponseParserTest,DeterministicInsightServiceTest,InsightProviderRouterTest,ImportInsightServiceTest,AiEndpointWebTest,AiControllerTest" test
-cd backend; .\mvnw.cmd -B verify
-cd frontend; npm ci; npm test; npm run typecheck; npm run build
+# Configuration sanity (from repository root)
 docker compose config --quiet
-git diff --check
 ```
 
-Current evidence: **257 backend tests** (1 opt-in live Gemini smoke test skipped without a key) and **26 frontend tests**, zero failures/errors. The original 206 backend and 14 frontend tests remain green and unchanged in scope. `./mvnw -B verify` and the frontend production build pass.
+CI (`.github/workflows/ci.yml`) runs `bash ./mvnw -B verify` on Java 21 and `npm ci`, `npm test`, `npm run typecheck`, `npm run build` on Node 22. Local Testcontainers-backed tests require a running Docker daemon. CI does **not** build Docker images. Details: [docs/TEST_STRATEGY.md](docs/TEST_STRATEGY.md).
+
+## Security and privacy
+
+- **No authentication or multi-tenancy exists.** Use this application only for local/trusted evaluation; do not expose it publicly without an auth layer and network controls.
+- Spring Boot binds to `127.0.0.1` and Compose publishes all three host ports on `127.0.0.1`. Native PostgreSQL's `listen_addresses` is a Windows service setting outside this repository — confirm it is constrained to `localhost` (see [LOCAL_RUN_GUIDE.md](LOCAL_RUN_GUIDE.md)). Actuator exposes `health` only with details `never`, outside `/api`.
+- Real secrets live only in the git-ignored root `.env`; `.env.example` contains placeholders only. Build contexts exclude `.env`, local profiles and key material.
+- Uploads are restricted by `.csv` extension, content-type allowlist, strict UTF-8 decoding and a 10 MiB server-side cap; the display filename is sanitized. Responses are DTOs, never JPA entities; page size and sort fields are allowlisted.
+- The Gemini key stays server-side, is never returned by `/api/ai/status`, never reaches a `VITE_*` variable and is never used in a Docker build argument.
+- AI receives aggregate-only metrics, has no write path and cannot alter data; PostgreSQL remains authoritative and AI output is explicitly advisory.
+- Container images use non-root users. See [docs/SECURITY.md](docs/SECURITY.md) for the full control set.
 
 ## Project structure
 
 ```text
-backend/    Java 21 Spring Boot modular monolith (domain, application, adapters.in.web/csv, adapters.out.persistence/ai)
-frontend/   React + TypeScript SPA (api client, types, reusable components, three feature pages + Intelligence panel)
-scripts/    One-command startup, release checks, HTTP seed workflow and PII-free seed CSVs
-docs/       Architecture, data model, API, UX, security and test strategy
-reference/  Supplied assignment pack (git-ignored; never committed)
+cleargrade/
+├── backend/
+│   ├── pom.xml                       # Java 21, Spring Boot 4.1.2
+│   ├── Dockerfile                    # multi-stage, non-root
+│   └── src/
+│       ├── main/java/dev/cleargrade/
+│       │   ├── configuration/        # Clock, InsightConfiguration
+│       │   ├── domain/               # student.*, batch.*, grading.* (framework-free)
+│       │   ├── application/          # services, ports in/out, models, exceptions
+│       │   └── adapters/
+│       │       ├── in/web/           # controllers, DTOs, GlobalExceptionHandler
+│       │       ├── in/csv/           # CommonsCsvFileParser, PhysicalLineMap
+│       │       ├── out/persistence/  # adapters, JPA entities, repositories, mappers
+│       │       └── out/ai/           # Gemini + Ollama adapters, prompt factory, parser
+│       ├── main/resources/
+│       │   ├── application.properties
+│       │   └── db/migration/V1__create_core_schema.sql
+│       └── test/                     # 38 test classes
+├── frontend/
+│   ├── package.json · vite.config.ts · Dockerfile · nginx.conf
+│   └── src/
+│       ├── api/                      # fetch client, imports, students, ai, health
+│       ├── components/               # layout, navigation, reusable ui
+│       ├── features/                 # import, students, app
+│       ├── styles/index.css · types/api.ts
+│       └── **/*.test.ts(x)
+├── docs/
+│   ├── ARCHITECTURE.md · API_CONTRACT.md · DATA_MODEL.md
+│   ├── SECURITY.md · TEST_STRATEGY.md · UX_SPEC.md · AI_INTELLIGENCE.md
+│   └── screenshots/                  # genuine synthetic-data browser captures
+├── scripts/                          # start, test, seed + PII-free CSV fixtures
+├── .github/workflows/ci.yml
+├── docker-compose.yml · .env.example
+├── DECISIONS.md · DEVELOPMENT.md · LOCAL_RUN_GUIDE.md
+├── NOTES.md · PROJECT_STATUS.md
+└── README.md
 ```
 
-## Security and trust boundary
+## Engineering decisions and limitations
 
-**There is no authentication or multi-tenancy.** This application is intended for **local/trusted evaluation only** and must not be publicly exposed without an authentication layer and network controls. Do not describe it as a secure multi-tenant SaaS.
-
-Controls that do exist: configurable 10 MiB server-side upload cap enforced by both Spring multipart settings and the controller, strict UTF-8 check, `.csv` extension/content-type validation, sanitised display filename, bounded pagination and sort allowlists, DTO-only responses (no JPA entity exposure), safe error messages, no raw CSV/PII logging, health-only Actuator, PostgreSQL bound to `127.0.0.1` for local development, non-root container users, and build contexts that exclude `.env` and local profiles. The AI feature is read-only and aggregate-only: the provider key stays server-side, is never returned by `/api/ai/status`, and no provider can change data. See [SECURITY.md](docs/SECURITY.md) and [docs/AI_INTELLIGENCE.md](docs/AI_INTELLIGENCE.md).
-
-## Limitations
-
-- No authentication (U-03); local/trusted deployment only.
-- No batch-list endpoint in the contract: the UI shows the current upload result and supports batch-ID lookup, not fabricated history.
-- Bonus D-17 items (error-CSV download, mark bars, print) are deferred.
-- D-21 stale-`RECEIVED` recovery sweep is deferred; a failed reservation is retriable via `FAILED`.
-- U-01 exact email grammar boundary remains a future owner decision; the canonical domain validator is reused unchanged.
-- Seed fixtures are date-sensitive (age validation); see [Seed workflow](#seed-workflow).
-
-## Troubleshooting
-
-| Symptom | Action |
+| Decision | Rationale |
 |---|---|
-| `POSTGRES_PASSWORD must be set` | Ensure `.env` exists (`scripts/start.*` creates it) or copy `.env.example`. |
-| Backend not healthy after startup | `docker compose logs backend`; confirm Flyway migrated and datasource env vars match `.env`. |
-| Frontend shows “Backend unavailable” | Health proxy requires the backend container to be healthy; check `docker compose ps`. |
-| `413 FILE_TOO_LARGE` | File exceeds `CLEARGRADE_UPLOAD_MAX_FILE_SIZE`; raise it in `.env` and restart. |
-| `409 BATCH_PROCESSING` on re-upload | Identical digest is active; wait for completion or retry after a `FAILED` batch. |
-| Port conflict | Override `POSTGRES_PORT`, `APP_PORT` or `FRONTEND_PORT` in `.env`, then restart. |
-| Seed returns `200` | Expected idempotent replay; reset with `docker compose down -v` for new batches. |
+| Modular monolith | One transactional boundary keeps import correctness simple and testable; no invented microservices or queues |
+| Deterministic grading | Grade and PASS/FAIL are backend rules derived on read, reproducible and independent of any model |
+| Import idempotency | SHA-256 digest + partial unique index prevents duplicate batches and duplicate students, with safe retry after `FAILED` |
+| Safe transactions | Five `REQUIRES_NEW` wrappers; T3 is the single atomic commit; T4 records failure separately so no partial import is visible |
+| AI as advisory analysis | Providers only interpret measured aggregates; they cannot mutate records, grades or counters |
+| Current-result snapshot | The input schema has no term/year field, so academic history is out of scope |
+
+**Genuine limitations:** no authentication (local/trusted use only); no batch-list endpoint (the UI supports batch-ID lookup, not fabricated history); error-CSV download, mark bars and printable reports are deferred; stale-`RECEIVED` recovery sweeping is deferred; the AI cache is in-memory and disappears on restart; live Gemini generation is not yet verified; the pragmatic email grammar boundary remains a documented decision; seed fixtures are date-sensitive because age validation uses the real clock.
+
+## Roadmap
+
+These are future directions, not implemented features:
+
+- Authentication and multi-tenancy as a prerequisite for any non-local deployment.
+- A batch-history/list endpoint backed by the existing `import_batch` table.
+- A privacy-safe persistent per-batch insight cache that survives restarts (counters/fingerprint and report text only).
+- Deferred UI extras from D-17: error-CSV download, per-subject mark bars and a printable report.
+- A recovery sweep for `RECEIVED` batches left behind by an interrupted startup (D-21).
+- Live Gemini verification with a user-supplied key and provider-side observation beyond health checks.
+- End-to-end browser automation in CI for the upload → analysis → directory → report journey.
+
+---
+
+<div align="center">
+
+### Soubhagya Kumar Behera
+
+Java Full Stack Developer · Spring Boot · React · Data Quality Engineering
+
+[![GitHub](https://img.shields.io/badge/GitHub-soubhagya--behera-181717?style=for-the-badge&logo=github&logoColor=white)](https://github.com/soubhagya-behera)
+[![LinkedIn](https://img.shields.io/badge/LinkedIn-soubhagyakumar--java-0A66C2?style=for-the-badge&logo=linkedin&logoColor=white)](https://www.linkedin.com/in/soubhagyakumar-java)
+[![Portfolio](https://img.shields.io/badge/Portfolio-soubhagya--dev-6D4AFF?style=for-the-badge&logo=vercel&logoColor=white)](https://soubhagya-dev.vercel.app)
+
+⭐ If ClearGrade helped you understand CSV ingestion, idempotency or advisory AI, consider starring the repository.
+
+License: not specified — no `LICENSE` file is present in this repository.
+
+</div>
