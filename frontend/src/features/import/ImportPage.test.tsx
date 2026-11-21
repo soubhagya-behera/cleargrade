@@ -37,9 +37,12 @@ beforeEach(() => {
   vi.mocked(getBatchErrors).mockResolvedValue(errors);
   vi.mocked(getAiStatus).mockReset();
   vi.mocked(getAiStatus).mockResolvedValue({
-    enabled: true, geminiConfigured: false, geminiAvailable: false, geminiModel: '', ollamaConfigured: false,
-    ollamaAvailable: false, ollamaModel: '', deterministicAvailable: true,
-    defaultEngine: 'RULE_BASED', routing: 'RULE_BASED_ONLY', routingReasons: [],
+    enabled: true, geminiConfigured: false, geminiModel: '', ollamaConfigured: false,
+    ollamaReachable: false, ollamaModelPresent: false, ollamaModel: '', inferenceTested: false,
+    deterministicAvailable: true, defaultEngine: 'RULE_BASED', routing: 'RULE_BASED_ONLY', routingReasons: [],
+    lastAnalysisEngine: null, lastAnalysisReason: null,
+    lastAnalysisUsage: { available: false, inputTokens: null, outputTokens: null, thinkingTokens: null,
+      totalTokens: null, modelId: '', providerStatus: '', interactionStatus: '', durationMs: 0 },
   });
 });
 

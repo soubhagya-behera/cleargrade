@@ -35,6 +35,8 @@ public class InsightProperties {
 		private String apiKey = "";
 		private String model = "gemini-3.8-flash";
 		private String endpoint = "https://generativelanguage.googleapis.com/v1beta/interactions";
+		private String thinkingLevel = "low";
+		private int maxOutputTokens = 2048;
 		private int timeoutConnectMs = 10000;
 		private int timeoutReadMs = 60000;
 
@@ -44,6 +46,10 @@ public class InsightProperties {
 		public void setModel(String model) { this.model = model; }
 		public String getEndpoint() { return this.endpoint; }
 		public void setEndpoint(String endpoint) { this.endpoint = endpoint; }
+		public String getThinkingLevel() { return this.thinkingLevel; }
+		public void setThinkingLevel(String thinkingLevel) { this.thinkingLevel = thinkingLevel == null ? "low" : thinkingLevel; }
+		public int getMaxOutputTokens() { return this.maxOutputTokens; }
+		public void setMaxOutputTokens(int maxOutputTokens) { this.maxOutputTokens = maxOutputTokens; }
 		public int getTimeoutConnectMs() { return this.timeoutConnectMs; }
 		public void setTimeoutConnectMs(int timeoutConnectMs) { this.timeoutConnectMs = timeoutConnectMs; }
 		public int getTimeoutReadMs() { return this.timeoutReadMs; }

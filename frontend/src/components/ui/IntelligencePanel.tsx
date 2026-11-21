@@ -8,6 +8,7 @@ import type {
   InsightFindingResponse,
   InsightResponse,
   InsightSeverity,
+  InsightUsage,
 } from '../../types/api';
 
 const SEVERITIES: InsightSeverity[] = ['HIGH', 'MEDIUM', 'LOW', 'INFO'];
@@ -62,27 +63,55 @@ function ProviderAvailability({ status, loading, unavailable }: {
 }) {
   return (
     <div className="mt-5 rounded-lg border border-line bg-canvas px-4 py-3">
-      <p className="text-xs font-semibold uppercase tracking-wider text-ink-500">Provider availability</p>
+      <p className="text-xs font-semibold uppercase tracking-wider text-ink-500">Provider configuration</p>
       {unavailable && (
         <p className="mt-2 text-xs text-ink-700">
           Provider status could not be checked. Rule-based analysis remains available offline.
         </p>
       )}
-      <ul className="mt-2 flex flex-wrap gap-x-6 gap-y-2 text-xs" aria-label="Provider availability">
+      <ul className="mt-2 flex flex-wrap gap-x-6 gap-y-2 text-xs" aria-label="Provider configuration">
         <li className="text-ink-700">
-          Gemini: <span className="font-semibold">{loading ? 'Checking…' : status?.geminiAvailable ? 'Ready' : 'Not configured'}</span>
+          Gemini: <span className="font-semibold">{loading ? 'Checking…' : status?.geminiConfigured ? 'Configured' : 'Not configured'}</span>
           {status?.geminiConfigured && status.geminiModel ? <span className="text-ink-500"> · {status.geminiModel}</span> : null}
         </li>
         <li className="text-ink-700">
-          Ollama: <span className="font-semibold">{loading ? 'Checking…' : status?.ollamaAvailable ? 'Available' : 'Unavailable'}</span>
-          {status?.ollamaAvailable && status.ollamaModel ? <span className="text-ink-500"> · {status.ollamaModel}</span> : null}
+          Ollama service: <span className="font-semibold">{loading ? 'Checking…' : status?.ollamaReachable ? 'Reachable' : 'Unreachable'}</span>
         </li>
         <li className="text-ink-700">
-          Rule-based: <span className="font-semibold">{status?.deterministicAvailable === false ? 'Disabled' : 'Always available'}</span>
+          Ollama model: <span className="font-semibold">{loading ? 'Checking…' : status?.ollamaModelPresent ? 'Present' : 'Missing'}</span>
+          {status?.ollamaModelPresent && status.ollamaModel ? <span className="text-ink-500"> · {status.ollamaModel}</span> : null}
         </li>
       </ul>
-      {status && <p className="mt-2 text-xs text-ink-500">Routing: {status.routing}</p>}
+      <p className="mt-2 text-xs text-ink-500">
+        Inference: not tested until an analysis request runs. Configuration and reachability do not prove generation will succeed.
+      </p>
+      <p className="mt-1 text-xs text-ink-700">
+        Last analysis: <span className="font-semibold">{status?.lastAnalysisEngine ?? 'None yet'}</span>
+        {status?.lastAnalysisReason ? <span className="text-ink-500"> · {status.lastAnalysisReason}</span> : null}
+      </p>
+      {status && <p className="mt-2 text-xs text-ink-500">Configured routing: {status.routing}</p>}
     </div>
+  );
+}
+
+function UsagePanel({ usage }: { usage: InsightUsage }) {
+  if (!usage?.available) {
+    return <p className="mt-3 text-xs text-ink-500">Usage unavailable — the provider returned no safe usage metadata.</p>;
+  }
+  return (
+    <section aria-labelledby="usage-heading" className="mt-5 rounded-lg border border-line bg-canvas px-4 py-3">
+      <h4 id="usage-heading" className="text-xs font-semibold uppercase tracking-wider text-ink-500">Token usage</h4>
+      <dl className="mt-2 flex flex-wrap gap-x-6 gap-y-2 text-xs text-ink-700">
+        <div><dt className="inline">Input: </dt><dd className="inline font-semibold tabular-nums">{usage.inputTokens ?? '—'}</dd></div>
+        <div><dt className="inline">Output: </dt><dd className="inline font-semibold tabular-nums">{usage.outputTokens ?? '—'}</dd></div>
+        <div><dt className="inline">Thinking: </dt><dd className="inline font-semibold tabular-nums">{usage.thinkingTokens ?? '—'}</dd></div>
+        <div><dt className="inline">Total: </dt><dd className="inline font-semibold tabular-nums">{usage.totalTokens ?? '—'}</dd></div>
+        <div><dt className="inline">Model: </dt><dd className="inline font-semibold">{usage.modelId || '—'}</dd></div>
+        <div><dt className="inline">Provider status: </dt><dd className="inline font-semibold">{usage.providerStatus || '—'}</dd></div>
+        <div><dt className="inline">Interaction: </dt><dd className="inline font-semibold">{usage.interactionStatus || '—'}</dd></div>
+        <div><dt className="inline">Duration: </dt><dd className="inline font-semibold tabular-nums">{usage.durationMs} ms</dd></div>
+      </dl>
+    </section>
   );
 }
 
@@ -166,17 +195,17 @@ function Report({ report }: { report: InsightResponse }) {
         </span>
         {report.engineModel && <span className="text-xs text-ink-500">{report.engineModel}</span>}
         <span className="cg-tag bg-canvas" aria-label="Cache status">
-          {report.cached ? 'Cached analysis' : 'Fresh analysis'}
+          {report.cached ? 'Cached report · no new provider request' : 'Fresh analysis · one provider request'}
         </span>
       </div>
 
       {report.engine === 'RULE_BASED' && (
         <p className="rounded-lg border border-line bg-canvas px-4 py-3 text-sm text-ink-700" role="status">
-          Rule-based analysis — AI providers are currently unavailable.
+          Rule-based analysis was used. Fallback reason: {report.fallbackReason ?? 'not reported'}.
         </p>
       )}
       {report.fallbackReason && report.engine !== 'RULE_BASED' && (
-        <p className="text-xs text-ink-500">Routing note: {report.fallbackReason.replaceAll('_', ' ').toLowerCase()}.</p>
+        <p className="text-xs text-ink-500">Fallback reason: {report.fallbackReason}</p>
       )}
 
       <MeasuredFacts measured={report.measured} />
@@ -220,6 +249,8 @@ function Report({ report }: { report: InsightResponse }) {
         <p className="mt-2 text-sm text-ink-700">{report.limitations}</p>
       </section>
 
+      <UsagePanel usage={report.usage} />
+
       <p className="rounded-lg border border-line bg-canvas px-4 py-3 text-xs text-ink-700">
         Advisory only. Findings and recommendations never alter student marks, grades, pass/fail decisions,
         accepted or rejected rows, or import counters.
@@ -230,6 +261,8 @@ function Report({ report }: { report: InsightResponse }) {
 
 export function IntelligencePanel({ batchId, disabled = false }: { batchId: number; disabled?: boolean }) {
   const [triggered, setTriggered] = useState(false);
+  const [refresh, setRefresh] = useState(false);
+  const [run, setRun] = useState(0);
 
   const status = useQuery({
     queryKey: aiKeys.status(),
@@ -239,18 +272,23 @@ export function IntelligencePanel({ batchId, disabled = false }: { batchId: numb
   });
 
   const insight = useQuery({
-    queryKey: aiKeys.insights(batchId),
-    queryFn: ({ signal }) => postInsights(batchId, signal),
+    queryKey: aiKeys.insights(batchId, refresh, run),
+    queryFn: ({ signal }) => postInsights(batchId, refresh, signal),
     enabled: triggered && !disabled,
     retry: false,
     staleTime: 0,
   });
 
-  useEffect(() => { setTriggered(false); }, [batchId]);
+  useEffect(() => {
+    setTriggered(false);
+    setRefresh(false);
+    setRun(0);
+  }, [batchId]);
 
-  function analyse() {
-    if (!triggered) setTriggered(true);
-    else void insight.refetch();
+  function analyse(forceNew: boolean) {
+    setTriggered(true);
+    if (forceNew) setRefresh(true);
+    setRun((previous) => previous + 1);
   }
 
   return (
@@ -265,15 +303,20 @@ export function IntelligencePanel({ batchId, disabled = false }: { batchId: numb
             Interpret this import's measured data-quality counters. Analysis is advisory and never changes student results.
           </p>
         </div>
-        <button
-          type="button"
-          onClick={analyse}
-          disabled={disabled || insight.isFetching}
-          className="cg-btn-primary"
-          aria-describedby="privacy-disclosure"
-        >
-          {insight.isFetching ? 'Analysing…' : insight.data ? 'Run new analysis' : 'Analyse import'}
-        </button>
+        <div className="flex flex-col items-end gap-1">
+          <button
+            type="button"
+            onClick={() => analyse(Boolean(insight.data))}
+            disabled={disabled || insight.isFetching}
+            className="cg-btn-primary"
+            aria-describedby="privacy-disclosure"
+          >
+            {insight.isFetching ? 'Analysing…' : insight.data ? 'Run new analysis' : 'Analyse import'}
+          </button>
+          {insight.data && (
+            <span className="text-xs text-ink-500">Runs another provider request and may consume quota.</span>
+          )}
+        </div>
       </div>
 
       <p id="privacy-disclosure" className="mt-4 flex items-start gap-2 rounded-lg border border-line bg-canvas px-4 py-3 text-xs text-ink-700">
@@ -306,7 +349,7 @@ export function IntelligencePanel({ batchId, disabled = false }: { batchId: numb
           <div className="rounded-lg border border-line bg-surface p-4" role="alert">
             <p className="text-sm font-semibold text-ink-950">Analysis could not be completed</p>
             <p className="mt-2 text-sm text-ink-700">{friendlyError(insight.error as Error)}</p>
-            <button type="button" onClick={() => void insight.refetch()} className="cg-btn-secondary mt-4">
+            <button type="button" onClick={() => analyse(Boolean(insight.data))} className="cg-btn-secondary mt-4">
               <RefreshCw size={14} aria-hidden="true" /> Retry analysis
             </button>
           </div>

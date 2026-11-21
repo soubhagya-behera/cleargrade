@@ -150,6 +150,54 @@ class ImportInsightServiceTest {
 		assertThrows(BatchNotFoundException.class, () -> fixture.service.analyse(999L));
 	}
 
+	@Test
+	void explicitRefreshBypassesCacheAndThenRepopulatesIt() {
+		Fixture fixture = fixture(600);
+
+		assertFalse(fixture.service.analyse(1L).cached());
+		assertFalse(fixture.service.analyse(1L, true).cached());
+		assertTrue(fixture.service.analyse(1L).cached());
+
+		verify(fixture.router, times(2)).analyse(any());
+	}
+
+	@Test
+	void refreshRequestsForSameContextAreCoalesced() throws Exception {
+		Fixture fixture = fixture(600);
+		CountDownLatch entered = new CountDownLatch(1);
+		CountDownLatch release = new CountDownLatch(1);
+		when(fixture.router.analyse(any())).thenAnswer(invocation -> {
+			entered.countDown();
+			release.await();
+			return fixture.report();
+		});
+		ExecutorService pool = Executors.newFixedThreadPool(2);
+		try {
+			Future<ImportInsightReport> first = pool.submit(() -> fixture.service.analyse(1L, true));
+			assertTrue(entered.await(5, java.util.concurrent.TimeUnit.SECONDS));
+			Future<ImportInsightReport> second = pool.submit(() -> fixture.service.analyse(1L, true));
+			Thread.sleep(100);
+			release.countDown();
+			assertEquals(ImportInsightReport.Engine.RULE_BASED, first.get().engine());
+			assertEquals(ImportInsightReport.Engine.RULE_BASED, second.get().engine());
+		}
+		finally {
+			release.countDown();
+			pool.shutdownNow();
+		}
+		verify(fixture.router, times(1)).analyse(any());
+	}
+
+	@Test
+	void lastAnalysisRecordsEngineAndReasonWithoutProviderPayload() {
+		Fixture fixture = fixture(600);
+		fixture.service.analyse(1L);
+
+		assertEquals("RULE_BASED", fixture.service.lastAnalysis().engine());
+		assertEquals(null, fixture.service.lastAnalysis().reason());
+		assertFalse(fixture.service.lastAnalysis().cached());
+	}
+
 	private static Fixture fixture(int ttlSeconds) {
 		ImportBatchQueryPort batches = mock(ImportBatchQueryPort.class);
 		ImportRowErrorQueryPort rowErrors = mock(ImportRowErrorQueryPort.class);

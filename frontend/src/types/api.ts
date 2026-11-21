@@ -67,19 +67,36 @@ export interface StudentReport extends StudentSummary {
 export type InsightEngine = 'GEMINI' | 'OLLAMA' | 'RULE_BASED';
 export type InsightSeverity = 'INFO' | 'LOW' | 'MEDIUM' | 'HIGH';
 
+export interface InsightUsage {
+  available: boolean;
+  inputTokens: number | null;
+  outputTokens: number | null;
+  thinkingTokens: number | null;
+  totalTokens: number | null;
+  modelId: string;
+  providerStatus: string;
+  interactionStatus: string;
+  durationMs: number;
+}
+
 export interface AiStatusResponse {
   enabled: boolean;
   geminiConfigured: boolean;
-  geminiAvailable: boolean;
   geminiModel: string;
   ollamaConfigured: boolean;
-  ollamaAvailable: boolean;
+  ollamaReachable: boolean;
+  ollamaModelPresent: boolean;
   ollamaModel: string;
+  inferenceTested: boolean;
   deterministicAvailable: boolean;
   defaultEngine: InsightEngine;
   routing: string;
   routingReasons: string[];
+  lastAnalysisEngine: string | null;
+  lastAnalysisReason: string | null;
+  lastAnalysisUsage: InsightUsage;
 }
+
 
 export interface InsightFindingResponse {
   title: string;
@@ -117,6 +134,7 @@ export interface InsightResponse {
   findings: InsightFindingResponse[];
   recommendedActions: string[];
   limitations: string;
+  usage: InsightUsage;
   advisoryOnly: boolean;
 }
 

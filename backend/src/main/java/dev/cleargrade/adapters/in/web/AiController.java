@@ -10,6 +10,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 /** Explicit-trigger AI insight endpoints; no provider key or payload ever crosses this layer. */
@@ -27,11 +28,12 @@ public class AiController {
 	@GetMapping(path = "/api/ai/status", produces = MediaType.APPLICATION_JSON_VALUE)
 	public AiStatusResponse status() {
 		AiProviderStatus status = this.router.status();
-		return AiStatusResponse.from(status);
+		return AiStatusResponse.from(status, this.insights.lastAnalysis());
 	}
 
 	@PostMapping(path = "/api/imports/{batchId}/insights", produces = MediaType.APPLICATION_JSON_VALUE)
-	public InsightResponse analyse(@PathVariable long batchId) {
-		return InsightResponse.from(batchId, this.insights.analyse(batchId));
+	public InsightResponse analyse(@PathVariable long batchId,
+			@RequestParam(name = "refresh", defaultValue = "false") boolean refresh) {
+		return InsightResponse.from(batchId, this.insights.analyse(batchId, refresh));
 	}
 }

@@ -9,9 +9,10 @@ import dev.cleargrade.application.exception.InsightUnavailableException;
 import dev.cleargrade.application.model.AiProviderStatus;
 import dev.cleargrade.application.model.ImportInsightReport;
 import dev.cleargrade.application.model.ImportQualityContext;
+import dev.cleargrade.application.model.OllamaAvailability;
 import dev.cleargrade.application.port.out.ImportInsightProvider;
 
-/** Provider routing: Gemini → Ollama → deterministic, with explicit failure categories. */
+/** Provider routing: Gemini → Ollama → deterministic, with explicit safe failure codes. */
 public class InsightProviderRouter {
 
 	private final List<ImportInsightProvider> aiProviders;
@@ -28,19 +29,19 @@ public class InsightProviderRouter {
 	public ImportInsightReport analyse(ImportQualityContext context) {
 		if (!this.properties.isEnabled()) return deterministicReport(context, "AI_DISABLED");
 
-		String lastFallback = null;
+		List<String> failures = new ArrayList<>();
 		for (ImportInsightProvider provider : this.aiProviders) {
 			if (!providerConfigured(provider) || !provider.available()) continue;
 			try {
 				ImportInsightReport report = provider.analyse(context);
-				return lastFallback == null ? report : withReason(report, lastFallback);
+				return failures.isEmpty() ? report : withReason(report, String.join(";", failures));
 			}
 			catch (InsightProviderException error) {
 				if (error.category() == InsightProviderException.Category.CONFIGURATION) throw error;
-				lastFallback = provider.engine().name() + "_UNAVAILABLE";
+				failures.add(provider.engine().name() + ":" + error.code());
 			}
 		}
-		String reason = lastFallback == null ? "NO_AI_PROVIDERS_AVAILABLE" : lastFallback;
+		String reason = failures.isEmpty() ? "NO_AI_PROVIDERS_AVAILABLE" : String.join(";", failures);
 		return deterministicReport(context, reason);
 	}
 
@@ -53,7 +54,8 @@ public class InsightProviderRouter {
 	private static ImportInsightReport withReason(ImportInsightReport report, String reason) {
 		return new ImportInsightReport(report.engine(), report.engineModel(), reason, report.cached(),
 				report.measuredFacts(), report.summary(), report.overallAssessment(), report.findings(),
-				report.recommendedActions(), report.limitations(), report.contextFingerprint());
+				report.recommendedActions(), report.limitations(), report.contextFingerprint(),
+				report.telemetry());
 	}
 
 	private boolean providerConfigured(ImportInsightProvider provider) {
@@ -76,37 +78,46 @@ public class InsightProviderRouter {
 	public AiProviderStatus status() {
 		boolean geminiConfigured = this.properties.isEnabled() && this.properties.getGemini().configured();
 		boolean ollamaConfigured = this.properties.isEnabled() && this.properties.getOllama().configured();
-		boolean ollamaAvailable = ollamaConfigured && this.aiProviders.stream()
-				.anyMatch(provider -> provider.engine() == ImportInsightReport.Engine.OLLAMA && provider.available());
-		ImportInsightReport.Engine engine = geminiConfigured ? ImportInsightReport.Engine.GEMINI
-				: ollamaAvailable ? ImportInsightReport.Engine.OLLAMA : ImportInsightReport.Engine.RULE_BASED;
+		OllamaAvailability ollama = this.aiProviders.stream()
+				.filter(provider -> provider.engine() == ImportInsightReport.Engine.OLLAMA)
+				.findFirst()
+				.map(ImportInsightProvider::ollamaAvailability)
+				.orElse(OllamaAvailability.UNREACHABLE);
+		String ollamaModel = ollama.modelPresent() ? this.properties.getOllama().getModel() : "";
+		ImportInsightReport.Engine preferred = geminiConfigured ? ImportInsightReport.Engine.GEMINI
+				: ollama.usable() ? ImportInsightReport.Engine.OLLAMA : ImportInsightReport.Engine.RULE_BASED;
+
 		String routing;
 		List<String> reasons = new ArrayList<>();
 		if (!this.properties.isEnabled()) {
 			routing = "AI_DISABLED_DETERMINISTIC_ONLY";
 			reasons.add("AI_DISABLED");
 		}
-		else if (geminiConfigured && ollamaAvailable) {
+		else if (geminiConfigured && ollama.usable()) {
 			routing = "GEMINI_THEN_OLLAMA_THEN_RULE_BASED";
 		}
 		else if (geminiConfigured) {
 			routing = "GEMINI_THEN_RULE_BASED";
-			reasons.add("OLLAMA_NOT_AVAILABLE");
+			if (!ollamaConfigured) reasons.add("OLLAMA_NOT_CONFIGURED");
+			else if (!ollama.serviceReachable()) reasons.add("OLLAMA_UNREACHABLE");
+			else reasons.add("OLLAMA_MODEL_MISSING");
 		}
-		else if (ollamaAvailable) {
+		else if (ollama.usable()) {
 			routing = "OLLAMA_THEN_RULE_BASED";
 			reasons.add("GEMINI_NOT_CONFIGURED");
 		}
 		else {
 			routing = "RULE_BASED_ONLY";
 			reasons.add("GEMINI_NOT_CONFIGURED");
-			reasons.add("OLLAMA_NOT_AVAILABLE");
+			if (!ollamaConfigured) reasons.add("OLLAMA_NOT_CONFIGURED");
+			else if (!ollama.serviceReachable()) reasons.add("OLLAMA_UNREACHABLE");
+			else reasons.add("OLLAMA_MODEL_MISSING");
 		}
 		if (!this.properties.isDeterministicEnabled()) reasons.add("DETERMINISTIC_DISABLED");
-		return new AiProviderStatus(this.properties.isEnabled(), geminiConfigured, geminiConfigured,
+		return new AiProviderStatus(this.properties.isEnabled(), geminiConfigured,
 				geminiConfigured ? this.properties.getGemini().getModel() : "",
-				ollamaConfigured, ollamaAvailable,
-				ollamaAvailable ? this.properties.getOllama().getModel() : "",
-				this.properties.isDeterministicEnabled(), engine, routing, List.copyOf(reasons));
+				ollamaConfigured, ollamaConfigured && ollama.serviceReachable(),
+				ollamaConfigured && ollama.modelPresent(), ollamaModel, false,
+				this.properties.isDeterministicEnabled(), preferred, routing, List.copyOf(reasons));
 	}
 }

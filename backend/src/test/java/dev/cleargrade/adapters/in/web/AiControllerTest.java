@@ -32,8 +32,9 @@ class AiControllerTest {
 		InsightProperties properties = new InsightProperties();
 		properties.getGemini().setApiKey(DUMMY_KEY);
 		InsightProviderRouter router = mock(InsightProviderRouter.class);
-		when(router.status()).thenReturn(new AiProviderStatus(true, true, true, "gemini-3.8-flash", false, false,
-				"", true, ImportInsightReport.Engine.GEMINI, "GEMINI_THEN_RULE_BASED", java.util.List.of()));
+		when(router.status()).thenReturn(new AiProviderStatus(true, true, "gemini-3.8-flash",
+				false, false, false, "", false, true,
+				ImportInsightReport.Engine.GEMINI, "GEMINI_THEN_RULE_BASED", java.util.List.of()));
 		AiController controller = new AiController(mock(ImportInsightService.class), router);
 
 		AiStatusResponse status = controller.status();
@@ -41,6 +42,7 @@ class AiControllerTest {
 
 		assertEquals("GEMINI", status.defaultEngine());
 		assertTrue(status.geminiConfigured());
+		assertFalse(status.inferenceTested());
 		assertFalse(json.contains(DUMMY_KEY));
 		assertFalse(json.contains("apiKey"));
 	}
@@ -52,15 +54,16 @@ class AiControllerTest {
 		ImportInsightReport report = new ImportInsightReport(ImportInsightReport.Engine.RULE_BASED,
 				"deterministic-v1", "NO_AI_PROVIDERS_AVAILABLE", false, context, "summary", "assessment",
 				List.of(), List.of(), "limits", context.fingerprint());
-		when(service.analyse(7L)).thenReturn(report);
+		when(service.analyse(7L, false)).thenReturn(report);
 		AiController controller = new AiController(service, mock(InsightProviderRouter.class));
 
-		InsightResponse response = controller.analyse(7L);
+		InsightResponse response = controller.analyse(7L, false);
 
 		assertEquals("RULE_BASED", response.engine());
+		assertFalse(response.usage().available());
 		assertEquals("NO_AI_PROVIDERS_AVAILABLE", response.fallbackReason());
 		assertEquals(10, response.measured().rowsRead());
 		assertTrue(response.advisoryOnly());
-		verify(service).analyse(7L);
+		verify(service).analyse(7L, false);
 	}
 }

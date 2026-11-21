@@ -15,6 +15,7 @@ import dev.cleargrade.application.model.ImportInsightFinding;
 import dev.cleargrade.application.model.ImportInsightReport;
 import dev.cleargrade.application.model.ImportQualityContext;
 import dev.cleargrade.application.model.InsightEvidenceMetric;
+import dev.cleargrade.application.model.InsightTelemetry;
 
 /** Strict server-side validation of provider JSON; no model output can alter measured facts. */
 public final class InsightResponseParser {
@@ -23,23 +24,30 @@ public final class InsightResponseParser {
 			.enable(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES)
 			.enable(DeserializationFeature.FAIL_ON_TRAILING_TOKENS);
 	private static final Set<String> SEVERITIES = Set.of("INFO", "LOW", "MEDIUM", "HIGH");
-	private static final int MAX_FINDINGS = 8;
-	private static final int MAX_ACTIONS = 8;
+	private static final int MAX_FINDINGS = 5;
+	private static final int MAX_ACTIONS = 5;
 
 	private InsightResponseParser() {
 	}
 
 	public static ImportInsightReport parse(String json, ImportQualityContext context,
 			ImportInsightReport.Engine engine, String modelVersion, String fallbackReason) {
+		return parse(json, context, engine, modelVersion, fallbackReason,
+				InsightTelemetry.unavailable(modelVersion, "NOT_RECORDED", null, 0L));
+	}
+
+	public static ImportInsightReport parse(String json, ImportQualityContext context,
+			ImportInsightReport.Engine engine, String modelVersion, String fallbackReason,
+			InsightTelemetry telemetry) {
 		try {
 			JsonNode root = MAPPER.readTree(json);
 			if (root == null || !root.isObject()) return reject("root is not an object");
 			requireExactKeys(root, Set.of("summary", "overallAssessment", "findings",
 					"recommendedActions", "limitations"));
 
-			String summary = text(root, "summary", 600);
-			String assessment = text(root, "overallAssessment", 1200);
-			String limitations = text(root, "limitations", 1200);
+			String summary = text(root, "summary", 400);
+			String assessment = text(root, "overallAssessment", 600);
+			String limitations = text(root, "limitations", 400);
 			rejectBlockedText(summary);
 			rejectBlockedText(assessment);
 			rejectBlockedText(limitations);
@@ -60,7 +68,7 @@ public final class InsightResponseParser {
 			List<String> actions = new ArrayList<>();
 			for (JsonNode node : actionsNode) {
 				if (node == null || !node.isTextual() || node.asText().isBlank()
-						|| node.asText().length() > 400) {
+						|| node.asText().length() > 300) {
 					return reject("invalid recommended action");
 				}
 				rejectBlockedText(node.asText());
@@ -69,7 +77,7 @@ public final class InsightResponseParser {
 
 			return new ImportInsightReport(engine, modelVersion, fallbackReason, false, context,
 					summary, assessment, List.copyOf(findings), List.copyOf(actions),
-					limitations, context.fingerprint());
+					limitations, context.fingerprint(), telemetry);
 		}
 		catch (JsonProcessingException error) {
 			throw fallback("provider JSON was malformed", error);
@@ -95,9 +103,9 @@ public final class InsightResponseParser {
 		String evidenceValue = text(node, "evidenceValue", 80);
 		String expected = context.evidenceValue(metric);
 		if (!expected.equals(evidenceValue)) throw fallback("evidence value does not match measured facts", null);
-		String explanation = text(node, "explanation", 600);
+		String explanation = text(node, "explanation", 400);
 		rejectBlockedText(explanation);
-		String action = text(node, "recommendedAction", 400);
+		String action = text(node, "recommendedAction", 300);
 		rejectBlockedText(action);
 		return new ImportInsightFinding(title, severity, metric.name(), expected, explanation, action);
 	}
@@ -133,7 +141,14 @@ public final class InsightResponseParser {
 	}
 
 	private static InsightProviderException fallback(String safeReason, Throwable cause) {
+		String code = switch (safeReason) {
+			case "evidence value does not match measured facts" -> "EVIDENCE_VALUE_MISMATCH";
+			case "unsupported severity" -> "UNSUPPORTED_SEVERITY";
+			case "unsupported evidence metric" -> "UNSUPPORTED_EVIDENCE_METRIC";
+			case "provider JSON was malformed" -> "MALFORMED_JSON";
+			default -> "PROVIDER_VALIDATION";
+		};
 		return new InsightProviderException("Provider response failed validation: " + safeReason,
-				InsightProviderException.Category.FALLBACK, cause);
+				InsightProviderException.Category.FALLBACK, code, cause, null);
 	}
 }

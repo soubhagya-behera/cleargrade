@@ -4,6 +4,7 @@ import dev.cleargrade.application.exception.InsightProviderException;
 import dev.cleargrade.application.model.ImportInsightReport;
 import dev.cleargrade.application.model.ImportInsightReport.Engine;
 import dev.cleargrade.application.model.ImportQualityContext;
+import dev.cleargrade.application.model.OllamaAvailability;
 
 /** Application-owned AI provider contract. Provider protocols stay in adapters. */
 public interface ImportInsightProvider {
@@ -17,5 +18,10 @@ public interface ImportInsightProvider {
 	/** External providers override this; the deterministic engine is always available. */
 	default boolean available() {
 		return true;
+	}
+
+	/** Only the Ollama adapter has a local /api/tags snapshot; others report unreachable. */
+	default OllamaAvailability ollamaAvailability() {
+		return OllamaAvailability.UNREACHABLE;
 	}
 }

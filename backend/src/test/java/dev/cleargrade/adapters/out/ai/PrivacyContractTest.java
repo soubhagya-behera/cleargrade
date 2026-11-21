@@ -42,7 +42,9 @@ class PrivacyContractTest {
 		this.server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
 		this.server.createContext("/", exchange -> {
 			this.outbound.set(new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8));
-			byte[] bytes = this.responseBody.getBytes(StandardCharsets.UTF_8);
+			String reply = exchange.getRequestURI().getPath().endsWith("/api/tags")
+					? "{\"models\":[{\"name\":\"test-model:latest\"}]}" : this.responseBody;
+			byte[] bytes = reply.getBytes(StandardCharsets.UTF_8);
 			exchange.sendResponseHeaders(200, bytes.length);
 			exchange.getResponseBody().write(bytes);
 			exchange.close();
@@ -81,7 +83,14 @@ class PrivacyContractTest {
 		String body = this.outbound.get();
 		assertNoSensitiveValues(body);
 		assertTrue(body.contains("\"store\":false"));
+		assertTrue(body.contains("\"stream\":false"));
+		assertTrue(body.contains("\"thinking_level\":\"low\""));
+		assertTrue(body.contains("\"max_output_tokens\":2048"));
+		assertTrue(body.contains("\"schema\""));
+		assertFalse(body.contains("additionalProperties"));
+		assertFalse(body.contains("maxLength"));
 		assertFalse(body.contains("previous_interaction_id"));
+		assertFalse(body.contains("\"tools\""));
 		assertFalse(body.contains("line_number"));
 	}
 
@@ -94,6 +103,8 @@ class PrivacyContractTest {
 
 		String body = this.outbound.get();
 		assertNoSensitiveValues(body);
+		assertTrue(body.contains("\"format\""));
+		assertTrue(body.contains("\"maxItems\":5"));
 		assertFalse(body.contains("line_number"));
 	}
 

@@ -27,8 +27,11 @@ InsightProviderRouter           Gemini → Ollama → Deterministic
         └── DeterministicInsightService (Java rules, no network)
 ```
 
-`GET /api/ai/status` reports only safe availability flags, model names, routing state and reason codes —
-never a key, endpoint, response body or credential.
+`GET /api/ai/status` reports only safe configuration/reachability flags, model names, routing state, the
+last analysis result and reason codes — never a key, endpoint, response body or credential. It deliberately
+does **not** report "AI providers available": `geminiConfigured` only means a key is present,
+`ollamaReachable`/`ollamaModelPresent` come from `/api/tags`, and `inferenceTested` is always `false`
+because status never performs a quota-consuming inference.
 
 | Priority | Engine | Source label | When used |
 |---|---|---|---|
@@ -46,9 +49,12 @@ Routing details:
 - Ollama reports `OLLAMA` only when `/api/tags` confirms the configured model is actually installed and
   reachable. A configured URL alone never means "available".
 - Exactly one cloud provider and one local provider are considered, strictly sequentially — never concurrently.
-- `fallbackReason` is a safe category such as `GEMINI_UNAVAILABLE`, `OLLAMA_UNAVAILABLE`,
-  `NO_AI_PROVIDERS_AVAILABLE` or `AI_DISABLED`. Raw provider bodies and credentials are never returned.
-- Every response labels the engine that actually produced it.
+- `fallbackReason` is a safe code chain such as `GEMINI:GEMINI_QUOTA`,
+  `GEMINI:GEMINI_QUOTA;OLLAMA:EVIDENCE_VALUE_MISMATCH`, `NO_AI_PROVIDERS_AVAILABLE` or `AI_DISABLED`.
+  Raw provider bodies and credentials are never returned.
+- Every response labels the engine that actually produced it. Safe usage metadata (input/output/thinking/total
+  tokens, model, provider status, interaction status, duration) is returned when the provider supplies it;
+  missing metadata is reported as `Usage unavailable` and never estimated.
 
 ## 2. Gemini configuration and model choice
 
@@ -60,9 +66,12 @@ The existing environment variable name is reused; no new secret store is introdu
 | `GEMINI_MODEL` | `gemini-3.8-flash` | Supported model; `gemini-2.5-flash` is **not** the default. |
 | `GEMINI_ENDPOINT` | `https://generativelanguage.googleapis.com/v1beta/interactions` | Interactions REST endpoint. |
 | `GEMINI_TIMEOUT_READ_MS` | `60000` | Response timeout. Connect timeout is fixed at 10 s. |
+| `cleargrade.ai.gemini.thinking-level` | `low` | Bound reasoning cost; high reasoning is unnecessary for aggregate analysis. |
+| `cleargrade.ai.gemini.max-output-tokens` | `2048` | Output cap; smaller than the strict parser's worst case only if explicitly misconfigured. |
 
 The request uses the official Interactions API shape (`POST /v1beta/interactions`, `x-goog-api-key`,
-`Api-Revision: 2026-05-20`, `model`, `input`, `store: false`, `response_format` with
+`Api-Revision: 2026-05-20`, `model`, `input`, top-level `store: false` and `stream: false`,
+`generation_config` containing `thinking_level` and `max_output_tokens`, and `response_format` with
 `mime_type: application/json` and an explicit JSON schema). It is a stateless single request: no
 `previous_interaction_id`, no conversation history, no automatic POST retry. See
 [Getting started](https://ai.google.dev/gemini-api/docs/get-started) and
@@ -176,10 +185,16 @@ It is explicitly labelled as rule-based — never presented as AI-generated.
 - Analysis runs **only** on the explicit **Analyse import** action. Upload/import never invokes a provider.
 - Bounded in-memory LRU cache (default 600 s TTL, 64 entries), keyed by batch id + deterministic context hash
   + provider/model version. TTL/entries are configurable; no database migration or insight table exists.
-- Concurrent requests for the same batch/context are coalesced into one provider call.
-- A failed provider call is not cached; a genuinely new analysis after expiry requires another explicit action.
+- Concurrent requests for the same batch/context are coalesced into one provider call, including explicit
+  refresh requests, so repeated clicks cannot spend extra quota.
+- A failed provider call is not cached. `POST /api/imports/{id}/insights?refresh=true` bypasses the read cache
+  and is only sent by the explicit **Run new analysis** button; it repopulates the cache on success.
 - Optional per-batch cooldown (`CLEARGRADE_AI_COOLDOWN_SECONDS`, default `0`) returns `429 ANALYSIS_COOLDOWN`.
 - Reports state `cached: true|false` safely; no internal or sensitive detail is exposed.
+- **Limitation:** the cache is in-memory and disappears on backend restart, so reopening the same batch after a
+  restart can call a provider again on the first explicit analysis. A privacy-safe persistent per-batch cache
+  (counters/fingerprint + report text only, no PII) would avoid this, but it needs a database migration and is
+  not introduced until the need is established.
 
 ## 8. Disabling AI / no-key behaviour
 

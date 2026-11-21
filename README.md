@@ -79,6 +79,11 @@ rule engine**, with the actual engine labelled on every report.
   `RULE_BASED` — never presented as AI-generated.
 - Analysis is explicit, cached with TTL/LRU bounds and coalesced per batch/context; import never calls a
   provider. `CLEARGRADE_AI_ENABLED=false` disables both AI providers while leaving rule-based analysis.
+- Token policy: exactly one stateless Gemini request per explicit analysis (`store:false`, `stream:false`,
+  `thinking_level:low`, `max_output_tokens:2048`, no history/tools), compact aggregate-only prompt, max five
+  findings and five actions. **Run new analysis** explicitly spends another request; reopening a cached report does not.
+- Status reports configuration and local reachability separately and never claims inference works until an
+  analysis actually runs; safe usage counters are shown when the provider returns them.
 
 Full configuration, Ollama setup (Windows/macOS/Linux and Docker host access), privacy contract, provider
 terms guidance, fallback matrix and cost controls: [docs/AI_INTELLIGENCE.md](docs/AI_INTELLIGENCE.md).

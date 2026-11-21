@@ -1,5 +1,6 @@
 package dev.cleargrade.adapters.in.web;
 
+import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -47,21 +48,37 @@ class AiEndpointWebTest {
 
 	@Test
 	void statusEndpointIsSafeAndReportsRouting() throws Exception {
-		when(this.router.status()).thenReturn(new AiProviderStatus(true, true, true, "gemini-3.8-flash",
-				false, false, "", true, ImportInsightReport.Engine.GEMINI,
-				"GEMINI_THEN_RULE_BASED", List.of("OLLAMA_NOT_AVAILABLE")));
+		when(this.router.status()).thenReturn(new AiProviderStatus(true, true, "gemini-3.8-flash",
+				false, false, false, "", false, true, ImportInsightReport.Engine.GEMINI,
+				"GEMINI_THEN_RULE_BASED", List.of("OLLAMA_NOT_CONFIGURED")));
 
 		String body = this.mockMvc.perform(get("/api/ai/status"))
 				.andExpect(status().isOk())
 				.andExpect(jsonPath("$.geminiConfigured").value(true))
-				.andExpect(jsonPath("$.geminiAvailable").value(true))
+				.andExpect(jsonPath("$.inferenceTested").value(false))
+				.andExpect(jsonPath("$.ollamaReachable").value(false))
+				.andExpect(jsonPath("$.ollamaModelPresent").value(false))
 				.andExpect(jsonPath("$.geminiModel").value("gemini-3.8-flash"))
 				.andExpect(jsonPath("$.defaultEngine").value("GEMINI"))
-				.andExpect(jsonPath("$.routingReasons[0]").value("OLLAMA_NOT_AVAILABLE"))
+				.andExpect(jsonPath("$.routingReasons[0]").value("OLLAMA_NOT_CONFIGURED"))
 				.andReturn().getResponse().getContentAsString();
 
 		org.junit.jupiter.api.Assertions.assertFalse(body.contains(KEY_SENTINEL));
 		org.junit.jupiter.api.Assertions.assertFalse(body.toLowerCase().contains("apikey"));
+	}
+
+	@Test
+	void refreshParameterIsForwardedToExplicitAnalysis() throws Exception {
+		ImportQualityContext context = new ImportQualityContext(10, 8, 2, 8, 0, 0, 2, Map.of());
+		when(this.service.analyse(7L, true)).thenReturn(new ImportInsightReport(
+				ImportInsightReport.Engine.GEMINI, "gemini-3.8-flash", null, false, context,
+				"summary", "assessment", List.of(), List.of(), "limits", context.fingerprint()));
+
+		this.mockMvc.perform(post("/api/imports/7/insights?refresh=true"))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.engine").value("GEMINI"));
+
+		org.mockito.Mockito.verify(this.service).analyse(7L, true);
 	}
 
 	@Test
@@ -70,7 +87,7 @@ class AiEndpointWebTest {
 				Map.of("DUPLICATE_ID", 4));
 		ImportInsightFinding finding = new ImportInsightFinding("Duplicates", "MEDIUM",
 				"DUPLICATE_ID_COUNT", "4", "Four duplicate IDs were measured.", "Review the export.");
-		when(this.service.analyse(7L)).thenReturn(new ImportInsightReport(
+		when(this.service.analyse(7L, false)).thenReturn(new ImportInsightReport(
 				ImportInsightReport.Engine.OLLAMA, "test-model", "GEMINI_UNAVAILABLE", false, context,
 				"Aggregate summary", "Aggregate assessment", List.of(finding), List.of("Review the export."),
 				"Aggregates only", context.fingerprint()));
@@ -90,8 +107,8 @@ class AiEndpointWebTest {
 
 	@Test
 	void unknownAndUncompletedBatchesAreRejected() throws Exception {
-		when(this.service.analyse(1L)).thenThrow(new BatchNotFoundException(1L));
-		when(this.service.analyse(2L)).thenThrow(new InsightBatchNotCompletedException(2L));
+		when(this.service.analyse(1L, false)).thenThrow(new BatchNotFoundException(1L));
+		when(this.service.analyse(2L, false)).thenThrow(new InsightBatchNotCompletedException(2L));
 
 		this.mockMvc.perform(post("/api/imports/1/insights"))
 				.andExpect(status().isNotFound())
@@ -103,21 +120,21 @@ class AiEndpointWebTest {
 
 	@Test
 	void cooldownConfigurationAndProviderFailuresAreDistinct() throws Exception {
-		org.mockito.Mockito.doThrow(new InsightCooldownException()).when(this.service).analyse(anyLong());
+		org.mockito.Mockito.doThrow(new InsightCooldownException()).when(this.service).analyse(anyLong(), anyBoolean());
 		this.mockMvc.perform(post("/api/imports/7/insights"))
 				.andExpect(status().isTooManyRequests())
 				.andExpect(jsonPath("$.code").value("ANALYSIS_COOLDOWN"));
 
 		org.mockito.Mockito.doThrow(new InsightProviderException("auth",
 				InsightProviderException.Category.CONFIGURATION, null))
-				.when(this.service).analyse(anyLong());
+				.when(this.service).analyse(anyLong(), anyBoolean());
 		this.mockMvc.perform(post("/api/imports/7/insights"))
 				.andExpect(status().isServiceUnavailable())
 				.andExpect(jsonPath("$.code").value("AI_CONFIGURATION_ERROR"));
 
 		org.mockito.Mockito.doThrow(new InsightProviderException("provider",
 				InsightProviderException.Category.FALLBACK, null))
-				.when(this.service).analyse(anyLong());
+				.when(this.service).analyse(anyLong(), anyBoolean());
 		this.mockMvc.perform(post("/api/imports/7/insights"))
 				.andExpect(status().isBadGateway())
 				.andExpect(jsonPath("$.code").value("ANALYSIS_PROVIDER_FAILED"));
@@ -125,7 +142,7 @@ class AiEndpointWebTest {
 
 	@Test
 	void unavailableEngineReturns503() throws Exception {
-		when(this.service.analyse(7L)).thenThrow(new InsightUnavailableException());
+		when(this.service.analyse(7L, false)).thenThrow(new InsightUnavailableException());
 		this.mockMvc.perform(post("/api/imports/7/insights"))
 				.andExpect(status().isServiceUnavailable())
 				.andExpect(jsonPath("$.code").value("ANALYSIS_UNAVAILABLE"));

@@ -17,6 +17,7 @@ public record InsightResponse(
 		List<InsightFindingResponse> findings,
 		List<String> recommendedActions,
 		String limitations,
+		InsightUsageResponse usage,
 		boolean advisoryOnly) {
 
 	public static InsightResponse from(long batchId, ImportInsightReport report) {
@@ -24,6 +25,7 @@ public record InsightResponse(
 				report.cached(), MeasuredMetricsResponse.from(report.measuredFacts()),
 				report.summary(), report.overallAssessment(),
 				report.findings().stream().map(InsightFindingResponse::from).toList(),
-				report.recommendedActions(), report.limitations(), true);
+				report.recommendedActions(), report.limitations(),
+				InsightUsageResponse.from(report.telemetry()), true);
 	}
 }
