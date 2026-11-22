@@ -6,8 +6,8 @@
 
 **Turn messy student-result spreadsheets into validated student records, explainable import reports and privacy-safe quality insights — in one calm workspace.**
 
-[![CI (main)](https://img.shields.io/github/actions/workflow/status/soubhagya-behera/cleargrade-student-results/ci.yml?branch=main&label=CI%20(main)&style=for-the-badge)](https://github.com/soubhagya-behera/cleargrade-student-results/actions/workflows/ci.yml?query=branch%3Amain)
-[![Repository](https://img.shields.io/badge/Repository-GitHub-181717?style=for-the-badge&logo=github&logoColor=white)](https://github.com/soubhagya-behera/cleargrade-student-results)
+[![CI (main)](https://img.shields.io/github/actions/workflow/status/soubhagya-behera/cleargrade/ci.yml?branch=main&label=CI%20(main)&style=for-the-badge)](https://github.com/soubhagya-behera/cleargrade/actions/workflows/ci.yml?query=branch%3Amain)
+[![Repository](https://img.shields.io/badge/Repository-GitHub-181717?style=for-the-badge&logo=github&logoColor=white)](https://github.com/soubhagya-behera/cleargrade)
 
 [![Java 21](https://img.shields.io/badge/Java-21-ED8B00?style=for-the-badge&logo=openjdk&logoColor=white)](https://openjdk.org/projects/jdk/21/)
 [![Spring Boot 4.1.2](https://img.shields.io/badge/Spring_Boot-4.1.2-6DB33F?style=for-the-badge&logo=springboot&logoColor=white)](https://spring.io/projects/spring-boot)
@@ -21,20 +21,47 @@
 ![Ollama](https://img.shields.io/badge/Ollama-local_fallback-5034C4?style=for-the-badge)
 ![Rule engine](https://img.shields.io/badge/Rule_based-offline_fallback-6B7190?style=for-the-badge)
 
-[What it does](#what-is-cleargrade) · [Features](#features) · [How it works](#how-it-works) · [Architecture](#architecture) · [Deep dives](#technical-deep-dives) · [Screenshots](#screenshots) · [API](#api-reference) · [Run locally](#getting-started-windows-native) · [Testing](#testing-and-quality)
+[Quick start](#docker-quick-start) · [What it does](#what-is-cleargrade) · [Features](#features) · [How it works](#how-it-works) · [Architecture](#architecture) · [Deep dives](#technical-deep-dives) · [Screenshots](#screenshots) · [API](#api-reference) · [Native setup](#getting-started-windows-native) · [Testing](#testing-and-quality)
 
-**[Run locally →](#getting-started-windows-native)**
+**[Docker quick start →](#docker-quick-start)**
 
 <table>
 <tr>
-<td align="center"><strong>Terminal 1 · backend</strong><br/><code>cd backend</code><br/><code>mvn spring-boot:run</code></td>
-<td align="center"><strong>Terminal 2 · frontend</strong><br/><code>cd frontend</code><br/><code>npm run dev</code></td>
+<td align="center"><strong>PowerShell · evaluator</strong><br/><code>.\scripts\start.ps1</code><br/><code>.\scripts\seed.ps1</code></td>
+<td align="center"><strong>Open in a browser</strong><br/><code>http://localhost:3000</code></td>
 </tr>
 </table>
 
 <sub>The CI badge reports the repository's <code>main</code> branch workflow; after this release it reflects the merged main branch. Branch-only results are recorded under [Testing](#testing-and-quality). PostgreSQL 18 is used for native Windows development; PostgreSQL 16 is used by Docker Compose and Testcontainers. Mock-provider contract tests and deterministic fallback are verified; live Gemini generation is not — see [Testing](#testing-and-quality).</sub>
 
 </div>
+
+---
+
+<a id="docker-quick-start"></a>
+
+## ⚡ Docker Quick Start (evaluator path)
+
+The fastest way to evaluate ClearGrade. Requirements: **Docker Desktop with Docker Compose v2** and **PowerShell**; run these commands from the repository root. No JDK, Node.js or local PostgreSQL installation is needed.
+
+```powershell
+.\scripts\start.ps1
+.\scripts\seed.ps1
+```
+
+Then open <http://localhost:3000>.
+
+- `start.ps1` builds and starts PostgreSQL 16, the backend and the frontend through Docker Compose, then waits for the backend health check. If the root `.env` is absent, the script creates it from `.env.example` (git-ignored) and generates a local PostgreSQL password — there is nothing secret to supply for this path.
+- `GEMINI_API_KEY` is optional. Without it, imports still work and analysis falls back to the deterministic Java rule engine (`RULE_BASED`).
+- `seed.ps1` uploads the two synthetic fixtures, `scripts/seed/initial.csv` and `scripts/seed/update.csv`, through the real HTTP import API (`POST /api/imports`). Together they demonstrate new, changed, unchanged and rejected rows; no original assignment data is used and no rows are written directly to the database.
+- Re-running the seed is idempotent: identical completed file content is deduplicated (`200`, no new batch) or returns `409` while an identical digest is still active.
+
+| Command | Effect |
+|---|---|
+| `docker compose down` | Stops and removes the containers; the named `postgres-data` volume and its imported data are **retained**. |
+| `docker compose down -v` | **Destructive:** deletes the `postgres-data` volume and all its data. To start clean, re-run `.\scripts\start.ps1` and `.\scripts\seed.ps1`. |
+
+For a container-free Windows setup (JDK 21, Node.js 22+ and a native PostgreSQL 18 service), use [Getting Started (Windows native development)](#getting-started-windows-native) instead.
 
 ---
 
@@ -349,13 +376,13 @@ Common error behaviour: `MISSING_REQUIRED_COLUMNS` / `INVALID_ENCODING` / `EMPTY
 - JDK 21 (set `JAVA_HOME=C:\Program Files\Java\jdk-21.0.10` if your default `java` is 17)
 - Node.js 22+ and npm; Git
 - Native PostgreSQL 18 service `postgresql-x64-18` running (database `cleargrade`, role `cleargrade_local`)
-- Docker only if you prefer the optional Compose workflow
+- Docker Desktop with Compose v2 only for the container path (see [Docker Quick Start](#docker-quick-start))
 
 ### 1 · Clone and configure secrets
 
 ```powershell
-git clone https://github.com/soubhagya-behera/cleargrade-student-results.git
-cd cleargrade-student-results
+git clone https://github.com/soubhagya-behera/cleargrade.git
+cd cleargrade
 copy .env.example .env
 # edit .env: set CLEARGRADE_LOCAL_DB_PASSWORD (required); GEMINI_API_KEY is optional
 ```
@@ -390,17 +417,17 @@ Health: <http://localhost:8080/actuator/health>. API base: <http://localhost:808
 | `POSTGRES_PASSWORD` / `POSTGRES_PORT` | Docker only | Compose database password and configurable loopback host port |
 | `CLEARGRADE_UPLOAD_MAX_FILE_SIZE` | Optional | Upload cap in bytes; default `10485760` (10 MiB) |
 
-### Optional Docker Compose workflow
+### Alternative: Docker Compose workflow
 
-Stop the native backend/frontend first, then:
+If you prefer containers, stop the native backend/frontend first; the [Docker Quick Start](#docker-quick-start) above is the quicker evaluator route:
 
 ```powershell
 docker compose up -d --build
 # frontend http://localhost:3000 · health http://localhost:8080/actuator/health
-docker compose stop backend frontend   # keep the PostgreSQL volume
+docker compose down   # stop containers; keep the PostgreSQL volume
 ```
 
-Compose uses its **own** PostgreSQL 16 container, named volume and host port from `.env`; it does not touch the native database. All published ports bind to `127.0.0.1`. Never run `docker compose down -v` unless you intend to delete that data. Full details: [LOCAL_RUN_GUIDE.md](LOCAL_RUN_GUIDE.md).
+`.\scripts\start.ps1` automates these steps, including first-run `.env` setup. Compose uses its **own** PostgreSQL 16 container, named volume and host port from `.env`; it does not touch the native database. All published ports bind to `127.0.0.1`. **`docker compose down -v` is destructive: it deletes the database volume and all imported data.** Full details: [LOCAL_RUN_GUIDE.md](LOCAL_RUN_GUIDE.md).
 
 <a id="performance-and-constraints"></a>
 
@@ -428,7 +455,7 @@ Compose uses its **own** PostgreSQL 16 container, named volume and host port fro
 - **Frontend:** **45 tests passed, 0 failures** (Vitest + Testing Library), plus TypeScript check and Vite production build.
 - **Integration coverage:** Testcontainers PostgreSQL 16 backs migration, persistence, T1–T4 transaction, REST API and benchmark tests. Mock HTTP servers capture real Gemini/Ollama request bytes for protocol and PII-sentinel assertions.
 - **Genuine benchmark evidence:** the current `CsvImportBenchmarkTest` Surefire report records **163 ms** for the small fixture and **5,407 ms** for the 5,000-row fixture, with exact counts **25 / 16 / 9** and **5,000 / 4,685 / 315 rejected / 348 occurrences** (fixed clock `2026-11-19`, JDK 21.0.10, `postgres:16-alpine`). These are informational observations, not acceptance thresholds.
-- **Verification status:** verified by automated tests are the Gemini/Ollama mock-provider contract, routing, sanitized failure telemetry, privacy-safe aggregate payloads, strict explanation validation and the offline `RULE_BASED` deterministic fallback. Historical browser runs used synthetic data; a verified valid end-to-end local Ollama report after the parser hardening is **not** claimed. A real-key browser attempt reached Gemini and received an upstream HTTP 5xx, so the chain fell through to Ollama — evidence of fallback only, **not** successful live Gemini generation. No live AI report is claimed as verified; the CI badge reports `main` only and branch verification is recorded here.
+- **Verification status:** verified by automated tests are the Gemini/Ollama mock-provider contract, routing, sanitized failure telemetry, privacy-safe aggregate payloads, strict explanation validation and the offline `RULE_BASED` deterministic fallback. Historical browser runs used synthetic data; a verified valid end-to-end local Ollama report after the parser hardening is **not** claimed. A real-key browser attempt reached Gemini and received an upstream HTTP 5xx, so the chain fell through to Ollama — evidence of fallback only, **not** successful live Gemini generation. No live AI report is claimed as verified; the CI badge reports `main` only and branch verification is recorded here. No OWASP dependency-check scan is configured in CI, so a backend dependency vulnerability scan has not been verified.
 
 <a id="security-and-privacy"></a>
 
