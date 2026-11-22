@@ -75,6 +75,7 @@ export function ImportPage() {
   }, [restoration.data]);
 
   useEffect(() => {
+    if (uploadSucceeded.current) return;
     if (!restoration.isError) return;
     const cause = restoration.error;
     if (cause instanceof ApiError && cause.status === 404) {

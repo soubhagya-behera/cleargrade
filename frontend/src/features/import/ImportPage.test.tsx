@@ -238,6 +238,28 @@ describe('ImportPage', () => {
     expect(window.sessionStorage.getItem(STORAGE_KEY)).toBe('8');
   });
 
+  it('does not clear a newer batch id when a stale restoration fails with not found', async () => {
+    window.sessionStorage.setItem(STORAGE_KEY, '7');
+    let rejectRestore!: (reason: unknown) => void;
+    vi.mocked(getBatch).mockImplementation(() => new Promise<ImportResponse>((_, reject) => { rejectRestore = reject; }));
+    const newer: ImportResponse = { ...batch, id: 8, rowsRead: 30, imported: 20, rejected: 10 };
+    vi.mocked(uploadCsv).mockResolvedValue(newer);
+    renderWithProviders(<ImportPage />);
+    await waitFor(() => expect(getBatch).toHaveBeenCalled());
+
+    fireEvent.change(screen.getByLabelText('Choose CSV file'), { target: { files: [new File(['csv'], 'marks.csv', { type: 'text/csv' })] } });
+    fireEvent.click(screen.getByRole('button', { name: 'Upload and import' }));
+    expect(await screen.findByText((_, element) =>
+      element?.tagName === 'P' && (element.textContent ?? '').includes('We read 30 rows'))).toBeInTheDocument();
+
+    rejectRestore(new ApiError(404, 'BATCH_NOT_FOUND', 'missing'));
+    await waitFor(() => expect(window.sessionStorage.getItem(STORAGE_KEY)).toBe('8'));
+    expect(screen.getByText((_, element) =>
+      element?.tagName === 'P' && (element.textContent ?? '').includes('We read 30 rows'))).toBeInTheDocument();
+    expect(screen.queryByText((_, element) =>
+      element?.tagName === 'P' && (element.textContent ?? '').includes('We read 25 rows'))).not.toBeInTheDocument();
+  });
+
   it('never stores file contents or student details in session storage', async () => {
     vi.mocked(uploadCsv).mockResolvedValue(batch);
     renderWithProviders(<ImportPage />);
