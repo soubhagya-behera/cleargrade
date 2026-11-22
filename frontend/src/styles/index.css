@@ -168,6 +168,7 @@
   .cg-btn-accent,
   .cg-btn-secondary {
     @apply inline-flex min-h-12 items-center justify-center gap-2.5 rounded-xl font-bold tracking-wide;
+    cursor: pointer;
     transition:
       background-color var(--duration-transition-btn) ease,
       border-color var(--duration-transition-btn) ease,
@@ -238,10 +239,15 @@
 
   .cg-btn-ghost {
     @apply inline-flex min-h-10 items-center justify-center gap-1 rounded-lg px-3 text-sm font-medium text-ink-700 transition-colors;
+    cursor: pointer;
   }
 
   .cg-btn-ghost:hover:not(:disabled) {
     color: var(--color-navy-900);
+  }
+
+  .cg-btn-ghost:disabled {
+    cursor: not-allowed;
   }
 
   .cg-input {
@@ -250,6 +256,11 @@
       border-color var(--duration-transition-btn) ease,
       box-shadow var(--duration-transition-btn) ease,
       background-color var(--duration-transition-btn) ease;
+  }
+
+  input.cg-input,
+  textarea.cg-input {
+    cursor: text;
   }
 
   .cg-input:hover:not(:disabled) {
@@ -299,7 +310,7 @@
   }
 
   .cg-stat-value {
-    @apply mt-1.5 text-3xl font-bold tracking-tight tabular-nums text-navy-900 sm:text-[2.25rem];
+    @apply mt-0 text-[1.875rem] font-bold tracking-tight tabular-nums text-navy-900 sm:text-[2rem];
   }
 
   .cg-pill-sun {
@@ -353,20 +364,25 @@
   }
 
   .cg-dropzone {
-    @apply relative rounded-2xl px-5 py-7 text-center sm:px-7 sm:py-10;
+    @apply relative flex min-h-[11.5rem] flex-col items-center justify-center overflow-hidden rounded-2xl px-4 py-4 text-center sm:min-h-[11.75rem] sm:px-6 sm:py-4;
+    cursor: pointer;
     border: 1.5px dashed var(--color-line-strong);
-    background-color: var(--color-surface);
-    background-image: radial-gradient(140% 150% at 50% 0%, rgba(128, 180, 227, 0.06) 0%, rgba(128, 180, 227, 0) 70%);
+    background-color: var(--color-lake-050);
     transition:
-      border-color 180ms ease,
-      box-shadow 180ms ease,
-      background-color 180ms ease;
+      border-color var(--duration-transition-drop) ease,
+      box-shadow var(--duration-transition-drop) ease,
+      background-color var(--duration-transition-drop) ease,
+      transform var(--duration-transition-drop) ease;
   }
 
-  .cg-dropzone:hover {
+  .cg-dropzone > * {
+    position: relative;
+    z-index: 1;
+  }
+
+  .cg-dropzone:hover:not(.is-disabled) {
     border-color: var(--color-lake-500);
-    background-color: var(--color-lake-050);
-    box-shadow: 0 6px 18px rgba(44, 106, 161, 0.06);
+    box-shadow: 0 3px 10px rgba(13, 33, 67, 0.06);
   }
 
   .cg-dropzone:focus-within {
@@ -377,18 +393,85 @@
   .cg-dropzone.is-dragging {
     border-style: solid;
     border-color: var(--color-lake-600);
+    box-shadow: 0 0 0 3px rgba(128, 180, 227, 0.24);
+  }
+
+  .cg-dropzone.is-disabled {
+    cursor: not-allowed;
+  }
+
+  .cg-dropzone.is-disabled:hover {
+    border-color: var(--color-line-strong);
     background-color: var(--color-lake-050);
-    box-shadow:
-      0 0 0 3px rgba(128, 180, 227, 0.3),
-      0 8px 24px rgba(44, 106, 161, 0.1);
+    box-shadow: none;
+    transform: none;
+  }
+
+  .cg-dropzone.is-selected {
+    border-style: solid;
+    border-color: rgba(128, 180, 227, 0.6);
+    background-color: var(--color-lake-050);
   }
 
   .cg-dropzone-icon {
-    @apply mx-auto flex h-11 w-11 items-center justify-center rounded-2xl bg-lake-100 text-lake-700 sm:h-12 sm:w-12;
+    @apply flex h-12 w-12 items-center justify-center rounded-xl bg-white text-lake-700;
+    border: 1px solid var(--color-line);
     transition:
-      background-color 180ms ease,
-      color 180ms ease,
-      box-shadow 180ms ease;
+      background-color var(--duration-transition-drop) ease,
+      color var(--duration-transition-drop) ease,
+      transform var(--duration-transition-drop) ease;
+  }
+
+  .cg-dropzone:hover:not(.is-disabled) .cg-dropzone-icon {
+    transform: translateY(-1px);
+  }
+
+  .cg-dropzone.is-dragging .cg-dropzone-icon {
+    background-color: var(--color-lake-500);
+    color: var(--color-navy-950);
+    transform: translateY(-3px) scale(1.05);
+  }
+
+  .cg-dropzone.is-selected .cg-dropzone-icon {
+    background-color: var(--color-navy-900);
+    color: var(--color-sun-500);
+  }
+
+  .cg-file-remove {
+    @apply inline-flex size-10 items-center justify-center rounded-xl border border-line bg-surface text-ink-500;
+    cursor: pointer;
+    transition:
+      color var(--duration-transition-btn) ease,
+      border-color var(--duration-transition-btn) ease,
+      background-color var(--duration-transition-btn) ease,
+      transform var(--duration-transition-btn) ease;
+  }
+
+  .cg-file-remove:hover:not(:disabled) {
+    color: var(--color-danger);
+    border-color: rgba(184, 50, 39, 0.3);
+    background-color: rgba(184, 50, 39, 0.05);
+    transform: translateY(-1px);
+  }
+
+  .cg-file-remove:active:not(:disabled) {
+    transform: scale(0.96);
+  }
+
+  .cg-file-remove:disabled {
+    cursor: not-allowed;
+    opacity: 0.45;
+  }
+
+  .cg-step-badge {
+    @apply inline-flex size-9 shrink-0 items-center justify-center rounded-xl border border-line bg-lake-050 text-[12px] font-extrabold tabular-nums text-lake-700;
+    letter-spacing: 0.04em;
+  }
+
+  .cg-spec-chip {
+    @apply inline-flex items-center rounded-md border border-line px-2.5 py-1 text-[11px] font-bold uppercase text-ink-500;
+    background-color: rgba(255, 255, 255, 0.7);
+    backdrop-filter: blur(6px);
   }
 
   .cg-stat-card {
@@ -404,15 +487,6 @@
     min-width: 0;
     overflow-wrap: anywhere;
     word-break: break-word;
-  }
-
-  .cg-summary-strong {
-    display: inline-block;
-    transition: transform 200ms ease;
-  }
-
-  .cg-summary-strong:hover {
-    transform: scale(1.02);
   }
 
   .cg-shell-glow {

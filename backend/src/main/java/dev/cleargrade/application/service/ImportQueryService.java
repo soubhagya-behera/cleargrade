@@ -36,6 +36,13 @@ public class ImportQueryService {
 				.orElseThrow(() -> new BatchNotFoundException(batchId));
 	}
 
+	public PageResult<BatchSummary> getHistory(int page, int size) {
+		if (page < 0 || size < 1 || size > MAX_PAGE_SIZE) {
+			throw new InvalidParameterException("page must be >= 0 and size must be between 1 and " + MAX_PAGE_SIZE);
+		}
+		return this.batches.findPage(page, size);
+	}
+
 	public PageResult<RowErrorView> getErrors(long batchId, int page, int size, String code) {
 		if (!this.batches.existsById(batchId)) {
 			throw new BatchNotFoundException(batchId);

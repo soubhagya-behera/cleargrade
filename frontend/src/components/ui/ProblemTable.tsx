@@ -37,7 +37,6 @@ function ProblemCards({ errors }: ProblemTableProps) {
               <p className="cg-caps text-[11px] font-bold text-ink-500">Row</p>
               <p className="mt-0.5 text-sm font-semibold tabular-nums text-navy-900">{error.lineNumber}</p>
             </div>
-            <span className="cg-tag shrink-0 bg-lake-100 [overflow-wrap:anywhere]">{error.errorCode}</span>
           </div>
           <dl className="mt-3 space-y-2.5">
             <div className="min-w-0">
@@ -52,7 +51,10 @@ function ProblemCards({ errors }: ProblemTableProps) {
             </div>
             <div className="min-w-0">
               <dt className="cg-caps text-[11px] font-bold text-ink-500">Problem</dt>
-              <dd className="mt-0.5 text-sm leading-relaxed text-ink-700">{error.message}</dd>
+              <dd className="mt-1 flex min-w-0 flex-wrap items-start gap-2 text-sm leading-relaxed text-ink-700">
+                <span className="min-w-0 flex-1 [overflow-wrap:anywhere]">{error.message}</span>
+                <span className="cg-tag shrink-0 whitespace-nowrap bg-lake-100 !px-2 !py-1 text-[10px] font-bold leading-none">{error.errorCode}</span>
+              </dd>
             </div>
           </dl>
         </li>
@@ -64,8 +66,14 @@ function ProblemCards({ errors }: ProblemTableProps) {
 function ProblemRowsTable({ errors }: ProblemTableProps) {
   return (
     <div className="cg-scroll-cue overflow-x-auto">
-      <table className="min-w-full text-left text-sm">
+      <table className="min-w-full table-fixed text-left text-sm">
         <caption className="sr-only">Rejected rows with physical line numbers and error codes</caption>
+        <colgroup>
+          <col className="w-[10%]" />
+          <col className="w-[19%]" />
+          <col className="w-[19%]" />
+          <col className="w-[52%]" />
+        </colgroup>
         <thead>
           <tr>
             <th scope="col" className="cg-table-head">Row</th>
@@ -77,12 +85,14 @@ function ProblemRowsTable({ errors }: ProblemTableProps) {
         <tbody className="divide-y divide-line">
           {errors.map((error, index) => (
             <tr key={`${error.lineNumber}-${error.field}-${error.errorCode}-${index}`} className="transition-colors hover:bg-lake-050/60">
-              <td className="cg-table-cell font-semibold tabular-nums text-navy-900">{error.lineNumber}</td>
-              <td className="cg-table-cell font-medium tabular-nums text-navy-900">{error.rawStudentId ?? '(blank)'}</td>
-              <td className="cg-table-cell">{fieldLabel(error.field)}</td>
-              <td className="cg-table-cell">
-                <span className="break-words">{error.message}</span>
-                <span className="cg-tag ml-2 inline-flex shrink-0 whitespace-nowrap bg-lake-100">{error.errorCode}</span>
+              <td className="cg-table-cell align-top font-semibold tabular-nums text-navy-900">{error.lineNumber}</td>
+              <td className="cg-table-cell align-top font-medium tabular-nums text-navy-900 [overflow-wrap:anywhere]">{error.rawStudentId ?? '(blank)'}</td>
+              <td className="cg-table-cell align-top [overflow-wrap:anywhere]">{fieldLabel(error.field)}</td>
+              <td className="cg-table-cell align-top">
+                <div className="flex min-w-0 flex-wrap items-start gap-x-2 gap-y-1.5">
+                  <span className="min-w-0 flex-1 leading-relaxed [overflow-wrap:anywhere]">{error.message}</span>
+                  <span className="cg-tag shrink-0 whitespace-nowrap bg-lake-100 !px-2 !py-1 text-[10px] font-bold leading-none">{error.errorCode}</span>
+                </div>
               </td>
             </tr>
           ))}

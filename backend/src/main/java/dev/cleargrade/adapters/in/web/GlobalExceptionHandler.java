@@ -50,7 +50,7 @@ public class GlobalExceptionHandler {
 
 	@ExceptionHandler({ FileTooLargeException.class, MaxUploadSizeExceededException.class })
 	public ResponseEntity<ErrorResponse> tooLarge(Exception error, HttpServletRequest request) {
-		return response(HttpStatus.PAYLOAD_TOO_LARGE, "FILE_TOO_LARGE",
+		return response(HttpStatus.CONTENT_TOO_LARGE, "FILE_TOO_LARGE",
 				"The uploaded file exceeds the configured size limit", List.of(), request);
 	}
 

@@ -1,9 +1,6 @@
 package dev.cleargrade.adapters.in.web.dto;
 
-import java.util.List;
-
 import dev.cleargrade.application.model.ImportInsightFinding;
-import dev.cleargrade.application.model.ImportInsightReport;
 
 /** Finding DTO: evidence value is visibly separate from interpretation. */
 public record InsightFindingResponse(

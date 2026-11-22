@@ -83,7 +83,7 @@ function Tooltip({ label }: { label: string }) {
         onFocus={() => setOpen(true)}
         onBlur={() => setOpen(false)}
         onClick={() => setOpen((previous) => !previous)}
-        className="ml-1 inline-flex size-4 items-center justify-center rounded-full text-ink-500 hover:text-lake-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-lake-500"
+        className="ml-1 inline-flex size-4 cursor-pointer items-center justify-center rounded-full text-ink-500 hover:text-lake-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-lake-500"
       >
         <Info size={12} aria-hidden="true" />
       </button>

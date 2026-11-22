@@ -23,6 +23,8 @@ export interface ImportResponse {
   deduplicated: boolean;
 }
 
+export type ImportHistoryEntry = Omit<ImportResponse, 'deduplicated'>;
+
 export type RowErrorCode =
   | 'MISSING_REQUIRED'
   | 'INVALID_FORMAT'
