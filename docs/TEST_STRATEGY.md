@@ -1,6 +1,6 @@
 # ClearGrade — Test Strategy
 
-Status: **Implemented and green (286 backend tests across 40 test classes, 0 failures, 0 errors, 1 opt-in live smoke test skipped; 45 frontend tests, 0 failures; JDK 21, real PostgreSQL Testcontainers).** Backend coverage includes CSV/validation, import integration, mandatory benchmarks, transactions, REST API and ClearGrade Intelligence; frontend coverage includes API client, import, directory, student report finder, individual report and intelligence panel. Goal: convince a teammate the import is correct, including cases the supplied files do not contain. `[REQ]`
+Status: **Implemented and green — latest evidence: 294 backend tests across 41 test classes (293 passed, 0 failures, 0 errors, 1 opt-in `LiveGeminiSmokeTest` skipped) and 77 frontend tests, JDK 21 with real PostgreSQL Testcontainers.** Backend coverage includes CSV/validation, import integration, mandatory benchmarks, transactions, REST API, import history/CSV exports and ClearGrade Intelligence; frontend coverage includes API client, import, history, CSV downloads, directory, student report finder, individual report and intelligence panel. Goal: convince a teammate the import is correct, including cases the supplied files do not contain. `[REQ]`
 
 ## 1. Validation unit tests (domain, pure JUnit 5)
 
@@ -60,13 +60,13 @@ Benchmark numbers are **regression fixtures only**, never parameters to validati
 - Transaction test: rollback of T3 leaves no students, no error occurrences, no `COMPLETED` status and no partial counts; T4 separately commits `FAILED`; `REQUIRES_NEW` executes in an independent transaction (proves no self-invocation bug).
 - Flyway migration from empty schema and idempotent second startup.
 
-## 5. API tests (implemented — `RestApiIntegrationTest`, 11 tests)
+## 5. API tests (implemented — `RestApiIntegrationTest`; 15 tests in the current Surefire report)
 
 Real MockMvc → application service → PostgreSQL Testcontainers coverage: multipart upload `201` with counts/`Location`; repeated COMPLETED digest `200` with `deduplicated: true`; active digest `409 BATCH_PROCESSING` with `batchId`; empty/missing-column/malformed uploads `400`; non-CSV `415`; oversized `413`; batch summary `200`/`404`; paged row errors with physical lines, code filter, `404` and invalid-parameter `400`; student directory search/filter/sort/paging and sort allowlist; student report derived grading and `404`; `/actuator/health` available outside `/api`. No broad `@Transactional` test wrapper is used, so T1–T4 boundaries remain real.
 
-## 6. Frontend tests (implemented — Vitest + Testing Library, 45 tests)
+## 6. Frontend tests (implemented — Vitest + Testing Library, 77 tests in 11 files)
 
-Typed API client success/query-string/error-envelope/network-failure/multipart cases; ImportPage upload success with real summary and physical-line problem rows, `409`/`413` friendly messages, client-side size rejection and batch lookup not-found; directory loading, real rows, search/grade/section filters, pagination, empty/error states; individual report rendering with derived grade/PASS and not-found state; student report finder search, results, retry and navigation; responsive `ProblemTable` card/table switching; intelligence panel and report states.
+Typed API client success/query-string/error-envelope/network-failure/multipart cases; ImportPage upload success with real summary and physical-line problem rows, `409`/`413` friendly messages, client-side size rejection and batch lookup not-found; directory loading, real rows, search/grade/section filters, pagination, empty/error states; individual report rendering with derived grade/PASS and not-found state; student report finder search, results, retry and navigation; responsive `ProblemTable` card/table switching; `ImportHistory` pagination, both CSV downloads with fallback filenames, disabled row-problems export, busy/retry and stale-detail switching; intelligence panel and report states.
 
 
 - `POST /api/imports`: `201`, `200` deduplicated, `409 BATCH_PROCESSING`, `400`, `413`, `415`, `500` with correlation id; counters shape correct.
@@ -88,7 +88,7 @@ Typed API client success/query-string/error-envelope/network-failure/multipart c
 - Directory first/middle/last pages at 5,000+ rows; verify index use.
 - Monitor memory during streaming import; no unbounded accumulation.
 - Re-run with a larger generated seed (through the import API, T-1) to check unseen-file behaviour.
-- Report measured numbers; no invented thresholds; failures trigger indexing/streaming work, not premature caching. Measured 2026-11-20 (fixed clock, JDK 21, Testcontainers PostgreSQL) in the final `verify` run: small fixture 158 ms, 5,000-row sample 4,291 ms; counts exactly 25/16/9 and 5000/4685/315/348. These are informational observations, not acceptance thresholds.
+- Report measured numbers; no invented thresholds; failures trigger indexing/streaming work, not premature caching. **Latest Surefire report:** small fixture **131 ms**, 5,000-row sample **3,334 ms**; counts exactly **25/16/9** and **5,000/4,685/315 rejected/348 occurrences** (JDK 21, PostgreSQL 16 / `postgres:16-alpine`). Timings are environment-dependent observations from one run, not acceptance thresholds. Earlier runs measured 163/5,407 ms, 158/4,291 ms (2026-11-20) and 130/3,892 ms — historical observations only.
 
 ## 8. Regression benchmark strategy
 
@@ -117,3 +117,14 @@ No real key, Ollama installation or live AI call is required for CI. Mock HTTP s
 | Frontend | Provider availability, no key in frontend source, Gemini/Ollama/rule-based rendering, loading/error/retry, cache indicator, evidence separation, disabled/offline and accessibility states |
 
 Existing import/grade counters and benchmark assertions remain unchanged; adding AI tests does not alter them.
+
+## 10. Current verification evidence (2026-11-22)
+
+| Check | Latest evidence |
+|---|---|
+| Backend suite | 41 Surefire report files: **294 tests, 293 passed, 0 failures, 0 errors, 1 skipped** (`LiveGeminiSmokeTest`) |
+| Frontend suite | 77 `it(...)` definitions across 11 test files |
+| Benchmark | 131 ms / 3,334 ms; deterministic counts 25/16/9 and 5,000/4,685/315/348 |
+| CI | GitHub Actions backend and frontend jobs SUCCESS on merged PR #12 commit `ae90408` (run `45039297026`); both jobs also passed on PR #11 head `b9fb4d3` earlier |
+
+No test was executed as part of the documentation update; these figures are taken from existing reports and PR #12's recorded verification. The earlier 45-test frontend figure is retained as history in PROJECT_STATUS.md; other superseded totals are no longer carried there. There is no OWASP dependency-check scan in CI.

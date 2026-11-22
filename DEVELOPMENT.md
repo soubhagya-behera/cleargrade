@@ -10,9 +10,9 @@ Status: **G7→handover passed; all eight phases (0–7) complete.** REST API, r
 | 1 — Foundation **(scaffolded, no migrations yet)** | Maven/Spring Boot bootstrap (Java 21, Spring Boot 4.1.2, `mvnw`), Docker Compose + Postgres, profile-based configuration (§3), injected `Clock` (I-04), configurable 10 MiB limit (U-06) | Skeleton starts with the local profile; `/actuator/health` answers; minimal context/health verification test green. **Flyway migrations and the app Docker image remain for later phases.** |
 | 2 — Domain **(3B.1 implemented + reviewed)** | Pure model with `BigDecimal` marks (C-3), validation, grading (D-07), error-code vocabulary; review remediation for count overflow, row-error line, batch/outcome construction and documentation | Domain tests green; source-scanning framework-independence test green; **C-4 spike evidence approved and G2→G3 passed by owner 2026-11-20** |
 | 3 — Ingestion **(schema + persistence + application services + production CSV + import use case implemented; G3→G4 passed)** | Flyway V1 schema, JPA entities/repositories/mappers, application output ports, T1–T4 transaction services, exact digest recovery, D-28 upsert, C-4 physical-line CSV adapter, domain-backed row validation/error occurrences and cohesive import use case | Migration, persistence and application transaction tests green; **C-4 gate passed (owner 2026-11-20), all six limitations carried forward**; idempotency/concurrency tests green; benchmarks 16/9 and 4,685/315/348 with fixed clock — **achieved 2026-11-20** |
-| 4 — REST API **(implemented; G4→G5 passed)** | Controllers, DTOs, global error handler, `201/200/409/400/413/415/500` upload paths, batch/error/student reads, management-path separation (T-5) | API contract tests green (11 real-PostgreSQL integration tests); no entity leakage; Actuator health-only — **achieved 2026-11-20** |
-| 5 — Frontend **(implemented; G4→G5 passed)** | React Router + TanStack Query, three screens with real API data, all loading/empty/error states, design tokens (UX_SPEC §2) | 14 frontend tests, typecheck and production build pass; screens use real backend data — **achieved 2026-11-20** |
-| 6 — Seed & bonus **(complete; G6→G7 passed)** | Deterministic PII-free CSVs posted through `POST /api/imports` by `scripts/seed.*`; no direct SQL. Bonus features remain deferred (D-17) | Seed works through the real pipeline with new/changed/unchanged/rejected outcomes and clear idempotency; core not regressed — **achieved 2026-11-20** |
+| 4 — REST API **(implemented; G4→G5 passed)** | Controllers, DTOs, global error handler, `201/200/409/400/413/415/500` upload paths, batch/error/student reads, management-path separation (T-5) | Historical phase-gate result: 11 real-PostgreSQL integration tests; current `RestApiIntegrationTest`: 15 tests. No entity leakage; Actuator health-only — **achieved 2026-11-20** |
+| 5 — Frontend **(implemented; G4→G5 passed)** | React Router + TanStack Query, real-data screens with all loading/empty/error states, design tokens (UX_SPEC §2); later extended with the Import History tab and CSV downloads in PR #12 | Historical exit criterion: 14 frontend tests, typecheck and production build pass; **current suite: 77 tests** — achieved 2026-11-20 |
+| 6 — Seed & bonus **(complete; G6→G7 passed)** | Deterministic PII-free CSVs posted through `POST /api/imports` by `scripts/seed.*`; no direct SQL. Error CSV download and class/grade filters were implemented in PR #12; only per-subject mark bars and the printable report remain deferred (D-17) | Seed works through the real pipeline with new/changed/unchanged/rejected outcomes and clear idempotency; core not regressed — **achieved 2026-11-20** |
 | 7 — Hardening & handover **(complete; G7→handover passed)** | Multi-stage Docker images, Compose full stack, one-command scripts, security audit, `NOTES.md`, final README | One-command startup/test verified; docs accurate; no committed secrets; no critical/high security issue — **achieved 2026-11-20** |
 
 Phases are sequential; a failed gate stops the next phase. Bonus work starts only after phase 5 passes (D-17).
@@ -81,16 +81,16 @@ Rules:
 
 | Intent | Command | Status |
 |---|---|---|
-| Backend compile + tests | `cd backend; .\mvnw.cmd -B test` | Runnable (195 tests) |
+| Backend compile + tests | `cd backend; .\mvnw.cmd -B test` | Runnable (current suite: 294 tests across 41 classes; 293 passed, 1 skipped) |
 | PostgreSQL migration integration tests | `cd backend; .\mvnw.cmd -B -Dtest=CoreSchemaMigrationTest test` | Runnable (Testcontainers `postgres:16-alpine`, Docker daemon required; 9 tests) |
 | Persistence integration tests | `cd backend; .\mvnw.cmd -B "-Dtest=PersistenceMapperTest,PersistenceIntegrationTest" test` | Runnable (18 tests; real Testcontainer, Flyway + Hibernate `validate`) |
-| Application transaction tests | `cd backend; .\mvnw.cmd -B "-Dtest=ApplicationTransactionIntegrationTest,ImportApplicationServiceUnitTest,DigestViolationClassificationTest" test` | Runnable (17 tests; real Testcontainer for T1–T4/exact digest/upsert concurrency, unit test for suppressed failure-finalisation error) |
+| Application transaction tests | `cd backend; .\mvnw.cmd -B "-Dtest=ApplicationTransactionIntegrationTest,ImportApplicationServiceUnitTest,DigestViolationClassificationTest" test` | Runnable (18 tests; real Testcontainer for T1–T4/exact digest/upsert concurrency, unit test for suppressed failure-finalisation error) |
 | Focused CSV parser/validation tests | `cd backend; .\mvnw.cmd -B "-Dtest=CommonsCsvFileParserTest,CsvRowValidatorTest,ImportApplicationServiceUnitTest,BatchFinalisationTxTest,PhysicalLineTrackingSpikeTest" test` | Runnable (41 tests; no Docker needed) |
 | CSV import + benchmark acceptance | `cd backend; .\mvnw.cmd -B "-Dtest=CsvImportIntegrationTest,CsvImportBenchmarkTest" test` | Runnable (14 tests, 0 skipped; Testcontainers PostgreSQL; deterministic synthetic fixtures generated in test code — 25/16/9 and 5000/4685/315/348) |
-| REST API integration tests | `cd backend; .\mvnw.cmd -B "-Dtest=RestApiIntegrationTest" test` | Runnable (11 tests, real PostgreSQL Testcontainers + MockMvc) |
-| Full backend verification | `cd backend; .\mvnw.cmd -B verify` | Runnable (206 tests green, 0 skipped) |
+| REST API integration tests | `cd backend; .\mvnw.cmd -B "-Dtest=RestApiIntegrationTest" test` | Runnable (15 tests, real PostgreSQL Testcontainers + MockMvc) |
+| Full backend verification | `cd backend; .\mvnw.cmd -B verify` | Runnable (current: 294 tests, 293 passed, 1 opt-in skip) |
 | Frontend dependency install | `cd frontend; npm ci` | Runnable |
-| Frontend tests | `cd frontend; npm test` | Runnable (14 Vitest/Testing Library tests) |
+| Frontend tests | `cd frontend; npm test` | Runnable (current: 77 Vitest/Testing Library tests) |
 | Frontend typecheck | `cd frontend; npm run typecheck` | Runnable |
 | Frontend production build | `cd frontend; npm run build` | Runnable |
 | One-command startup (Windows) | `powershell -ExecutionPolicy Bypass -File scripts/start.ps1` | Runnable (builds + starts full Compose stack, waits for health) |
@@ -101,9 +101,9 @@ Rules:
 | Compose config check | `docker compose config --quiet` | Runnable |
 | Start PostgreSQL | `docker compose up -d` | Runnable |
 | Run locally with private profile | `Set-Location backend` → `$env:SPRING_PROFILES_ACTIVE = "local"` → `.\mvnw.cmd spring-boot:run` (§3) | Runnable |
-| Frontend unit tests | `npm test` | Planned |
-| Single-command full test | `./scripts/test.sh` | Planned (phase 7) |
-| Seed messy data | script posts generated CSV to `POST /api/imports` | Planned (phase 6) |
+| Frontend unit tests | `npm test` | Runnable (77 tests) |
+| Single-command full test | `./scripts/test.sh` | Runnable (phase 7 complete) |
+| Seed messy data | `scripts/seed.ps1` / `scripts/seed.sh` posts generated CSV to `POST /api/imports` | Runnable (phase 6 complete) |
 
 Exact script names may change once the build exists; the final README is authoritative.
 
@@ -112,11 +112,11 @@ Exact script names may change once the build exists; the final README is authori
 | Gate | Check |
 |---|---|
 | **G0 → G1** | **All blocking decisions approved** — D-07, U-01, U-02, U-03, U-04, U-06, I-01, I-02, I-03, I-04, D-17 — **wherever they appear in DECISIONS.md (§1 and §2), not only §2**. No active superseded identifiers. C-4 recorded as a tracked spike. |
-| G1 → G2 | Docker boot + migration + health check succeed; port `8080:8080` reachable; Actuator exposes health only; external local config verified (§3): private file outside `src/main/resources`, excluded from Git and Docker context, not activated in Docker |
+| G1 → G2 | Docker boot + migration + health check succeed; three Compose services healthy with loopback host ports `3000` (nginx frontend), `8080` (backend) and `5432` (PostgreSQL, configurable); Actuator exposes health only; external local config verified (§3): private file outside `src/main/resources`, excluded from Git and Docker context, not activated in Docker |
 | **G2 → G3 — PASSED 2026-11-20** | Domain tests green; architecture boundary test green; **C-4 physical-line-number spike evidence on `main` from PR #3** (TEST_STRATEGY.md §2.2) formally signed off by owner; all documented spike limitations carried forward into production CSV implementation |
 | **G3 → G4 — PASSED 2026-11-20** | Benchmarks green with fixed clock (25/16/9; 5000/4685/315/348); error occurrence counts correct; idempotency (completed → `200` semantics via `DigestConflictException(COMPLETED)`, active → `409` semantics, FAILED retry), real-PostgreSQL partial-unique concurrency and new/changed/unchanged counters green — **all verified on `feat/csv-import-adapter`** |
-| **G4 → G5 — PASSED 2026-11-20** | API contract, upload/size/duplicate/failure mapping, paginated row errors, directory filtering and report tests green; three screens use real API data; no entity leakage; Actuator health-only — **verified on `feat/rest-api-and-frontend-integration`** |
-| G5 → G6 | Three screens work end to end; all specified states present; design tokens applied |
+| **G4 → G5 — PASSED 2026-11-20** | API contract, upload/size/duplicate/failure mapping, paginated row errors, directory filtering and report tests green; the original three screens use real API data; no entity leakage; Actuator health-only — **verified on `feat/rest-api-and-frontend-integration`**. Later extended by PR #12 with the Import History tab and CSV downloads |
+| G5 → G6 | The original three screens work end to end; all specified states present; design tokens applied; current UI additionally includes the Import History tab and two CSV downloads |
 | **G6 → G7 — PASSED 2026-11-20** | Seed posts through the real import API with new/changed/unchanged/rejected outcomes; repeated uploads reported as deduplicated; no bonus enabled, core not regressed |
 | **G7 → handover — PASSED 2026-11-20** | One-command startup and release checks verified; Docker images, Compose startup, readiness and persistence verified; README and `NOTES.md` match reality; no committed secrets |
 
@@ -126,4 +126,6 @@ The owner also resolved the D-25/D-26 transaction-boundary conflict on 2026-11-2
 
 ## 7. Definition of done
 
-Three screens end to end, graceful bad-file/bad-row handling, one-command tests, Dockerfile + Compose, seed script through the import API, honest README and one-page `NOTES.md`, clean history, no committed secrets. Bonus features remain optional (D-17).
+Import Quality Center (including the Import History tab and both CSV downloads), Student Directory, Student Report Finder and Individual Student Report working end to end; graceful bad-file/bad-row handling; one-command tests; Dockerfiles + three-service Compose; seed script through the import API; honest README and one-page `NOTES.md`; clean history; no committed secrets. Per-subject mark bars and the printable report remain deferred (D-17).
+
+PR #12 (application changes for history and CSV exports) is merged to `main` as `ae90408`; PR #11 contains documentation/screenshots on top of those changes. The stale-`RECEIVED` recovery sweep is still deferred (D-21).

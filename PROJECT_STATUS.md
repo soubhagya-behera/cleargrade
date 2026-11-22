@@ -1,6 +1,8 @@
 # ClearGrade — Project Status
 
-Last updated: 2026-11-20 · **Release engineering complete: all eight phases (0–7) passed.** PR #8 (G3→G4) is merged to `main` as `acc83a1`. This branch adds the REST API, real-data SPA, multi-stage Docker images, full Compose stack, HTTP seed workflow, one-command scripts, final README and `NOTES.md`. No authentication exists; deployment is local/trusted only.
+Last updated: 2026-11-22 · **Release engineering complete: all eight phases (0–7) passed.** PR #8 (G3→G4) is merged to `main` as `acc83a1`. The eight-phase application is complete, including the REST API, real-data SPA, multi-stage Docker images, full Compose stack, HTTP seed workflow and one-command scripts.
+
+Current work is split by design: **PR #11** (`docs/readme-evaluator-polish`, this branch) contains documentation and screenshots only; **PR #12** (`fix/consistent-interactive-cursors`) delivered the application changes for Import History, per-batch CSV exports and UI polish and is already merged to `main` as `ae90408`. The documented features therefore exist on `main`; PR #11 adds documentation on top. Historical phase results below are retained verbatim and labelled as historical where their figures have since moved. No authentication exists; deployment is local/trusted only.
 
 ## 1. Completed
 
@@ -26,37 +28,44 @@ Last updated: 2026-11-20 · **Release engineering complete: all eight phases (0�
  - CSV ingestion slice: production `CommonsCsvFileParser` in `adapters.in.csv` (BOM-aware, explicit Commons CSV format, header mapping, extra-column support) adopts the approved C-4 physical-line mechanism; `CsvRowValidator` reuses existing domain validators and collects one `RowError` per occurrence. `ImportApplicationService.importFile(byte[], String)` computes SHA-256 from original bytes and owns T1→T2→parse/validate→T3, with T4 on fatal failure. `commons-csv` moved to compile scope (D-04).
  - Production CSV adapter details: explicit `CSVFormat` (comment markers disabled), BOM stripping before decoding to text, header normalization/uniqueness/width checks, C-4 `CSVRecord.getCharacterPosition()` plus independent `PhysicalLineMap`, all-empty/blank row skipping, recoverable `WRONG_FIELD_COUNT` rows, and file-level fatal failures for unterminated quotes/empty/header-only files. Safe administrator messages never carry raw CSV or PII; the original parser cause is retained.
  - Row validation via `CsvRowValidator` reuses existing domain value objects (including the canonical U-01 email rule), collects every applicable error occurrence, reserves the first normalized ID even when another field is invalid (I-02), and pins every occurrence to the physical starting line. Counts are overflow-guarded in T3 before narrowing to persisted integers.
- - Benchmark acceptance is mandatory and self-contained: `CsvImportBenchmarkTest` generates deterministic, PII-free synthetic CSVs inside test code (no `reference/` dependency, no `assumeTrue`, no skips), then exercises the real parser/validator/use case/PostgreSQL path. It produces exactly **25/16/9** and **5000/4685/315 rejected/348 occurrences**. Measured 2026-11-20 with JDK 21 in the final `verify` run: small **158 ms**, sample **4,291 ms** (informational, no invented SLA). The original supplied pack remains git-ignored and is never required for CI.
+ - Benchmark acceptance is mandatory and self-contained: `CsvImportBenchmarkTest` generates deterministic, PII-free synthetic CSVs inside test code (no `reference/` dependency, no `assumeTrue`, no skips), then exercises the real parser/validator/use case/PostgreSQL path. It produces exactly **25/16/9** and **5000/4685/315 rejected/348 occurrences**. **Historical measurements:** small **158 ms** / sample **4,291 ms**, small **130 ms** / sample **3,892 ms**, and small **163 ms** / sample **5,407 ms**. The **latest** Surefire report records **131 ms / 3,334 ms**. Timings are environment-dependent observations, not an invented SLA. The original supplied pack remains git-ignored and is never required for CI.
  - Review follow-ups closed: T2 (`PROCESSING` transition) now runs inside the guarded failure path, so a T2 failure triggers T4 and durably marks the reserved batch `FAILED` via the documented `RECEIVED → FAILED` transition; the original exception remains primary with any T4 failure attached as suppressed.
- - G4→G5 REST API: `POST /api/imports` (multipart `file`, `201`/`200` deduplicated/`409`/`400`/`413`/`415`/`500`), `GET /api/imports/{id}`, `GET /api/imports/{id}/errors`, `GET /api/students`, `GET /api/students/{studentId}`. Dedicated DTOs, allowlisted sort, bounded pagination (errors 50/100, students 25/100), strict UTF-8 and filename checks, and a consistent error envelope with correlation id for `500`. Servlet multipart limits are derived from `cleargrade.upload.max-file-size` (default `10485760` bytes = 10 MiB). No JPA entity is returned; Actuator remains health-only outside `/api`.
+  - G4→G5 REST API: `POST /api/imports` (multipart `file`, `201`/`200` deduplicated/`409`/`400`/`413`/`415`/`500`), `GET /api/imports/{id}`, `GET /api/imports/{id}/errors`, `GET /api/students`, `GET /api/students/{studentId}`. Dedicated DTOs, allowlisted sort, bounded pagination (errors 50/100, students 25/100), strict UTF-8 and filename checks, and a consistent error envelope with correlation id for `500`. Servlet multipart limits are derived from `cleargrade.upload.max-file-size` (default `10485760` bytes = 10 MiB). No JPA entity is returned; Actuator remains health-only outside `/api`.
+   - Current REST API (merged PR #12, `ae90408`) also includes `GET /api/imports?page&size` (newest-first history), `GET /api/imports/{id}/report` (one persisted summary record as CSV) and `GET /api/imports/{id}/row-problems` (one CSV record per persisted validation issue). The earlier proposed `/errors.csv` route was never implemented. CSV exports neutralise formula-like values and contain persisted summary/issue data, not reconstructed rejected source rows.
   - G4→G5 frontend: typed API client (`get`/`upload`, `ApiError` with code/details/correlation id), TanStack Query hooks, and real-data screens — upload with busy/empty/failure states and summary (rows read, new/changed/unchanged, rejected vs problem occurrences, code breakdown), paged row problems with physical lines, batch lookup by id, searchable/filterable/sortable student directory with loading/empty/error states, and student report with derived grade/percentage and PASS badge. Reusable `StatCard`, `DataQualitySummary`, `ProblemTable`, `Pagination`, `StudentTable`, `ResultBadge`, `FileDropzone` and state components; no mock records or fabricated metrics.
   - Phase 6/7: multi-stage non-root backend/frontend Docker images; Compose stack (PostgreSQL + backend + frontend) with healthcheck-ordered startup and persistent volume; unprivileged nginx proxies `/api` and `/actuator/health` to the backend; `scripts/start.*`, `scripts/test.*` and `scripts/seed.*` provide one-command startup, release checks and HTTP seeding. Deterministic PII-free seed CSVs demonstrate new/changed/unchanged/rejected outcomes; repeated uploads are reported as deduplicated/conflicting. Frontend visual system unified around UX_SPEC tokens with shared component classes, skip link, semantic tables/captions, breadcrumb, visible focus states and reduced-motion support. Final README, `NOTES.md` and pre-publication security audit complete; CI now runs frontend tests.
 
 
 ## 2. Owner-ratified decisions (recorded in DECISIONS.md §1)
 
-`D-07` grading (A≥80/B≥70/C≥60/D≥50/F<50; PASS ≥50; no subject threshold), `U-01` email (pragmatic validation, plus-addressing/subdomains; no RFC claim), `U-02` cross-file upsert (accepted rows only; preserve first-seen; new/changed/unchanged), `U-03` no authentication (local/trusted only), `U-04` support all README variations, `U-06` configurable 10 MiB/413, `I-01` header-width field count, `I-02` first occurrence reserves ID, `I-03` inclusive age 5–25, `I-04` injected clock with 2026-11-19 benchmark, `D-17` bonus deferred, `D-19` profile-based configuration (location revised by D-20), `D-20` external local configuration directory.
+`D-07` grading (A≥80/B≥70/C≥60/D≥50/F<50; PASS ≥50; no subject threshold), `U-01` email (pragmatic validation, plus-addressing/subdomains; no RFC claim), `U-02` cross-file upsert (accepted rows only; preserve first-seen; new/changed/unchanged), `U-03` no authentication (local/trusted only), `U-04` support all README variations, `U-06` configurable 10 MiB/413, `I-01` header-width field count, `I-02` first occurrence reserves ID, `I-03` inclusive age 5–25, `I-04` injected clock with 2026-11-19 benchmark, `D-17` bonus originally deferred (error CSV and filter later implemented in PR #12; mark bars and print still deferred), `D-19` profile-based configuration (location revised by D-20), `D-20` external local configuration directory.
 
-## 3. Open technical spike (blocker for phase 3)
+## 3. Resolved technical spike (C-4)
 
 | Spike | Status | Gate |
 |---|---|---|
 | **C-4 physical line numbers** — prove the chosen CSV library reports the physical starting line with header = 1 across embedded newlines, blank lines, a malformed row after the newline and a subsequent valid row; counting `Reader` not accepted untested | **EVIDENCE APPROVED by owner 2026-11-20** (PR #3 `e5181c1`: 18 spike tests green); all documented spike limitations carried forward into production CSV implementation | **G2→G3 PASSED 2026-11-20** (phase 3 unblocked) |
 
-## 4. Verification evidence (executed 2026-11-20)
+## 4. Verification evidence
+
+The rows dated 2026-11-20 are **historical milestone evidence** retained for traceability. Current figures are the first four rows below.
 
 | Check | Command | Result |
 |---|---|---|
+| Current backend suite | Latest Surefire reports in `backend/target/surefire-reports` | **294 tests: 293 passed, 0 failures, 0 errors, 1 skipped** (`LiveGeminiSmokeTest`) across **41 test classes** |
+| Current frontend tests | `npm test` (77 `it(...)` definitions in 11 files) | **77 tests** |
+| Current benchmark evidence | `CsvImportBenchmarkTest` Surefire report | **131 ms** small / **3,334 ms** 5,000-row; counts **25/16/9** and **5,000/4,685/315 rejected/348 occurrences**; timings are environment-dependent |
+| Current CI | GitHub Actions on merged PR #12 commit `ae90408` (run `45039297026`); PR #11 head `b9fb4d3` earlier | Backend and Frontend checks **SUCCESS** on `ae90408`; both jobs also passed on `b9fb4d3` earlier |
 | Spring Boot / Java compatibility | Spring Initializr metadata + Maven Central | `4.1.2` GA; Java `21` supported |
-| Backend compile + tests | `.\mvnw.cmd -B test` (JDK 21) | **206 tests, 0 failures/errors/skips** (195 prior + 11 REST API integration tests against real PostgreSQL) |
+| Backend compile + tests | `.\mvnw.cmd -B test` (JDK 21) | **Historical (2026-11-20):** 206 tests, 0 failures/errors/skips (195 prior + 11 REST API integration tests against real PostgreSQL) |
 | Focused CSV/validation tests | `.\mvnw.cmd -B "-Dtest=CommonsCsvFileParserTest,CsvRowValidatorTest,ImportApplicationServiceUnitTest,BatchFinalisationTxTest,PhysicalLineTrackingSpikeTest" test` | 41 tests, 0 failures/errors |
 | CSV + benchmark integration | `.\mvnw.cmd -B "-Dtest=CsvImportIntegrationTest,CsvImportBenchmarkTest" test` | 14 tests, 0 failures/errors/skips; both mandatory synthetic benchmarks executed with exact counts |
 | PostgreSQL migration integration | `.\mvnw.cmd -B -Dtest=CoreSchemaMigrationTest test` (JDK 21, `postgres:16-alpine`) | 9 tests, 0 failures/errors against a real Testcontainer, including status/count and SHA-256 SQLSTATE assertions |
 | Persistence integration | `.\mvnw.cmd -B "-Dtest=PersistenceMapperTest,PersistenceIntegrationTest" test` (JDK 21, `postgres:16-alpine`) | 18 tests, 0 failures/errors; Flyway + Hibernate `validate` + repository round trips |
 | Application transaction integration | `.\mvnw.cmd -B "-Dtest=ApplicationTransactionIntegrationTest,ImportApplicationServiceUnitTest,DigestViolationClassificationTest" test` (JDK 21, `postgres:16-alpine`) | 18 tests, 0 failures/errors; T1–T4 boundaries (including T2 failure → T4), exact digest index, upsert counts, concurrency and suppressed failure-finalisation error |
-| Backend full verify | `.\mvnw.cmd -B verify` | Passed, 206 tests green, 0 skipped |
-| REST API integration | `.\mvnw.cmd -B "-Dtest=RestApiIntegrationTest" test` | 11 tests, 0 failures/errors; real MockMvc → application → PostgreSQL path for upload outcomes, batch/error reads, directory/report and health |
-| Frontend tests | `npm test` (Vitest + Testing Library) | 45 tests, 0 failures; API client, upload workflow/states, row problems, directory search/filter/pagination/states, report/not-found, student report finder and intelligence panel |
+| Backend full verify | `.\mvnw.cmd -B verify` | **Historical (2026-11-20):** passed, 206 tests green, 0 skipped |
+| REST API integration | `.\mvnw.cmd -B "-Dtest=RestApiIntegrationTest" test` | 15 tests, 0 failures/errors; real MockMvc → application → PostgreSQL path for upload outcomes, batch/error reads, history, CSV exports, directory/report and health |
+| Frontend tests | `npm test` (Vitest + Testing Library) | **Historical (2026-11-20):** 45 tests, 0 failures; API client, upload workflow/states, row problems, directory search/filter/pagination/states, report/not-found, student report finder and intelligence panel |
 | Frontend typecheck | `npm run typecheck` | Passed |
 | Frontend production build | `npm run build` | Passed (Vite build, 2,212 modules) |
 | Packaged JAR config safety | `jar tf` on built JAR | Only `application.properties` packaged; no local profile |
@@ -83,7 +92,7 @@ Toolchain: JDK `21.0.10` (installed at `C:\Program Files\Java\jdk-21.0.10`, sele
 
 | Risk | Status | Mitigation / note |
 |---|---|---|
-| Benchmark counts drift with real date | Mitigated | Fixed clock `2026-11-19` in tests (I-04); document in `NOTES.md` |
+| Benchmark counts drift with real date | Mitigated | Injected `Clock` in date-dependent tests (I-04); benchmark fixtures are generated deterministically; document in `NOTES.md` |
 | Unseen CSV contents unknown | Open | U-04 design + generated fixtures (TEST_STRATEGY §8) |
 | Unusual valid email forms | Open | U-01 rule documented; plus-address/subdomain supported |
 | Concurrent identical uploads | Implemented & tested | Partial unique index + digest reservation (C-1/C-2); real PostgreSQL simultaneous-reservation and divergent D-28 upsert tests green |
@@ -95,17 +104,18 @@ Toolchain: JDK `21.0.10` (installed at `C:\Program Files\Java\jdk-21.0.10`, sele
 
 ## 6. Next actions
 
-1. Phase 3B.2.1 schema slice is merged on `main` via PR #5; Phase 3B.2.2 is merged on `main` via PR #6 (`dce122f`).
-2. **G2→G3 formally passed by owner 2026-11-20** on the merged PR #3 C-4 evidence, with all documented spike limitations carried forward.
-3. Application output ports and T1–T4 transaction/digest/upsert services are implemented per D-23–D-28; no schema changes were needed.
-4. **Production CSV adapter, import use case and G3→G4 acceptance are complete** on `feat/csv-import-adapter`; all C-4 limitations carried forward; no migration/schema changes. **G3→G4 now passes.**
-5. **G4→G5 complete on `feat/rest-api-and-frontend-integration`**: documented `/api` endpoints and three real-data screens verified; no schema changes, no authentication introduced.
-6. **Phase 6/7 complete**: multi-stage Docker images, full Compose stack, HTTP seed workflow, one-command scripts, final README and `NOTES.md` implemented; G6→G7 and G7→handover passed.
-7. Deferred: D-21 stale-`RECEIVED` recovery sweep; bonus D-17 error-CSV download, mark bars and print; U-01 exact pragmatic email grammar boundary remains an owner decision (the canonical domain validator is reused unchanged).
+Current (2026-11-22), remaining Es Magico checklist:
+
+1. The approximately 52-second product walkthrough and thumbnail are integrated in README through **PR #11**, with the existing eight-image gallery preserved. The owner has confirmed the updated Google Drive link and that the file is shared as **Anyone with the link → Viewer**; the README thumbnail opens the confirmed video.
+2. Complete final review of PR #11 (documentation/screenshots); PR #12 (application) is already merged to `main` (`ae90408`), so `main` already contains the documented features.
+3. Send the Es Magico submission email with the README, both PRs, CI results and the video.
+4. Deferred, not part of submission: D-21 stale-`RECEIVED` recovery sweep; D-17 mark bars and printable report; a persistent privacy-safe AI cache; live Gemini verification with a user key; U-01 exact pragmatic email grammar boundary (the canonical domain validator is reused unchanged).
+
+**Historical next-action list (2026-11-20, retained for traceability):** schema PRs #5/#6 merged; G2→G3 passed on PR #3 C-4 evidence; application ports and T1–T4 services implemented per D-23–D-28; production CSV adapter and G3→G4 complete on `feat/csv-import-adapter`; G4→G5 complete on `feat/rest-api-and-frontend-integration`; phases 6/7 delivered Docker/Compose, seed scripts, README and `NOTES.md`. All of these are now completed, not outstanding work.
 
 ## 7. Scope notes
 
-Current-result snapshot only (no term/year invented, D-11). Benchmark numbers are regression fixtures, never application logic (D-12). `NOTES.md` is delivered as the final handover note. No supplied sample CSV data or PDF content is reproduced; the only committed CSV fixtures are deterministic synthetic seed data with no PII. Domain rules, V1 schema, JPA adapters, application ports/T1–T4 services, the production CSV adapter, import use case, REST API, real-data frontend, Docker/Compose delivery and HTTP seeding are implemented. No batch-list endpoint is documented, so the UI offers batch-id lookup plus the current session result rather than a fabricated history. Real credentials are not committed. The six C-4 limitations remain carried forward unchanged: file-level unterminated quotes, disabled comment markers, `read(Path)` BOM stripping, caller-side BOM stripping for string input, UTF-16 offset semantics and explicit header-width consistency (no `isConsistent()` reliance).
+Current-result snapshot only (no term/year invented, D-11). Benchmark numbers are regression fixtures, never application logic (D-12). `NOTES.md` is delivered as the final handover note. No supplied sample CSV data or PDF content is reproduced; the only committed CSV fixtures are deterministic synthetic seed data with no PII. Domain rules, V1 schema, JPA adapters, application ports/T1–T4 services, the production CSV adapter, import use case, REST API, real-data frontend, Docker/Compose delivery and HTTP seeding are implemented. A **newest-first, server-paginated import history** (`GET /api/imports`) and two **per-batch CSV exports** are implemented in merged PR #12 (`ae90408`) and displayed as a tab inside `/import`; the UI also retains batch-id lookup and current-session restoration. The persisted batch history is metadata about imports — it is **not** academic history for students, which remains out of scope (current-result snapshot only, D-11). Real credentials are not committed. The six C-4 limitations remain carried forward unchanged: file-level unterminated quotes, disabled comment markers, `read(Path)` BOM stripping, caller-side BOM stripping for string input, UTF-16 offset semantics and explicit header-width consistency (no `isConsistent()` reliance).
 
 ## 8. Post-release enhancement — ClearGrade Intelligence (2026-11-20)
 
@@ -130,10 +140,10 @@ Enhancement verification (JDK 21, no `GEMINI_API_KEY`, no Ollama installed):
 
 | Check | Command | Result |
 |---|---|---|
-| Focused AI suite | `.\mvnw.cmd -B "-Dtest=ProviderHttpTest,PrivacyContractTest,InsightResponseParserTest,DeterministicInsightServiceTest,InsightProviderRouterTest,ImportInsightServiceTest,AiEndpointWebTest,AiControllerTest,LiveGeminiSmokeTest" test` | 49 tests, 0 failures/errors, 1 opt-in live smoke skipped |
-| Backend complete suite | `.\mvnw.cmd -B test` | 257 tests, 0 failures/errors, 1 skipped; Testcontainers PostgreSQL green |
-| Backend verify | `.\mvnw.cmd -B verify` | Build success, JAR packaged, 257 tests green |
-| Frontend | `npm test`, `npm run typecheck`, `npm run build` | 26 tests green; typecheck and Vite production build pass |
+| Focused AI suite | `.\mvnw.cmd -B "-Dtest=ProviderHttpTest,PrivacyContractTest,InsightResponseParserTest,DeterministicInsightServiceTest,InsightProviderRouterTest,ImportInsightServiceTest,AiEndpointWebTest,AiControllerTest,LiveGeminiSmokeTest" test` | 65 tests, 0 failures/errors, 1 opt-in live smoke skipped |
+| Backend complete suite | `.\mvnw.cmd -B test` | **Historical (2026-11-20):** 257 tests, 0 failures/errors, 1 skipped; Testcontainers PostgreSQL green. Current suite: 294 tests (293 passed, 1 skipped) |
+| Backend verify | `.\mvnw.cmd -B verify` | **Historical (2026-11-20):** build success, JAR packaged, 257 tests green |
+| Frontend | `npm test`, `npm run typecheck`, `npm run build` | **Historical (2026-11-20):** 26 tests green; typecheck and Vite production build pass. Current suite: 77 tests |
 | Compose config | `docker compose config --quiet` | Passed with optional AI env vars empty |
 | Whitespace | `git diff --check` | No whitespace errors |
 

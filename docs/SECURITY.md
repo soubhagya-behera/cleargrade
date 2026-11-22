@@ -1,14 +1,14 @@
 # ClearGrade — Security Considerations
 
-Status: **Upload, parameter, management-path and PII-logging controls implemented (G4→G5, 2026-11-20).** No authentication is implemented (U-03): the app is for **local/trusted evaluation only** and **must not be publicly exposed without authentication**.
+Status: **Upload, parameter, management-path, PII-logging, CSV-export and AI trust-boundary controls implemented.** No authentication is implemented (U-03): the app is for **local/trusted evaluation only** and **must not be publicly exposed without authentication**. The documented CSV exports and import history were delivered by merged application PR #12 (`ae90408`) and are described here for the merged system.
 
 ## 1. Threat considerations
 
-| Threat | Concern | Planned control |
+| Threat | Concern | Control |
 |---|---|---|
-| Denial of service | Large upload, excessive columns, huge fields | Configurable 10 MiB cap (U-06), field/column ceilings, streaming parse |
-| Path traversal | Malicious `filename` | Server-generated temp names; filename is display data only |
-| CSV/formula injection | Error-report CSV evaluated as formulas | Neutralise `= + - @` leading values in bonus export (§3) |
+| Denial of service | Large upload, excessive columns, huge fields | Configurable 10 MiB cap (U-06) enforced by both servlet limits and a controller-side guard before parsing |
+| Path traversal | Malicious `filename` | Filename is sanitised to a display name and never used to build a filesystem path; no client-supplied temp name |
+| CSV/formula injection | Exported CSV evaluated as formulas | `= + - @` leading values are apostrophe-prefixed in **both shipped exports** (§4, §8) |
 | SQL injection | Dynamic search/sort | Bound JPA parameters; `sort` allowlist |
 | XSS | Names/emails rendered in SPA | React escaping; ban `dangerouslySetInnerHTML` |
 | Mass assignment | Extra client fields | Explicit DTOs; never bind JPA entities |
@@ -20,9 +20,9 @@ Status: **Upload, parameter, management-path and PII-logging controls implemente
 
 - Accept `multipart/form-data`, field `file`, `.csv` extension; content type is a secondary signal only. Require successful header parse before any persistence.
 - **Configurable size limit, default 10 MiB (U-06):** reject with HTTP `413 FILE_TOO_LARGE` before full parsing where possible.
-- Bound field count and field length; reject or skip pathological records without unbounded allocation.
-- Stream to a temp file with a **generated** name; delete it in a `finally` block. Never derive filesystem paths from the client filename.
-- Same-origin only; CORS restricted to the app origin.
+- Total upload size is capped at the configurable 10 MiB by the servlet limits and the controller-side guard before parsing; the CSV format is fixed (comma separator, `"` quote, no delimiter auto-detection). No separate per-field or per-column ceiling is enforced; wrong field counts are reported as row problems.
+- The controller reads the multipart bytes into memory, bounds them by the configured cap, and passes a sanitised display filename downstream; no filesystem path is derived from the client filename and no temp file is created.
+- The UI is consumed same-origin (nginx in Docker, Vite proxy in native development); no separate CORS policy is configured or required.
 - Identical digest handling: `200` completed summary, `409 BATCH_PROCESSING` for an active batch, retry allowed after `FAILED` (ARCHITECTURE.md §4).
 
 ## 3. Actuator and management exposure (T-5)
@@ -35,7 +35,7 @@ Status: **Upload, parameter, management-path and PII-logging controls implemente
 
 - Apache Commons CSV with a fixed format (comma separator, `"` quote, BOM-aware reader); no delimiter auto-detection from user input.
 - Treat all field content as **data**, never as expressions or code.
-- For the deferred bonus error-CSV export, prefix values beginning with `= + - @` (after optional whitespace) with an apostrophe and quote fields containing commas/newlines.
+- For **both shipped CSV exports** (`/api/imports/{id}/report` and `/api/imports/{id}/row-problems`), prefix values beginning with `= + - @` (after optional whitespace) with an apostrophe and quote fields containing commas, quotes or newlines. Exported values are therefore neutralised before spreadsheet use (§8).
 - BOM, CRLF/LF, quoted commas, Unicode and reordered/extra headers are normalised, not executed (U-04).
 - Raw invalid identifiers are stored in `TEXT` columns to avoid silent truncation (DATA_MODEL.md §1).
 
@@ -58,29 +58,33 @@ Names, emails and dates of birth are personal data even though the supplied samp
 ## 7. Docker hardening
 
 - Multi-stage build; small runtime JRE image; no build tools or source in the final layer.
-- Non-root user; no `--privileged`; drop capabilities where practical; read-only root filesystem with an explicitly writable temp directory.
-- Healthchecks, resource limits, named DB volume. Only host port `8080` → container `8080` is published. PostgreSQL `5432` is reachable internally over the Compose network and, for local development, is published on the **host loopback interface only** (`127.0.0.1:${POSTGRES_PORT}:5432`); it is not bound to LAN interfaces (ARCHITECTURE.md §7).
+- Non-root process in both runtime images (backend `USER cleargrade`, unprivileged nginx image); no `--privileged` or host mounts in Compose. Capability dropping and a read-only root filesystem are not currently configured.
+- **Three-service topology:** `postgres` (PostgreSQL 16), `backend` (Spring Boot) and `frontend` (unprivileged nginx serving the React SPA). Healthchecks gate startup; a named volume holds database data.
+- **Published host ports are all loopback-bound:** frontend `127.0.0.1:${FRONTEND_PORT:-3000}:8080` (nginx), backend `127.0.0.1:${APP_PORT:-8080}:8080` and PostgreSQL `127.0.0.1:${POSTGRES_PORT:-5432}:5432`. No port is bound to LAN interfaces (ARCHITECTURE.md §7). The container-internal backend address is `0.0.0.0` only so nginx can proxy to it inside the Compose network.
+- Actuator exposes only `GET /actuator/health` with `show-details: never`, through the loopback backend port; no management endpoint is published separately.
 - Root `.dockerignore` excludes `.env`, `reference/`, `backend/config/application-local.*` and local secrets/artifacts from the build context (D-20); credentials are injected as environment variables at runtime, never through private property files.
 - The `local` profile is not active in images or deployment; no credentials are baked into layers. Optional image scanning in CI.
 
-## 8. Security test cases (planned)
+## 8. Security-relevant verification coverage
 
-| Test | Expectation |
-|---|---|
-| Upload > configured limit | `413`, no temp file left behind |
-| Non-`.csv` filename / content type | `415` |
-| Filename `../../etc/passwd` | Sanitised display name; no path traversal |
-| Error CSV with `=HYPERLINK(...)` | Exported with neutralising prefix (bonus if enabled) |
-| `sort=id; DROP TABLE student` | `400` or whitelisted fallback; no SQL executed |
-| Name containing `<script>` | Rendered as text, not HTML |
-| Failing row with invalid email | Logs contain code/line only — no email, no message body |
-| Concurrent identical uploads | One `201`, other `409`/`200`; only one import performed |
-| Actuator probe | `/actuator/health` available; `/actuator/env` and others disabled/absent |
-| JAR packaging check | `application-local.properties` absent from built JAR (D-20) |
-| Docker context check | `.env` and `backend/config/application-local.properties` not in build context |
-| Container user check | Process runs as non-root |
+Items marked **automated** are covered by tests in the repository. Items marked **design** are enforced in code or configuration but have no dedicated automated test. The JAR/Docker checks were executed during handover and are recorded as historical evidence in PROJECT_STATUS.md. No OWASP dependency-check or other dependency vulnerability scan is configured in CI.
 
-Frontend/API security behaviour is verified in TEST_STRATEGY.md §5–6; these are the security-focused cases.
+| Behaviour | Expectation | Evidence |
+|---|---|---|
+| Upload > configured limit | `413 FILE_TOO_LARGE` | **automated** — `RestApiIntegrationTest` and the controller guard |
+| Non-`.csv` filename / content type | `415 INVALID_FILE_TYPE` | **automated** — `RestApiIntegrationTest` |
+| Path-like filename | Sanitised display name; no path traversal | **design** — `ImportController.sanitize` |
+| `=HYPERLINK(...)` and other formula-like values in **both exports** | Apostrophe prefix + CSV quoting | **automated** — `ImportCsvExportServiceTest` (report and row-problems) |
+| `sort=id; DROP TABLE student` | `400` or allowlisted fallback; no SQL executed | **automated** — `StudentQueryService` allowlist and `RestApiIntegrationTest` invalid-parameter cases |
+| Name containing `<script>` | Rendered as text, not HTML | **design** — React escaping; no `dangerouslySetInnerHTML` in the SPA |
+| PII in AI outbound bodies | No names, IDs, emails, DOB, marks, raw rows or messages | **automated** — `PrivacyContractTest` inspects real outbound bodies |
+| PII in logs | Codes/lines/counts only, never raw bodies or keys | **design** — the only production error log records a correlation id, exception class and URI |
+| Concurrent identical uploads | One import; loser gets `200` deduplicated or `409` | **automated** — `ApplicationTransactionIntegrationTest` |
+| Actuator probe | `/actuator/health` available; other endpoints absent | **automated** — `ClearGradeApplicationHealthTest` / `RestApiIntegrationTest` |
+| JAR packaging / Docker context | Private profile and `.env` excluded | **historical** — `.dockerignore` and JAR inspection in PROJECT_STATUS.md |
+| Container user | Non-root process | **design** — backend and frontend Dockerfiles |
+
+There is no authentication test because authentication is intentionally absent (U-03); this remains a deployment restriction, not a control. Frontend and API behaviour is further described in TEST_STRATEGY.md §5–6.
 
 ## 9. AI copilot trust boundary (post-release)
 
