@@ -118,7 +118,7 @@ export function ImportPage() {
 
       {tab === 'history' ? <ImportHistory /> : <>
 
-      <div className="grid grid-cols-1 items-start gap-5 xl:grid-cols-12 xl:gap-6">
+      <div className="grid grid-cols-1 items-start gap-5 xl:grid-cols-12 xl:items-stretch xl:gap-6">
         <section aria-labelledby="upload-heading" className="cg-card cg-rise-1 relative overflow-hidden p-4 pt-5 sm:p-5 sm:pt-6 xl:col-span-8">
           <span aria-hidden="true" className="absolute inset-x-0 top-0 h-1.5 bg-lake-500" />
           <div className="mb-3">
@@ -191,7 +191,7 @@ export function ImportPage() {
           {error && <div className="mt-4"><ErrorState message={error} /></div>}
         </section>
 
-        <div className="grid min-w-0 gap-4 xl:col-span-4 xl:grid-cols-1">
+        <div className="grid min-w-0 gap-4 xl:col-span-4 xl:grid-cols-1 xl:grid-rows-[auto_1fr]">
           <aside aria-labelledby="lookup-heading" className="cg-card cg-rise-2 min-w-0 p-4 sm:p-5">
             <div className="flex items-start gap-3">
               <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-lake-100 text-lake-700">
