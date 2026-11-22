@@ -50,7 +50,7 @@
 See ClearGrade in action in this short, approximately 52-second walkthrough, covering CSV ingestion, validation results, import history, downloadable reports, student discovery and data-quality intelligence.
 
 <p align="center">
-<a href="https://drive.google.com/file/d/1_YldKthHJXKpUPyrWfnJZlmvjPzDFHQ/view?usp=drivesdk"><img src="docs/media/cleargrade-demo-thumbnail.png" alt="Watch the ClearGrade product walkthrough" width="80%" /></a>
+<a href="https://drive.google.com/file/d/1_YldKthHJXHKpUPyrWfnJZlmvjPzDFHQ/view"><img src="docs/media/cleargrade-demo-thumbnail.png" alt="Watch the ClearGrade product walkthrough" width="80%" /></a>
 </p>
 
 ---
