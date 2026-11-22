@@ -10,6 +10,7 @@ import java.util.Locale;
 import java.util.Set;
 
 import dev.cleargrade.adapters.in.web.dto.ImportResponse;
+import dev.cleargrade.adapters.in.web.dto.ImportHistoryResponse;
 import dev.cleargrade.adapters.in.web.dto.PageResponse;
 import dev.cleargrade.adapters.in.web.dto.RowErrorResponse;
 import dev.cleargrade.application.exception.CsvFailureCode;
@@ -76,6 +77,13 @@ public class ImportController {
 	@GetMapping(path = "/{id}", produces = MediaType.APPLICATION_JSON_VALUE)
 	public ImportResponse batch(@PathVariable long id) {
 		return ImportResponse.from(this.queryService.getBatch(id), false);
+	}
+
+	@GetMapping(produces = MediaType.APPLICATION_JSON_VALUE)
+	public PageResponse<ImportHistoryResponse> history(
+			@RequestParam(defaultValue = "0") int page,
+			@RequestParam(defaultValue = "10") int size) {
+		return PageResponse.from(this.queryService.getHistory(page, size), ImportHistoryResponse::from);
 	}
 
 	@GetMapping(path = "/{id}/errors", produces = MediaType.APPLICATION_JSON_VALUE)

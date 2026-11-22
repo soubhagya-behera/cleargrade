@@ -1,21 +1,16 @@
 import { useEffect, useRef, useState } from 'react';
-import { useMutation, useQueries, useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery } from '@tanstack/react-query';
 import { CheckCircle2, Loader2, SearchCheck, UploadCloud } from 'lucide-react';
 import { ApiError } from '../../api/client';
-import { getBatch, getBatchErrors, importKeys, uploadCsv } from '../../api/imports';
-import { DataQualitySummary } from '../../components/ui/DataQualitySummary';
+import { getBatch, importKeys, uploadCsv } from '../../api/imports';
 import { ErrorState } from '../../components/ui/States';
 import { FileDropzone } from '../../components/ui/FileDropzone';
-import { IntelligencePanel } from '../../components/ui/IntelligencePanel';
-import { Pagination } from '../../components/ui/Pagination';
-import { ProblemTable } from '../../components/ui/ProblemTable';
-import { StatCard } from '../../components/ui/StatCard';
-import type { ImportResponse, RowErrorCode } from '../../types/api';
+import type { ImportResponse } from '../../types/api';
 import { clearLastImportBatchId, readLastImportBatchId, saveLastImportBatchId } from './lastImportBatch';
+import { ImportBatchDetails } from './ImportBatchDetails';
+import { ImportHistory } from './ImportHistory';
 
 const MAX_UPLOAD_BYTES = 10 * 1024 * 1024;
-const PAGE_SIZE = 50;
-const CODES: RowErrorCode[] = ['MISSING_REQUIRED', 'INVALID_FORMAT', 'OUT_OF_RANGE', 'DUPLICATE_ID', 'WRONG_FIELD_COUNT'];
 const CSV_COLUMNS = ['student_id', 'full_name', 'email', 'date_of_birth', 'grade_level', 'section'];
 
 function friendlyError(error: Error): string {
@@ -35,11 +30,10 @@ function friendlyError(error: Error): string {
 }
 
 export function ImportPage() {
+  const [tab, setTab] = useState<'upload' | 'history'>('upload');
   const [file, setFile] = useState<File | null>(null);
   const [result, setResult] = useState<ImportResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [page, setPage] = useState(0);
-  const [code, setCode] = useState<RowErrorCode | ''>('');
   const [lookupId, setLookupId] = useState('');
   const [searchedId, setSearchedId] = useState<number | null>(null);
   const [restoredBatchId, setRestoredBatchId] = useState<number | null>(() => readLastImportBatchId());
@@ -55,8 +49,6 @@ export function ImportPage() {
       setResult(batch);
       setFile(null);
       setError(null);
-      setPage(0);
-      setCode('');
       if (batch.status === 'COMPLETED') saveLastImportBatchId(batch.id);
     },
     onError: (cause: Error) => setError(friendlyError(cause)),
@@ -87,25 +79,6 @@ export function ImportPage() {
     setRestoreError('The last import could not be restored. You can still upload a new file.');
   }, [restoration.isError, restoration.error]);
 
-  const problems = useQuery({
-    queryKey: importKeys.errors(result?.id ?? 0, page, PAGE_SIZE, code || undefined),
-    queryFn: ({ signal }) => getBatchErrors(result!.id, page, PAGE_SIZE, code || undefined, signal),
-    enabled: result !== null && result.status === 'COMPLETED',
-  });
-
-  const breakdownQueries = useQueries({
-    queries: CODES.map((item) => ({
-      queryKey: importKeys.errors(result?.id ?? 0, 0, 1, item),
-      queryFn: ({ signal }: { signal: AbortSignal }) => getBatchErrors(result!.id, 0, 1, item, signal),
-      enabled: result !== null,
-    })),
-  });
-  const breakdown: Partial<Record<RowErrorCode, number>> = {};
-  CODES.forEach((item, index) => {
-    const entry = breakdownQueries[index];
-    if (entry.data) breakdown[item] = entry.data.totalElements;
-  });
-
   const lookup = useQuery({
     queryKey: importKeys.batch(searchedId ?? 0),
     queryFn: ({ signal }) => getBatch(searchedId!, signal),
@@ -133,6 +106,15 @@ export function ImportPage() {
         </p>
         <span aria-hidden="true" className="mt-3 block h-1 w-10 bg-sun-500" />
       </header>
+
+      <nav aria-label="Import Quality Center" className="mb-5 flex flex-wrap gap-2 border-b border-line pb-3">
+        <button type="button" aria-current={tab === 'upload' ? 'page' : undefined} onClick={() => setTab('upload')}
+          className={tab === 'upload' ? 'cg-btn-primary' : 'cg-btn-secondary'}>Import CSV</button>
+        <button type="button" aria-current={tab === 'history' ? 'page' : undefined} onClick={() => setTab('history')}
+          className={tab === 'history' ? 'cg-btn-primary' : 'cg-btn-secondary'}>Import History</button>
+      </nav>
+
+      {tab === 'history' ? <ImportHistory /> : <>
 
       <div className="grid grid-cols-1 items-start gap-5 xl:grid-cols-12 xl:gap-6">
         <section aria-labelledby="upload-heading" className="cg-card cg-rise-1 relative overflow-hidden p-4 pt-5 sm:p-5 sm:pt-6 xl:col-span-8">
@@ -292,47 +274,8 @@ export function ImportPage() {
         </div>
       </div>
 
-      {result && (
-        <div className="mt-6 space-y-5" aria-live="polite">
-          <DataQualitySummary batch={result} breakdown={breakdown} />
-          <div className="cg-stat-row">
-            <StatCard label="Rows read" value={result.rowsRead ?? 0} />
-            <StatCard label="Imported" value={result.imported ?? 0} hint={`${result.newCount ?? 0} new · ${result.changedCount ?? 0} changed · ${result.unchangedCount ?? 0} unchanged`} tone="success" />
-            <StatCard label="Rows rejected" value={result.rejected ?? 0} hint={`${result.errorCount ?? 0} individual problems`} tone="danger" />
-          </div>
-
-          <section aria-labelledby="problems-heading" className="border-t border-line pt-5">
-            <div className="mb-3 flex flex-wrap items-center justify-between gap-3 border-b border-line pb-3">
-              <h3 id="problems-heading" className="text-xl font-bold tracking-tight text-navy-900">Row problems</h3>
-              <label className="flex items-center gap-2 text-xs font-medium text-ink-500" htmlFor="code-filter">
-                Filter by code
-                <select
-                  id="code-filter"
-                  value={code}
-                  onChange={(event) => { setCode(event.target.value as RowErrorCode | ''); setPage(0); }}
-                  className="cg-input !min-h-9 w-auto border-line/80 !py-1.5"
-                >
-                  <option value="">All problems</option>
-                  {CODES.map((item) => <option key={item} value={item}>{item}</option>)}
-                </select>
-              </label>
-            </div>
-            {problems.isPending && <p className="text-sm text-ink-500">Loading problems…</p>}
-            {problems.isError && <ErrorState message="Could not load row problems." onRetry={() => problems.refetch()} />}
-            {problems.data && <ProblemTable errors={problems.data.content} />}
-            {problems.data && (
-              <Pagination
-                page={problems.data.page}
-                totalPages={problems.data.totalPages}
-                onPageChange={setPage}
-                label="Row problem pages"
-              />
-            )}
-          </section>
-
-          {result.status === 'COMPLETED' && <IntelligencePanel batchId={result.id} />}
-        </div>
-      )}
+      {result && <ImportBatchDetails batch={result} />}
+      </>}
     </section>
   );
 }

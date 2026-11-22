@@ -207,6 +207,59 @@ class RestApiIntegrationTest {
 	}
 
 	@Test
+	void importHistoryReturnsEmptyPageWithServerTotal() throws Exception {
+		this.mockMvc.perform(get("/api/imports"))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.content.length()").value(0))
+				.andExpect(jsonPath("$.page").value(0))
+				.andExpect(jsonPath("$.size").value(10))
+				.andExpect(jsonPath("$.totalElements").value(0))
+				.andExpect(jsonPath("$.totalPages").value(0));
+	}
+
+	@Test
+	void importHistoryReturnsPersistedMetadataNewestFirstAndPaginates() throws Exception {
+		this.mockMvc.perform(multipart("/api/imports").file(file("first.csv", csv(VALID_ONE))))
+				.andExpect(status().isCreated());
+		byte[] second = csv("STU003,Bad Email,invalid,2001-01-01,9,A,80,80,80,80,80", VALID_TWO);
+		this.mockMvc.perform(multipart("/api/imports").file(file("second.csv", second)))
+				.andExpect(status().isCreated());
+
+		this.mockMvc.perform(get("/api/imports").param("size", "1"))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.content.length()").value(1))
+				.andExpect(jsonPath("$.content[0].id").value(2))
+				.andExpect(jsonPath("$.content[0].filename").value("second.csv"))
+				.andExpect(jsonPath("$.content[0].rowsRead").value(2))
+				.andExpect(jsonPath("$.content[0].newCount").value(1))
+				.andExpect(jsonPath("$.content[0].changedCount").value(0))
+				.andExpect(jsonPath("$.content[0].unchangedCount").value(0))
+				.andExpect(jsonPath("$.content[0].rejected").value(1))
+				.andExpect(jsonPath("$.content[0].status").value("COMPLETED"))
+				.andExpect(jsonPath("$.content[0].startedAt").exists())
+				.andExpect(jsonPath("$.totalElements").value(2))
+				.andExpect(jsonPath("$.totalPages").value(2));
+		this.mockMvc.perform(get("/api/imports").param("page", "1").param("size", "1"))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.content[0].id").value(1))
+				.andExpect(jsonPath("$.content[0].filename").value("first.csv"))
+				.andExpect(jsonPath("$.totalElements").value(2));
+	}
+
+	@Test
+	void importHistoryValidatesPagination() throws Exception {
+		this.mockMvc.perform(get("/api/imports").param("page", "-1"))
+				.andExpect(status().isBadRequest())
+				.andExpect(jsonPath("$.code").value("INVALID_PARAMETER"));
+		this.mockMvc.perform(get("/api/imports").param("size", "0"))
+				.andExpect(status().isBadRequest())
+				.andExpect(jsonPath("$.code").value("INVALID_PARAMETER"));
+		this.mockMvc.perform(get("/api/imports").param("size", "101"))
+				.andExpect(status().isBadRequest())
+				.andExpect(jsonPath("$.code").value("INVALID_PARAMETER"));
+	}
+
+	@Test
 	void pagedErrorsReturnPhysicalLinesAndValidateParameters() throws Exception {
 		byte[] body = csv("STU001,Bad,not-an-email,2001-01-01,9,A,101,80,80,80,80",
 				"STU002,Alice Smith,alice@example.com,2001-01-01,9,A,80,80,80,80,80");
