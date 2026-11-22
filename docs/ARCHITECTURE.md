@@ -6,7 +6,9 @@ Status: **Design documentation with the full delivery implemented.** Domain, V1 
 
 An administrator receives term results as messy CSV exports and currently repairs them by hand. ClearGrade accepts an upload, makes valid rows available, explains rejected rows in plain language, and lets the administrator open an individual report. `[REQ]`
 
-**Scope limitation — current-result snapshot.** The CSV has no academic term, school year or exam-period field. The portal stores **one current snapshot**; it cannot represent history, re-sits or multiple terms. History will not be invented (D-11). `[REC]`
+**Scope limitation — current-result snapshot.** The CSV has no academic term, school year or exam-period field. The portal stores **one current snapshot per student**; it cannot represent academic history, re-sits or multiple terms. History will not be invented (D-11). `[REC]`
+
+This is distinct from **persisted import-batch history**: `import_batch` records each upload's filename, status, counters and timestamps, and the Import History tab lists those batches newest first. Batch history is provenance about imports, not academic history about students; both can coexist without contradicting the snapshot limitation.
 
 ```mermaid
 flowchart LR
@@ -19,7 +21,7 @@ flowchart LR
     Seed[Seed generator] -->|POST /api/imports| API
 ```
 
-In Docker Compose the SPA is served by nginx on the single published host port `8080`, which proxies same-origin `/api` and `/actuator/health` to the Spring Boot container; in native development Vite serves the SPA on `localhost:3000` and proxies `/api` to `localhost:8080`. Actuator management endpoints are **not** under `/api` (§7). `[REC]`
+In Docker Compose there are **three services**: PostgreSQL, the Spring Boot backend, and an unprivileged nginx container serving the React SPA. nginx is published on `127.0.0.1:3000` and proxies same-origin `/api` and `/actuator/health` to the backend on `127.0.0.1:8080` (host mappings). In native development Vite serves the SPA on `127.0.0.1:5173` and proxies `/api` and `/actuator/health` to the backend on `127.0.0.1:8080`. Actuator management endpoints are **not** under `/api` (§7). `[REC]`
 
 ## 2. Component responsibilities
 
@@ -28,10 +30,10 @@ In Docker Compose the SPA is served by nginx on the single published host port `
 | `domain` | Value objects, **pure** validation, grading policy, error-code vocabulary; `BigDecimal` marks | Import Spring, JPA, Commons CSV or any I/O |
 | `application` | Use-case orchestration, inbound/outbound ports, transaction demarcation | Contain parsing logic or SQL |
 | `adapters.in.web` | Controllers, DTO mapping, status codes, multipart handling | Contain business rules |
-| `adapters.in.csv` | BOM/line-ending handling, header mapping, quoted fields, **physical line numbers (C-4 spike)** | Decide validity beyond structural shape |
+| `adapters.in.csv` | BOM/line-ending handling, header mapping, quoted fields, **physical line numbers (C-4, resolved — §9)** | Decide validity beyond structural shape |
 | `adapters.out.persistence` | JPA entities, repositories, Flyway migrations | Expose entities beyond this adapter |
-| `configuration` | Bean wiring, injected `Clock` (I-04), properties, CORS | Contain business logic |
-| `frontend` | Four screens plus the intelligence panel, states, API client, typed models | Duplicate validation rules |
+| `configuration` | Bean wiring, injected `Clock` (I-04), properties, loopback binding | Contain business logic |
+| `frontend` | Import Quality Center with Upload/History tabs, directory, report finder, individual report and the integrated intelligence panel; states, API client, typed models | Duplicate validation rules |
 
 Dependencies point inward: `adapters → application → domain`. Domain depends on nothing (plain Java 21). Enforced by package discipline plus an architecture test (G2→G3). No Maven multi-module split initially (D-01, D-02). `[REC]`
 
@@ -41,7 +43,7 @@ Dependencies point inward: `adapters → application → domain`. Domain depends
 
 ```mermaid
 flowchart TD
-    A[Multipart upload] --> B[Stream to temp file + compute SHA-256]
+    A[Multipart upload] --> B[Read upload bytes into memory (bounded by the upload cap) + compute SHA-256]
     B --> C{Lookup digest in active batches}
     C -- COMPLETED match --> Z1[Return existing summary: 200 deduplicated]
     C -- RECEIVED/PROCESSING match --> Z2[409 BATCH_PROCESSING + batch reference]
@@ -51,7 +53,7 @@ flowchart TD
     E --> F{Required columns present?}
     F -- No --> G[Fatal: rollback T3; T4 status FAILED; 400]
     F -- Yes --> H{Blank / all-empty?}
-    H -- Yes --> I[Skip; physical line number still consumed - C-4 spike]
+    H -- Yes --> I[Skip; physical line number still consumed - C-4 mechanism, §9]
     H -- No --> J{Wrong field count?}
     J -- Yes --> K[WRONG_FIELD_COUNT occurrence]
     J -- No --> L[Domain validation: all rules, collect every error]
@@ -74,7 +76,7 @@ stateDiagram-v2
     RECEIVED --> PROCESSING: Tx2 persists status explicitly
     PROCESSING --> COMPLETED: Tx3 writes counts + status
     PROCESSING --> FAILED: fatal error; T4 marks FAILED after T3 rollback
-    RECEIVED --> FAILED: crash/recovery sweep timeout
+    RECEIVED --> FAILED: allowed transition (automatic sweep deferred)
     COMPLETED --> [*]
     FAILED --> [*]
 ```
@@ -87,7 +89,7 @@ stateDiagram-v2
 | Identical **RECEIVED / PROCESSING** upload | `409` `BATCH_PROCESSING` with `batchId` (documented conflict) |
 | Identical **FAILED** upload | New batch row created; retry allowed; failed record retained |
 | Concurrent identical uploads | One wins the unique reservation; the loser catches the uniqueness violation, re-reads and returns the matching case above |
-| Stale RECEIVED/PROCESSING after crash | Startup/retry sweep marks timed-out batch `FAILED` (configurable), freeing the digest for retry |
+| Stale RECEIVED/PROCESSING after crash | **Deferred:** no automatic recovery sweep is implemented. The `RECEIVED → FAILED` transition exists (D-21) but is not scheduled; a stuck active digest continues to return `409 BATCH_PROCESSING` until manually resolved. See §11's note and the roadmap in README.md |
 
 A row-level error never moves the batch to `FAILED` `[REQ]`. Successful row validation must never silently round marks (§8).
 
@@ -103,7 +105,7 @@ A row-level error never moves the batch to `FAILED` `[REQ]`. Successful row vali
 | Non-UTF-8 decodable content | `400 INVALID_ENCODING`; batch `FAILED`; no student writes |
 | Unexpected I/O or runtime exception | `500` with correlation id; batch `FAILED`; no partial student writes |
 | Oversized upload | `413` before parsing; limit configurable, default 10 MiB `[U-06]` |
-| Physical line number | C-4 spike evidence approved (§9); production CSV adapter must adopt the mechanism and its documented limitations before ingestion goes live |
+| Physical line number | C-4 spike evidence approved (§9); the production CSV adapter **has adopted** the mechanism and carries its documented limitations into runtime (§11) |
 
 ## 6. Transaction strategy
 
@@ -121,31 +123,37 @@ Single transaction for all rows is appropriate at ~5,000 rows; chunking would re
 
 ```mermaid
 flowchart TB
-    subgraph DockerHost[Docker Compose]
-        App[app container: Spring Boot + static React assets, non-root]
-        PG[(postgres container: ClearGrade database, named volume)]
-        App -->|JDBC, env-provided credentials| PG
+    Browser[Administrator browser]
+    subgraph DockerHost[Docker Compose — three services]
+        FE[frontend container: unprivileged nginx + React SPA]
+        BE[backend container: Spring Boot, non-root]
+        PG[(postgres container: PostgreSQL 16, named volume)]
+        FE -->|same-origin /api and /actuator/health proxy| BE
+        BE -->|JDBC, env-provided credentials| PG
     end
-    Browser -->|http://localhost:8080| App
+    Browser -->|127.0.0.1:3000| FE
 ```
 
-- Multi-stage `Dockerfile`: Node build stage (React) + Maven build stage; small runtime JRE image containing both artifacts.
-- **Port mapping: host `8080` → container `8080`** (`8080:8080`). PostgreSQL listens on container `5432` internally and is reachable container-to-container over the Compose network. For local development it is published on the **host loopback interface only** as `127.0.0.1:${POSTGRES_PORT}:5432`; it is never bound to LAN interfaces.
-- Compose provides healthchecks, a named DB volume, resource limits and a non-root app user. No reverse proxy, message broker or cache (D-01).
-- **Actuator:** only `/actuator/health` is exposed; all other management endpoints are disabled (SECURITY.md). It is a management path, **not** under `/api` (T-5).
+| Service | Default host mapping | Container port | Purpose |
+|---|---|---|---|
+| `frontend` | `127.0.0.1:${FRONTEND_PORT:-3000}` | 8080 | nginx serves the built React SPA and proxies `/api` + `/actuator/health` |
+| `backend` | `127.0.0.1:${APP_PORT:-8080}` | 8080 | Spring Boot REST API; `SERVER_ADDRESS=0.0.0.0` inside the container only |
+| `postgres` | `127.0.0.1:${POSTGRES_PORT:-5432}` | 5432 | PostgreSQL 16 with named `postgres-data` volume |
+
+All published host ports are **loopback-only**; none is bound to LAN interfaces. Native development instead runs the backend directly on `127.0.0.1:8080` and Vite on `127.0.0.1:5173`, with Vite proxying `/api` and `/actuator/health` to the backend. Multi-stage Dockerfiles keep build tools out of the runtime images; the backend runs as a non-root user and the frontend uses an unprivileged nginx image. Healthchecks gate `depends_on` ordering; no message broker or cache service exists (D-01). **Actuator:** only `/actuator/health` is exposed and `show-details: never`; it is a separate management path, not under `/api` (T-5).
 
 ## 8. Proposed source folder structure
 
 ```text
 cleargrade/
-  pom.xml                      # single Maven module
-  Dockerfile
   docker-compose.yml
   README.md  DECISIONS.md  DEVELOPMENT.md  PROJECT_STATUS.md
   docs/
     ARCHITECTURE.md  DATA_MODEL.md  API_CONTRACT.md
     UX_SPEC.md  SECURITY.md  TEST_STRATEGY.md
   backend/
+    pom.xml                                  # single Maven module
+    Dockerfile
     config/                                  # EXTERNAL to Maven resources (D-20)
       application-local.example.properties    # placeholders only (committed)
       application-local.properties            # real local credentials (GIT-IGNORED, never packaged)
@@ -156,7 +164,7 @@ cleargrade/
         adapters/in/web/       # controllers, dto, exception handler
         adapters/in/csv/       # parser, header mapper, physical-line strategy (C-4)
         adapters/out/persistence/ # entities, repositories, mappers
-        configuration/         # Clock, CORS, properties
+        configuration/         # Clock, properties, loopback binding
       main/resources/
         application.properties                  # shared non-secret defaults (committed)
         db/migration/                           # Flyway SQL (created in implementation phase)
@@ -171,7 +179,7 @@ cleargrade/
 
 **Seed script (T-1):** a top-level `scripts/` generator produces a realistic messy CSV and **submits it through `POST /api/imports`**, exercising the real upload, validation, dedup and persistence pipeline — never a direct DB write.
 
-## 9. Open verification gate — physical line numbers (C-4)
+## 9. Resolved verification gate — physical line numbers (C-4)
 
 **Status: spike evidence approved; G2→G3 passed by owner 2026-11-20; mechanism adopted in production (§11).** The merged PR #3 spike proves the approach against the chosen Commons CSV version; all documented limitations (`backend/src/test/resources/csv-spike/README.md`) are carried forward unchanged. CSV record numbers are **not** physical line numbers. The spike verified: (a) a quoted field containing an embedded newline; (b) blank physical lines; (c) a malformed row after the embedded newline; (d) a subsequent valid row. The reported source line is the **physical starting line** of the problematic record, with the header as line 1. A simple counting `Reader` is **not** acceptable without testing parser buffering/read-ahead. See TEST_STRATEGY.md §2 and DEVELOPMENT.md gate G2→G3.
 
@@ -179,7 +187,7 @@ cleargrade/
 
 | Assignment requirement | Design location |
 |---|---|
-| Four screens | UX_SPEC.md |
+| Import Quality Center (Upload + History tabs), directory, report finder and individual report | UX_SPEC.md |
 | Upload never crashes on bad data/files | §5, SECURITY.md |
 | Explain rejections in administrator language | API_CONTRACT.md, UX_SPEC.md |
 | Searchable, paginated directory | API_CONTRACT.md, DATA_MODEL.md |

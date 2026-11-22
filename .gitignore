@@ -1,6 +1,9 @@
 # Supplied assignment materials — never commit
 /reference/
 
+# Local product recording — share by Drive link, never commit
+/docs/recording/cleargrade-demo.mp4
+
 # Environment and credentials
 .env
 .env.*

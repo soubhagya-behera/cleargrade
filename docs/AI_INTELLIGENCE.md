@@ -120,30 +120,29 @@ the privacy contract in §4.
 
 ## 3. Ollama local fallback
 
-| Variable | Default | Purpose |
-|---|---|---|
-| `OLLAMA_BASE_URL` | *(blank)* | Optional base URL, e.g. `http://localhost:11434`. |
-| `OLLAMA_MODEL` | *(blank)* | Optional installed model name, e.g. `llama3.2:1b`. |
-| `OLLAMA_TIMEOUT_READ_MS` | `60000` | Response timeout. Connect timeout is 5 s. |
+The backend reads the `CLEARGRADE_AI_OLLAMA_*` names in both native and container runs. `.env` is imported by Spring Boot for native runs, so native overrides use those names too.
 
-### Installed on this machine (verified)
+| Variable | Scope | Default | Purpose |
+|---|---|---|---|
+| `CLEARGRADE_AI_OLLAMA_BASE_URL` | Native backend | `http://127.0.0.1:11434` | Ollama endpoint when running the backend directly. |
+| `CLEARGRADE_AI_OLLAMA_MODEL` | Native backend | `llama3.2:1b` | Installed model name. |
+| `OLLAMA_BASE_URL` | Docker Compose `.env` | `http://host.docker.internal:11434` | Host Ollama endpoint; Compose maps it into `CLEARGRADE_AI_OLLAMA_BASE_URL`. |
+| `OLLAMA_MODEL` | Docker Compose `.env` | `llama3.2:1b` | Compose maps it into `CLEARGRADE_AI_OLLAMA_MODEL`. |
+| `OLLAMA_TIMEOUT_READ_MS` | Backend | `60000` | Response timeout. Connect timeout is 5 s. |
 
-- Official distribution: `winget install --id Ollama.Ollama --exact` — **Ollama 0.40.16**, installed to
-  `%LOCALAPPDATA%\Programs\Ollama`.
-- Selected model: **`llama3.2:1b`** (1.2 B parameters, 1.23 GB download, ~2 GB RAM recommended). It supports
-  Ollama's JSON-schema `format` output and fits this 15.7 GB machine alongside Docker Desktop.
-- Service: `ollama.exe serve`, verified on `127.0.0.1:11434` only — never publicly bound.
-- The backend uses `OLLAMA_BASE_URL=http://host.docker.internal:11434` from the ignored root `.env`.
-  `docker-compose.yml` maps `host.docker.internal` to `host-gateway`, which also works on Linux.
-- If Ollama is not running after a reboot, start it with
-  `& "$env:LOCALAPPDATA\Programs\Ollama\ollama.exe" serve` or launch the Ollama app. No model is downloaded by
-  ClearGrade at startup or during image builds; Ollama is not a Compose service.
+### Optional local Ollama (historical example, not a deployment requirement)
+
+Ollama is optional and is **not** a Compose service; ClearGrade never downloads a model at startup or during image builds. Keep any Ollama instance bound to `127.0.0.1:11434` only — never publicly exposed.
+
+- **Native backend:** set `CLEARGRADE_AI_OLLAMA_BASE_URL` / `CLEARGRADE_AI_OLLAMA_MODEL` (they can go in the git-ignored root `.env`, which Spring Boot imports when run from `backend/`). Defaults: `http://127.0.0.1:11434` and `llama3.2:1b`.
+- **Docker Compose:** set the `.env` names `OLLAMA_BASE_URL` / `OLLAMA_MODEL`; Compose maps them into the backend's `CLEARGRADE_AI_OLLAMA_*` settings. The default host endpoint is `http://host.docker.internal:11434`; `host.docker.internal` is mapped to `host-gateway`, which also works on Linux.
+- **Historical local observation (2026-11-20):** Ollama 0.40.16 with model `llama3.2:1b` was exercised on the development machine. Version, model size and host resources are environment-specific; none is a universal ClearGrade requirement.
 
 To verify manually:
 
 ```powershell
 Invoke-RestMethod http://127.0.0.1:11434/api/tags
-Invoke-RestMethod http://localhost:3000/api/ai/status
+Invoke-RestMethod http://localhost:5173/api/ai/status   # native Vite; use localhost:3000 for the Docker frontend
 ```
 
 The first shows the installed model; the second reports `ollamaReachable: true`, `ollamaModelPresent: true`,
@@ -241,7 +240,7 @@ always produces the same report, and `RULE_BASED` reports are explicitly labelle
 ## 8. Disabling AI / no-key behaviour
 
 Set `CLEARGRADE_AI_ENABLED=false` to disable both AI providers; the rule engine still analyses, labelled
-`RULE_BASED` with `AI_DISABLED`. Blank `GEMINI_API_KEY` and blank `OLLAMA_BASE_URL`/`OLLAMA_MODEL` are the
+`RULE_BASED` with `AI_DISABLED`. Blank `GEMINI_API_KEY`, default `CLEARGRADE_AI_OLLAMA_BASE_URL`/`CLEARGRADE_AI_OLLAMA_MODEL` with no reachable Ollama, and no Compose `OLLAMA_*` overrides are the
 normal defaults: the app starts, imports and REST work, and deterministic analysis always works. No Ollama
 installation or network is required. Setting `CLEARGRADE_AI_DETERMINISTIC_ENABLED=false` as well makes analysis
 return a controlled `503 ANALYSIS_UNAVAILABLE`.
@@ -263,7 +262,7 @@ request was made and no key value was read or displayed.
 | Scenario | Observed result |
 |---|---|
 | No key, Ollama available | `/api/ai/status` → `defaultEngine: OLLAMA`, routing `OLLAMA_THEN_RULE_BASED`; analysis → `engine: OLLAMA`, `llama3.2:1b`, fresh and cached paths both verified |
-| No key, Ollama unreachable | isolated backend with unreachable `OLLAMA_BASE_URL` → `engine: RULE_BASED`, `NO_AI_PROVIDERS_AVAILABLE` |
+| No key, Ollama unreachable | isolated backend with unreachable `CLEARGRADE_AI_OLLAMA_BASE_URL` → `engine: RULE_BASED`, `NO_AI_PROVIDERS_AVAILABLE` |
 | Mock Gemini 200 with valid structured output | `engine: GEMINI`, model `gemini-3.8-flash`; outbound body had `store:false`, no PII, no `previous_interaction_id` |
 | Mock Gemini 429 | one provider call only → `engine: OLLAMA`, `GEMINI:GEMINI_QUOTA` (no cloud retries) |
 | Mock Gemini 500 + Ollama down | `engine: RULE_BASED`, `GEMINI:GEMINI_SERVER`, safe fallback reason |
@@ -273,11 +272,13 @@ request was made and no key value was read or displayed.
 | Semantic rejection | wrong denominator, invented baseline, incorrect severity, generic advice or duplicated finding → `GEMINI_SEMANTIC_REJECTED` / `OLLAMA_SEMANTIC_REJECTED`, chain preserved |
 | Batch 4 (25/16/9, 9 errors, 16 new, 0 changed) | rejected share HIGH; no multiple-errors finding at 1.00; new/changed only in measured facts; Java fallback grounded |
 
-Browser acceptance was executed in headless Chrome via Playwright against `http://localhost:3000`, including
-upload, analysis, directory search/filter/pagination, student report, and desktop/tablet/mobile viewports;
-zero console errors and no key/PII in API responses. The curated gallery from that work is committed under
-[`docs/screenshots/`](screenshots/) (eight captures: import, import summary, row problems, intelligence report,
-intelligence outcome, student directory, student report finder and individual report). No temporary local
+Browser acceptance was executed in headless Chrome via Playwright against the running app (`http://localhost:3000`
+for the Docker frontend, `http://localhost:5173` for native Vite), including upload, analysis, directory
+search/filter/pagination, student report, and desktop/tablet/mobile viewports; zero console errors and no
+key/PII in API responses. The curated gallery is committed under [`docs/screenshots/`](screenshots/) with
+**eight captures**: `import-home.png`, `import-history.png`, `import-summary.png`, `row-problems.png`,
+`intelligence-report.png`, `student-directory.png`, `find-student-report.png` and `student-report.png`, in the
+same order as the README gallery. There is no `intelligence-outcome.png` in the curated set. No temporary local
 screenshot paths are required to review the release.
 
 A later real-key browser attempt produced `Last analysis: OLLAMA · GEMINI:GEMINI_SERVER`: the Gemini

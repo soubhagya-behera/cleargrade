@@ -1,10 +1,10 @@
 # ClearGrade — UX Specification
 
-Status: **Four-screen journey plus the ClearGrade Intelligence panel implemented against the real API.** Wireframes are in the assignment PDF (pp. 4–5); their numbers are illustrative, not data to reproduce. Bonus affordances (`BONUS` CSV download, mark bars, print) remain deferred (D-17). `[REQ]`
+Status: **Import Quality Center (with an Import History tab), Student Directory, Student Report Finder and Individual Student Report implemented against the real API, plus the integrated ClearGrade Intelligence panel.** Wireframes are in the assignment PDF (pp. 4–5); their numbers are illustrative, not data to reproduce. Import History and both per-batch CSV downloads are implemented. Only per-subject mark bars and the printable report remain deferred (D-17). `[REQ]`
 
 ## 1. Product design direction
 
-Calm, premium and restrained — an information tool, not a marketing site. The administrator's primary question is always "what happened to my file, and why was this row rejected?" Every screen answers it in plain language before technical detail. Design priorities: **clarity of explanation, legible density, and trustworthy states**. Prefer working states over decoration; no gratuitous charts or animation. Bonus affordances are visibly tagged and never block the core flow (D-17).
+Calm, premium and restrained — an information tool, not a marketing site. The administrator's primary question is always "what happened to my file, and why was this row rejected?" Every screen answers it in plain language before technical detail. Design priorities: **clarity of explanation, legible density, and trustworthy states**. Prefer working states over decoration; no gratuitous charts or animation. The genuinely deferred bonuses (mark bars, printable report) remain out of the core flow (D-17).
 
 ## 2. Design system tokens
 
@@ -34,12 +34,12 @@ Calm, premium and restrained — an information tool, not a marketing site. The 
 - Persistent top bar: ClearGrade logo, page title and a local/trusted status pill.
 - Left sidebar: **Import Quality Center** (`/import`), **Student Directory** (`/students`) and **Student Report** (`/student-report`); the active item carries a sun marker.
 - Centred content column, max width ~1340px, spacing scale gutters.
-- Routes via **React Router**: `/import`, `/students`, `/student-report` and `/students/{studentId}`. Browser URLs are shareable; report links open directly. **TanStack Query** owns server state (loading/error/retry); local component state handles forms and UI. No Redux.
+- Routes via **React Router**: `/import`, `/students`, `/student-report` and `/students/{studentId}`. **Import History is a tab within `/import` (Upload / History), not a separate route**; selecting a batch in that tab opens its persisted details in place. Browser URLs are shareable; report links open directly. **TanStack Query** owns server state (loading/error/retry); local component state handles forms, tabs, filters and pagination. No Redux.
 - `AppShell` provides `<main>`, skip link and routed content around the top bar and sidebar.
 
 ## 4. Component inventory
 
-Layout: `AppShell`, `Sidebar`, `Topbar`, `ClearGradeLogo`. Shared UI: `FileDropzone`, `DataQualitySummary`, `StatCard`, `ProblemTable`, `Pagination`, `States`, `StudentTable`, `ResultBadge`, `PlaceholderPage`, `IntelligencePanel`, `IntelligenceReport`. Pages: `ImportPage`, `StudentDirectoryPage`, `StudentReportFinder`, `StudentReportPage`, `NotFoundPage`.
+Layout: `AppShell`, `Sidebar`, `Topbar`, `ClearGradeLogo`. Shared UI: `FileDropzone`, `DataQualitySummary`, `StatCard`, `ProblemTable`, `Pagination`, `States`, `StudentTable`, `ResultBadge`, `IntelligencePanel`, `IntelligenceReport`. Import features: `ImportPage` (Upload / History tabs), `ImportHistory`, `ImportBatchDetails`, `BatchDownloadMenu`, `saveCsvDownload`. Pages: `StudentDirectoryPage`, `StudentReportFinder`, `StudentReportPage`, `NotFoundPage`.
 
 ## 5. Import workspace (`/import`)
 
@@ -48,13 +48,15 @@ Layout: `AppShell`, `Sidebar`, `Topbar`, `ClearGradeLogo`. Shared UI: `FileDropz
 3. **Action** — "Upload and import", disabled until a file is chosen; busy state during upload.
 4. **Data-quality summary** — prominent `DataQualitySummary` panel between the action and the problem table. It states, in administrator language: rows read; imported (split **N new, M changed, K unchanged** per U-02); rows rejected; and the number of **problems found** (error occurrences, D-10), with a short breakdown by code. It makes explicit that "X rows rejected" and "Y problems found" are different numbers. No chart — a compact, typographic summary is clearer and more restrained.
 5. **StatCards** — three cards: *Rows read*, *Imported* (sub-line new/changed/unchanged), *Rows rejected* — consistent with the summary panel.
-6. **Row problems** — `ProblemTable` columns **Row | Student ID | Field | Problem**. Friendly message first, code as muted tag. Physical line numbers, `(blank)` for missing IDs, `(whole row)` for field-count errors. **Page size 50** (T-4), with a code filter. `BONUS` error-CSV download deferred (D-17).
+6. **Row problems** — `ProblemTable` columns **Row | Student ID | Field | Problem**. Friendly message first, code as muted tag. Physical line numbers, `(blank)` for missing IDs, `(whole row)` for field-count errors. **Page size 50** (T-4), with a code filter; the table is driven by paginated data from the errors endpoint and switches to stacked cards on narrow screens.
 7. **Failure states** — file-level errors show an inline `ErrorState` (missing columns, size, encoding) with "Choose another file"; app stays on screen. `409 BATCH_PROCESSING` shows "This file is already being imported" with the batch reference.
+8. **Import History tab** — the second tab of `/import` shows a **newest-first, server-paginated** list of persisted batches (page size 10) with filename, status, outcome counts and timestamps. Opening a batch reuses the summary, row-problem and intelligence components; the last successful import id is restored from session storage when the administrator returns. Loading, empty ("No imports yet"), error/retry and pagination states are implemented.
+9. **Per-batch CSV downloads** — `BatchDownloadMenu` offers **Import Report CSV** (one persisted summary record) and **Row Problems CSV** (one record per persisted validation issue). Both are implemented; Row Problems is disabled until the batch is `COMPLETED`. Downloads use the API's UTF-8 CSV attachment with a safe filename fallback, and failures are retryable. Exports contain persisted summary/issue data, not reconstructed original rejected rows.
 
 ## 6. Student directory (`/students`)
 
 1. **Header** — "Students".
-2. **Controls** — `SearchInput` "Search by name or student ID" (debounced, server-side); class `FilterSelect` is BONUS (D-17).
+2. **Controls** — `SearchInput` "Search by name or student ID" (debounced, server-side); **grade and section filters are implemented**, along with sortable columns and a rows-per-page selector.
 3. **Summary line** — "Showing 1 to 25 of 1,000 students" (page size 25, T-4).
 4. **Table** — `Student ID | Name | Class | Section | Percentage | Grade`. Name links to `/students/{studentId}`; percentage/grade from D-07. Stable ID sort; optional column sorting.
 5. **Pagination** — Previous / numbered pages / Next, rows-per-page selector (default 25, max 100).
@@ -92,6 +94,9 @@ Layout: `AppShell`, `Sidebar`, `Topbar`, `ClearGradeLogo`. Shared UI: `FileDropz
 | Upload | Success | Quality summary + stats + problems table inline; no page reload |
 | Upload | Empty file | Inline error with reason and retry |
 | Upload | Already processing | `409` message with batch reference |
+| Import History | Loading / empty / error | Skeleton list; "No imports yet"; friendly error with Retry |
+| Batch detail | Opening a historical batch | Reuses summary, paginated Row Problems and the Intelligence panel; no stale data from the previous batch |
+| CSV download | Busy / failure / success | Menu guarded against duplicate clicks; retryable `role="alert"` on failure; browser attachment on success |
 | Directory | Loading | `SkeletonTable` preserving row height |
 | Directory | Empty | Message echoing query + Clear search |
 | Directory | Error | "Could not load students" + Retry |
@@ -114,24 +119,25 @@ No authentication is implemented (U-03). This UI is for local/trusted evaluation
 
 ## 13. ClearGrade Intelligence panel
 
-A signature, enterprise-style analysis section appears **below** a completed import result — not a chat widget.
+A signature, enterprise-style analysis section appears **below** a completed import result and **inside batch details opened from the Import History tab** — not a chat widget.
 It uses the existing UX tokens: restrained palette, precise typography, generous whitespace, `cg-card`,
 `cg-btn-primary/secondary`, tabular numerals and mobile-first grids.
 
 | State | Presentation |
 |---|---|
 | Identity | "ClearGrade Intelligence" heading, signature-feature label, aggregate-only privacy disclosure linked from the CTA via `aria-describedby` |
-| Provider availability | Compact list driven by `geminiConfigured`/`geminiModel`, `ollamaReachable`/`ollamaModelPresent`/`ollamaModel`, `inferenceTested` and `deterministicAvailable`; reachability and configuration are never conflated; routing string shown as plain text |
+| Provider availability | Compact list driven by `geminiConfigured`/`geminiModel`, `ollamaReachable`, `ollamaModelPresent`/`ollamaModel`, plus last-analysis engine/reason/failures and the routing string; reachability and configuration are never conflated |
 | Trigger | Explicit **Analyse import** / **Run new analysis** CTA. Upload/import never triggers analysis |
-| Loading | Spinner plus "Analysing aggregate import metrics…", `role="status"`; original import result stays visible |
+| Loading | Spinner plus "Checking your import…", `role="status"` (the CTA itself reads "Analysing…"); original import result stays visible |
 | Result | Engine label (Gemini/Ollama/Rule-based), model, fresh/cached indicator, safe fallback note |
-| Measured facts | `dl` grid labelled "Measured by ClearGrade · never AI-generated": rows read, imported/rejected percentages, problems per rejected row, new/changed/unchanged, error occurrences and five code counts |
+| Measured facts | "At a glance" grid: rows checked, successfully imported and need-attention counts/percentages, an imported/needs-attention bar and average issues per rejected row — all computed by ClearGrade, never AI-generated |
 | Interpretation | Separate summary and overall assessment with the note that they were written from aggregates |
-| Findings | Grouped by severity (`HIGH`, `MEDIUM`, `LOW`, `INFO`); each item separates exact evidence metric/value from explanation and advisory action |
+| Findings | Flat list with a severity dot (`HIGH`/`MEDIUM`/`LOW`), static heading and description, an exact evidence count (or average) tag and a "How to fix it" advisory action |
 | Advice | Numbered recommended actions, limitations, advisory-only disclaimer (no data mutation) |
-| Offline/no provider | "Rule-based analysis — AI providers are currently unavailable."; status failure degrades to "Rule-based analysis remains available offline" |
+| Offline/no provider | "ClearGrade built-in analysis" or "AI explanations were unavailable. ClearGrade's built-in analysis is shown instead."; status failure degrades to "Provider status could not be checked. Rule-based analysis remains available offline." |
 | Error/retry | `role="alert"` with friendly, code-specific message and a **Retry analysis** button; no automatic client retry |
 | Accessibility | Semantic sections/headings, `aria-live="polite"` result region, visible focus, WCAG AA contrast, no colour-only severity, no decorative charts or chatbot bubbles |
 
-When Gemini falls back, the panel explicitly says **Generated by Ollama**. When both AI providers are absent, it
-shows the exact rule-based message above and never fabricates an AI insight.
+When Gemini falls back to Ollama, the report states **"Gemini was unavailable, so Ollama provided the explanation."**;
+direct provider runs read "Explanation provided by Gemini" or "Explanation provided by Ollama". When both AI providers
+are absent, it shows the built-in-analysis message above and never fabricates an AI insight.

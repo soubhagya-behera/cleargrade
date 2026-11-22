@@ -1,6 +1,6 @@
 # ClearGrade — Engineering Decisions
 
-Status: **Owner approvals recorded 2026-11-19.** Pure domain rules are implemented and hardened after independent review (Phase 3B.1); the V1 PostgreSQL schema migration is implemented and tested (Phase 3B.2.1). JPA persistence, CSV ingestion, REST APIs and the SPA remain unimplemented. `[REQ]` = assignment requirement; `[REC]` = engineering choice; `[INF]` = inference confirmed by supplied data.
+Status: **Owner approvals recorded 2026-11-19 and 2026-11-20; implementation is complete.** Domain rules, the V1 schema, JPA persistence, CSV ingestion, REST APIs, the React SPA, import history, per-batch CSV exports and ClearGrade Intelligence are implemented. This document preserves the original decision history; §5 records which items are implemented, superseded or still deferred. `[REQ]` = assignment requirement; `[REC]` = engineering choice; `[INF]` = inference confirmed by supplied data.
 
 ## 1. Owner-approved decisions (canonical, active)
 
@@ -33,7 +33,7 @@ Status: **Owner approvals recorded 2026-11-19.** Pure domain rules are implement
 
 ### U-04 — Unseen CSV file `[APPROVED]`
 **Context:** The README states graders will use a different messy CSV in the same format.
-**Chosen (owner-approved):** Support **every variation specified by the supplied README** — UTF-8 with/without BOM, Windows/Unix line endings, quoted commas and quoted values, reordered/mixed-case/spaced header names, extra columns, blank lines, all-empty rows, wrong field counts, and case-variant IDs. **Do not hardcode sample dataset assumptions.** (Physical line numbering is separately gated by the open C-4 spike, §4.)
+**Chosen (owner-approved):** Support **every variation specified by the supplied README** — UTF-8 with/without BOM, Windows/Unix line endings, quoted commas and quoted values, reordered/mixed-case/spaced header names, extra columns, blank lines, all-empty rows, wrong field counts, and case-variant IDs. **Do not hardcode sample dataset assumptions.** (Physical line numbering was separately gated by C-4; the spike was approved and its mechanism adopted in production, §4.)
 **Alternatives considered:** assume the supplied-file shape only (rejected).
 **Consequences:** CSV adapter and generated fixtures must explicitly exercise each listed variation; no logic keyed to filenames or expected totals.
 
@@ -69,8 +69,9 @@ Status: **Owner approvals recorded 2026-11-19.** Pure domain rules are implement
 
 ### D-17 — Bonus features `[APPROVED]`
 **Context:** Error CSV download, class filter, mark bars and print are labelled BONUS in the wireframes.
-**Chosen (owner-approved):** **Defer all optional bonus features until core requirements are completed.**
-**Consequences:** Phase 6 starts only after phase 5 gates pass (DEVELOPMENT.md).
+**Chosen (owner-approved; historical):** **Defer all optional bonus features until core requirements are completed.**
+**Consequences (historical):** Phase 6 starts only after phase 5 gates pass (DEVELOPMENT.md).
+**Implementation update (2026-11-22):** the originally deferred **error CSV download** and **class/grade filter** were subsequently implemented in companion application PR #12 as the two per-batch CSV exports (`/api/imports/{id}/report`, `/api/imports/{id}/row-problems`) and the directory grade/section filters. The earlier proposed `/errors.csv` route was never built. **Per-subject mark bars and the printable student report remain deferred.** This update records implementation status; it does not change the owner's original decision or any business rule.
 
 ### D-19 — Profile-based configuration `[OWNER-DIRECTED; APPROVED]`
 **Context:** Local development and Docker/deployment need different credential sources; committed configuration must stay secret-free.
@@ -82,7 +83,7 @@ Status: **Owner approvals recorded 2026-11-19.** Pure domain rules are implement
 - Flyway manages schema; `spring.jpa.hibernate.ddl-auto=validate` is mandatory. No credentials in images.
 
 **Alternatives considered:** a single committed `application.properties` containing credentials (unsafe); committing a real local profile file (unsafe); environment-only for local IDE runs (less convenient, owner preferred profiles locally).
-**Consequences:** No secrets in the repository or images; local setup requires copying the example file and filling values; profile activation must be documented (DEVELOPMENT.md §3). These files are **planned for Phase 1 scaffolding — not yet created**.
+**Consequences:** No secrets in the repository or images; local setup requires copying the example file and filling values; profile activation is documented (DEVELOPMENT.md §3). **Implementation update:** the committed example and the git-ignored private local file now exist; see D-20 for the final location.
 **Location correction:** D-20 changes where the private local profile file lives. The profile/env strategy above remains in force; only the file location is revised.
 
 ### D-20 — External local configuration directory `[OWNER-DIRECTED; APPROVED]`
@@ -96,14 +97,14 @@ Status: **Owner approvals recorded 2026-11-19.** Pure domain rules are implement
 - Local runs use PowerShell: `Set-Location backend`; `$env:SPRING_PROFILES_ACTIVE = "local"`; `mvn spring-boot:run`. Spring Boot finds the external file via its default `file:./config/` config-data location when run from `backend/`.
 
 **Alternatives considered:** keeping the private file under `src/main/resources` with a git-ignore rule (rejected — packaging risk); committing real local values (rejected — secret leakage).
-**Consequences:** The private file cannot be included in Maven resource packaging; it is excluded from both Git and the Docker build context. These files are **planned for Phase 1 scaffolding — not yet created**.
+**Consequences:** The private file cannot be included in Maven resource packaging; it is excluded from both Git and the Docker build context. **Implementation update:** `backend/config/application-local.example.properties` is committed and `backend/config/application-local.properties` is created locally and git-ignored.
 
 ## 2. Active engineering decisions (no owner ratification required)
 
 - **D-01 — Modular monolith.** Single Spring Boot deployable with enforced internal boundaries; no microservices. Alternative: microservices/serverless (unnecessary at ~5,000 rows).
 - **D-02 — Java 21 + Spring Boot + Maven.** Single Maven module; strict packages plus architecture test rather than multi-module build.
 - **D-03 — PostgreSQL + Spring Data JPA + Flyway.** Only application database; no Redis/Kafka. Alternatives rejected: H2 (dialect mismatch), MongoDB (no integrity need).
-- **D-04 — Apache Commons CSV.** Explicit format and BOM-aware reader. **Caveat:** physical line numbering is **not** claimed solved by record numbers — see open spike C-4 in §4.
+- **D-04 — Apache Commons CSV.** Explicit format and BOM-aware reader. Physical line numbering is **not** derived from record numbers; the approved C-4 mechanism (`CSVRecord.getCharacterPosition()` plus an independent `PhysicalLineMap`) is adopted in production (§4). The original caveat about the then-open spike is preserved as history.
 - **D-05 — Domain purity.** Framework-free domain; application ports; adapters inward. Fast pure unit tests at the cost of DTO mapping.
 - **D-09 — SHA-256 identical-file detection (enhanced by C-1/C-2).** Concurrency-safe reservation via a PostgreSQL **partial unique index** on active/successful batches. Full design in DATA_MODEL.md §5–7 and ARCHITECTURE.md §5–6.
 - **D-10 — Rejected rows vs error occurrences.** `rejected_count` (rows) and `error_count` (occurrences) stored separately; one `import_row_error` row per occurrence (matches 315 vs 348).
@@ -111,8 +112,8 @@ Status: **Owner approvals recorded 2026-11-19.** Pure domain rules are implement
 - **D-12 — Never hardcode dataset counts.** Benchmark numbers are test fixture assertions only (I-04 clock).
 - **D-13 — Transaction boundaries.** Separate transaction service beans or `TransactionTemplate` for `REQUIRES_NEW` work to avoid self-invocation; explicit `PROCESSING` persistence and `FAILED` finalisation (DATA_MODEL.md §7).
 - **D-14 — Server-side pagination.** All list endpoints paged; errors default 50, students default 25, max 100 (T-4).
-- **D-16 — Single container for SPA + API.** Multi-stage Dockerfile; Compose adds PostgreSQL; port `8080:8080` published.
-- **D-21 — RECEIVED→FAILED is a valid recovery transition.** `RECEIVED → PROCESSING → COMPLETED/FAILED` is the normal path, but the approved lifecycle also permits `RECEIVED → FAILED` for the crash-recovery sweep of a timed-out stale reservation (ARCHITECTURE.md §4, DATA_MODEL.md §5). This is not a row-level failure: a bad row never fails a batch. `PROCESSING → FAILED` remains the fatal-file path; terminal states are locked. Implemented in `ImportStatus` and locked by tests.
+- **D-16 — Single container for SPA + API. [SUPERSEDED — history preserved]** The original design bundled the SPA and API in one image. The implemented deployment uses **three Compose services** (PostgreSQL, Spring Boot backend, unprivileged nginx serving the SPA) with loopback host ports `3000`, `8080` and `5432`; see §3 and ARCHITECTURE.md §7.
+- **D-21 — RECEIVED→FAILED is a valid recovery transition.** `RECEIVED → PROCESSING → COMPLETED/FAILED` is the normal path, but the approved lifecycle also permits `RECEIVED → FAILED` for the crash-recovery sweep of a timed-out stale reservation (ARCHITECTURE.md §4, DATA_MODEL.md §5). This is not a row-level failure: a bad row never fails a batch. `PROCESSING → FAILED` remains the fatal-file path; terminal states are locked. The **transition** is implemented in `ImportStatus` and locked by tests; the **automatic stale-`RECEIVED` recovery sweep that would use it remains deferred** (§5), so no scheduler claims to free a stuck digest today.
 - **D-22 — Leap-day age increments on 1 March in non-leap years.** The domain keeps `Period`-based age calculation (I-03, I-04). For a 29 February birth date, age advances on 1 March of a non-leap year: a 2000-02-29 birth is 24 on 2025-02-28 and 25 on 2025-03-01. Fixed-clock tests lock both dates and the maximum-age rejection from 2026-03-01.
 - **D-23 — Singular physical table names.** The PostgreSQL schema uses the names in DATA_MODEL.md exactly: `import_batch`, `student`, `import_row_error`. Plural forms are not used.
 - **D-24 — Unconstrained `NUMERIC` marks.** The five mark columns are PostgreSQL `NUMERIC` with no precision or scale; the only database restriction is the inclusive 0–100 CHECK (C-3). Hibernate mappings must not fall back to a default `numeric(38,2)`, and no silent rounding is permitted anywhere in the persistence path.
@@ -131,12 +132,33 @@ Status: **Owner approvals recorded 2026-11-19.** Pure domain rules are implement
 | D-08 | Duplicate handling (in-file + cross-file) | **I-02** (in-file reservation) and **U-02** (cross-file upsert) | Split and ratified separately |
 | D-15 | No authentication in v1 | **U-03** | Same decision, owner ratified under U-03 |
 | U-05 | Grading bands and pass threshold sign-off | **D-07** | Same decision, owner ratified under D-07 |
+| D-16 | Single container serving SPA + API; `8080:8080` | Three-service Compose (PostgreSQL + backend + nginx frontend); `3000`, `8080`, `5432` loopback mappings | Implemented deployment separates the frontend and backend; original text retained above |
 
 These identifiers are retained here so no decision history is silently lost; they must not be used as active references in other documents.
 
-## 4. Unverified items and open technical spikes
+## 4. Resolved spikes and residual risks
 
 - **C-4 — Physical line numbers (EVIDENCE APPROVED; G2→G3 PASSED 2026-11-20).** The merged PR #3 spike (`e5181c1`) satisfies the technical evidence requirement and the owner formally approved the G2→G3 gate. All documented limitations (`backend/src/test/resources/csv-spike/README.md`) are carried forward into production CSV implementation: unterminated quotes are file-level failures, comment markers stay disabled, `read(String)` callers must strip the BOM, character offsets are UTF-16 code units, and field-count consistency requires a configured header. A counting `Reader` remains unacceptable without parser buffering/read-ahead testing.
 - **U-04 residual:** the actual contents of the unseen CSV are unknown; only the README-listed variations can be designed for.
 - **U-01 residual:** plus-addresses and subdomains are accepted by design; other unusual valid forms may still be rejected. CSV integration reuses the canonical `EmailAddress` validator unchanged (no competing regex or expanded policy). The exact pragmatic grammar boundary (local-part length, underscore, ASCII-only TLD) remains an explicit **future owner decision**; it was not silently settled by Phase 3 and no email rule was changed during CSV integration.
 - **U-06 residual:** whether a real unseen file exceeds the configurable limit is unknown; the limit is an operator setting.
+
+## 5. Current implementation status (2026-11-22)
+
+| Decision / item | Status |
+|---|---|
+| D-07, U-01, U-02, U-03, U-04, U-06, I-01, I-02, I-03, I-04 | **Implemented**; owner-approved business rules unchanged |
+| D-04 / C-4 physical-line mechanism | **Approved and adopted in production** (`CSVRecord.getCharacterPosition()` + `PhysicalLineMap`) |
+| D-25 / D-26 transaction boundaries | **Implemented** as the owner's T1–T4 resolution in §2 |
+| D-27 duplicate-digest recovery | **Implemented** with exact active-index `23505` matching |
+| D-28 concurrent upsert | **Implemented** |
+| D-19 / D-20 configuration files | **Implemented**; private file in `backend/config/`, git-ignored and excluded from Docker builds |
+| D-16 single-container deployment | **Superseded** by three-service Compose (§3) |
+| D-17 error CSV download and class/grade filter | **Implemented** in companion application PR #12 as two per-batch exports and directory filters; the proposed `/errors.csv` route was never built |
+| D-17 mark bars and printable report | **Deferred** |
+| D-21 stale-`RECEIVED` recovery sweep | **Deferred**; the state transition exists but no automatic sweep is scheduled |
+| U-03 authentication | **Deliberately absent**; local/trusted deployment only |
+| Persistent privacy-safe AI cache | **Deferred**; cache is in-memory only |
+| Live Gemini generation | **Unverified**; no successful live report is claimed |
+
+PR #11 (this branch) carries documentation and screenshots only; PR #12 carries the application changes for import history and CSV exports. No owner-approved business rule is altered by either PR.

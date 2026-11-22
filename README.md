@@ -1,73 +1,41 @@
 <div align="center">
 
-# 🧹 ClearGrade
+# ClearGrade
 
 ### Student Results & Data Quality Intelligence Platform
 
 **Turn messy student-result spreadsheets into validated student records, explainable import reports and privacy-safe quality insights — in one calm workspace.**
 
-[![CI (main)](https://img.shields.io/github/actions/workflow/status/soubhagya-behera/cleargrade/ci.yml?branch=main&label=CI%20(main)&style=for-the-badge)](https://github.com/soubhagya-behera/cleargrade/actions/workflows/ci.yml?query=branch%3Amain)
-[![Repository](https://img.shields.io/badge/Repository-GitHub-181717?style=for-the-badge&logo=github&logoColor=white)](https://github.com/soubhagya-behera/cleargrade)
+[![CI (main)](https://img.shields.io/github/actions/workflow/status/soubhagya-behera/cleargrade/ci.yml?branch=main&label=CI%20(main)&style=flat-square)](https://github.com/soubhagya-behera/cleargrade/actions/workflows/ci.yml?query=branch%3Amain)
+[![Java 21](https://img.shields.io/badge/Java-21-ED8B00?style=flat-square&logo=openjdk&logoColor=white)](https://openjdk.org/projects/jdk/21/)
+[![Spring Boot 4.1.2](https://img.shields.io/badge/Spring_Boot-4.1.2-6DB33F?style=flat-square&logo=springboot&logoColor=white)](https://spring.io/projects/spring-boot)
+[![React 19.3.1](https://img.shields.io/badge/React-19.3.1-087EA4?style=flat-square&logo=react&logoColor=white)](https://react.dev/)
+[![TypeScript 5.9.3](https://img.shields.io/badge/TypeScript-5.9.3-3178C6?style=flat-square&logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
+[![PostgreSQL 18 / 16](https://img.shields.io/badge/PostgreSQL-18%20native%20%2F%2016%20Docker-336791?style=flat-square&logo=postgresql&logoColor=white)](https://www.postgresql.org/)
+![Backend tests: 293 passed, 1 skipped](https://img.shields.io/badge/Backend_tests-293_passed%2C_1_skipped-2E7D32?style=flat-square)
+![Frontend tests: 77 passed](https://img.shields.io/badge/Frontend_tests-77_passed-6D4AFF?style=flat-square)
 
-[![Java 21](https://img.shields.io/badge/Java-21-ED8B00?style=for-the-badge&logo=openjdk&logoColor=white)](https://openjdk.org/projects/jdk/21/)
-[![Spring Boot 4.1.2](https://img.shields.io/badge/Spring_Boot-4.1.2-6DB33F?style=for-the-badge&logo=springboot&logoColor=white)](https://spring.io/projects/spring-boot)
-[![React 19](https://img.shields.io/badge/React-19.3-087EA4?style=for-the-badge&logo=react&logoColor=white)](https://react.dev/)
-[![TypeScript 5.9](https://img.shields.io/badge/TypeScript-5.9-3178C6?style=for-the-badge&logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
-[![PostgreSQL](https://img.shields.io/badge/PostgreSQL-18_native%20%2F%2016_container-336791?style=for-the-badge&logo=postgresql&logoColor=white)](https://www.postgresql.org/)
+[Demo](#product-walkthrough) · [Overview](#what-is-cleargrade) · [Features](#features) · [Quick Start](#docker-quick-start) · [Screenshots](#screenshots) · [Architecture](#architecture) · [API](#api-reference) · [Testing](#testing-and-quality)
 
-![Backend tests](https://img.shields.io/badge/Backend_tests-286_passed%2C_1_skipped-2E7D32?style=for-the-badge)
-![Frontend tests](https://img.shields.io/badge/Frontend_tests-45_passed-6D4AFF?style=for-the-badge)
-![Gemini](https://img.shields.io/badge/Gemini-configured_primary-8E75F6?style=for-the-badge)
-![Ollama](https://img.shields.io/badge/Ollama-local_fallback-5034C4?style=for-the-badge)
-![Rule engine](https://img.shields.io/badge/Rule_based-offline_fallback-6B7190?style=for-the-badge)
-
-[Quick start](#docker-quick-start) · [What it does](#what-is-cleargrade) · [Features](#features) · [How it works](#how-it-works) · [Architecture](#architecture) · [Deep dives](#technical-deep-dives) · [Screenshots](#screenshots) · [API](#api-reference) · [Native setup](#getting-started-windows-native) · [Testing](#testing-and-quality)
-
-**[Docker quick start →](#docker-quick-start)**
-
-<table>
-<tr>
-<td align="center"><strong>PowerShell · evaluator</strong><br/><code>.\scripts\start.ps1</code><br/><code>.\scripts\seed.ps1</code></td>
-<td align="center"><strong>Open in a browser</strong><br/><code>http://localhost:3000</code></td>
-</tr>
-</table>
-
-<sub>The CI badge reports the repository's <code>main</code> branch workflow; after this release it reflects the merged main branch. Branch-only results are recorded under [Testing](#testing-and-quality). PostgreSQL 18 is used for native Windows development; PostgreSQL 16 is used by Docker Compose and Testcontainers. Mock-provider contract tests and deterministic fallback are verified; live Gemini generation is not — see [Testing](#testing-and-quality).</sub>
+<sub>The CI badge tracks <code>main</code>; branch-specific checks are available in [this pull request](https://github.com/soubhagya-behera/cleargrade/pull/11).</sub>
 
 </div>
 
 ---
 
-<a id="docker-quick-start"></a>
+<a id="product-walkthrough"></a>
 
-## ⚡ Docker Quick Start (evaluator path)
+## 🎬 Product Walkthrough
 
-The fastest way to evaluate ClearGrade. Requirements: **Docker Desktop with Docker Compose v2** and **PowerShell**; run these commands from the repository root. No JDK, Node.js or local PostgreSQL installation is needed.
+See ClearGrade in action in this short, approximately 52-second walkthrough, covering CSV ingestion, validation results, import history, downloadable reports, student discovery and data-quality intelligence.
 
-```powershell
-.\scripts\start.ps1
-.\scripts\seed.ps1
-```
-
-Then open <http://localhost:3000>.
-
-- `start.ps1` builds and starts PostgreSQL 16, the backend and the frontend through Docker Compose, then waits for the backend health check. If the root `.env` is absent, the script creates it from `.env.example` (git-ignored) and generates a local PostgreSQL password — there is nothing secret to supply for this path.
-- `GEMINI_API_KEY` is optional. Without it, imports still work. Analysis can use Ollama if a host instance is reachable and returns valid output; otherwise, ClearGrade falls back to the deterministic Java rule engine (`RULE_BASED`).
-- `seed.ps1` uploads the two synthetic fixtures, `scripts/seed/initial.csv` and `scripts/seed/update.csv`, through the real HTTP import API (`POST /api/imports`). Together they demonstrate new, changed, unchanged and rejected rows; no original assignment data is used and no rows are written directly to the database.
-- Re-running the seed is idempotent: identical completed file content is deduplicated (`200`, no new batch) or returns `409` while an identical digest is still active.
-
-| Command | Effect |
-|---|---|
-| `docker compose down` | Stops and removes the containers; the named `postgres-data` volume and its imported data are **retained**. |
-| `docker compose down -v` | **Destructive:** deletes the `postgres-data` volume and all its data. To start clean, re-run `.\scripts\start.ps1` and `.\scripts\seed.ps1`. |
-
-For a container-free Windows setup (JDK 21, Node.js 22+ and a native PostgreSQL 18 service), use [Getting Started (Windows native development)](#getting-started-windows-native) instead.
+[![Watch the ClearGrade product walkthrough](docs/media/cleargrade-demo-thumbnail.png)](https://drive.google.com/file/d/1_YldKthHJXKpUPyrWfnJZlmvjPzDFHQ/view?usp=drivesdk)
 
 ---
 
 <a id="what-is-cleargrade"></a>
 
-## 🎯 What is ClearGrade?
+## What is ClearGrade?
 
 School administrators receive inconsistent CSV exports of student results. A single malformed cell can silently corrupt a record, and a rejected row reported only as "row failed" gives no clue how to fix the source file. ClearGrade makes the import **traceable, deterministic and explainable** — then optionally interprets the measured import quality with an advisory AI copilot.
 
@@ -87,51 +55,92 @@ In one request: upload a CSV, validate every row, import valid students into a s
 
 <a id="features"></a>
 
-## ✨ Features
+## Key Features
 
-### 🧾 Robust CSV ingestion
+### Robust CSV ingestion
 
 Apache Commons CSV 1.14.1 with an explicit format: UTF-8 with or without BOM, LF/CRLF/lone CR, quoted commas and embedded newlines, reordered or extra columns. A parser-derived physical line map keeps every reported problem pinned to the real file line, header = 1. Only valid rows are imported; each completed batch stores row counts and a validation-category breakdown shown in the Import Summary and Import Report CSV.
 
-### 🔍 Explainable rejection reports
+### Explainable rejection reports
 
 Five exact row-level error codes. Every applicable problem on a rejected row is collected — one persisted occurrence per issue — with physical line, raw identifier, field and a message an administrator can act on. Rejected rows are counted separately from problem occurrences and can be paged through in Row Problems.
 
-### ♻️ Idempotent, traceable imports
+### Idempotent, traceable imports
 
 A SHA-256 digest of the original bytes plus a PostgreSQL partial unique index reserve active content. Re-uploading an identical completed file is idempotent: it returns `200` with `deduplicated: true` and creates no new batch; concurrent active uploads return `409`; a `FAILED` batch can be retried. Accepted students retain `first_seen_batch_id` and split into new / changed / unchanged counters.
 
-### 🕘 Import History
+### Import History
 
-A server-paginated, newest-first list of batches. Open any batch to review its persisted summary and row problems; when you return to the Import Quality Center in the same browser session, the last import is restored automatically.
+A server-paginated (10 per page), newest-first list of batches. Open any batch to review its persisted summary and row problems; when you return to the Import Quality Center in the same browser session, the last import is restored automatically. Batch lookup accepts only a positive whole-number id.
 
-### ⬇️ Per-batch CSV downloads
+### Per-batch CSV downloads
 
-Two read-only exports are available per batch. The **Import Report CSV** has one summary record of persisted batch metadata and outcome counts. The **Row Problems CSV** has one record per persisted validation issue — line number, student ID when available, field, error code and message — so multiple issues from one rejected row appear as separate records. These exports describe the problems, not the rejected source: the complete original rejected CSV rows are not reconstructed or included.
+Two read-only exports are available per batch. The **Import Report CSV** has one summary record of persisted batch metadata and outcome counts. The **Row Problems CSV** has one record per persisted validation issue — batch id, filename, line number, student ID when available, field, error code and message — so multiple issues from one rejected row appear as separate records. These exports describe the problems, not the rejected source: the complete original rejected CSV rows are not reconstructed or included.
 
-### 🤖 ClearGrade Intelligence
+### ClearGrade Intelligence
 
-An explicit **Analyse import** action runs `Gemini Cloud AI → Ollama Local AI → deterministic Java rule engine`, strictly in that order. Java computes the approved findings, severity, evidence and advice; providers only word the explanations. The report names the engine that actually produced it and never writes to student records, marks, grades or counters.
+An explicit **Analyse import** action uses Gemini Cloud AI when configured, then Ollama Local AI, then the deterministic Java rule engine, in that order. Java computes the approved findings, severity, evidence and advice; providers only word the explanations. The report names the engine that actually produced it and never writes to student records, marks, grades or counters.
 
-### 🎓 Deterministic grading
+### Deterministic grading
 
 A framework-free `GradingPolicy` computes exact percentages with `BigDecimal`: A ≥ 80, B ≥ 70, C ≥ 60, D ≥ 50, F < 50; PASS when the overall percentage is ≥ 50. Grade and PASS/FAIL are derived on read and are never stored or AI-generated.
 
-### 📇 Searchable directory and student report
+### Searchable directory and student report
 
 Server-side search over student ID and name, optional grade/section filters, allowlisted sorting and bounded pagination. Use **Find Student Report** to locate a student and open their individual academic report, which shows marks, total, derived percentage, grade and PASS state with loading, empty, not-found and error states handled in the UI.
 
-### 🧱 Transactional correctness
+### Transactional correctness
 
 Four independent `REQUIRES_NEW` transaction beans: reserve `RECEIVED`, commit `PROCESSING`, atomically commit upserts + row errors + counts + `COMPLETED`, and commit `FAILED` separately after rollback. No self-invocation, no partial import made visible.
 
-### 📦 Delivery that runs locally
+### Delivery that runs locally
 
-Native Windows development with PostgreSQL 18 and loopback-only binding; multi-stage non-root Docker images with PostgreSQL 16 for release/demo; healthcheck-ordered Compose stack; one-command start/test/seed scripts; CI covering backend and frontend on `main`.
+Native Windows development uses a loopback-bound backend; Docker runs the backend on its Compose network while published host ports stay loopback-only. Multi-stage non-root Docker images, healthcheck-ordered Compose services, start/test/seed scripts and CI complete the local delivery path.
+
+<a id="docker-quick-start"></a>
+
+## Docker Quick Start
+
+Run ClearGrade with Docker Compose v2. No JDK, Node.js or local PostgreSQL installation is needed. Run the commands from the repository root.
+
+**Windows (PowerShell)**
+
+```powershell
+.\scripts\start.ps1
+.\scripts\seed.ps1
+```
+
+**macOS and Linux (Bash)**
+
+```bash
+bash scripts/start.sh
+bash scripts/seed.sh
+```
+
+Then open <http://localhost:3000>.
+
+The start script builds and starts PostgreSQL 16, the backend and the frontend, then waits for the backend health check. If `.env` is absent, it copies `.env.example` and generates a local PostgreSQL password. The host-published ports bind to `127.0.0.1`; inside Compose, the backend listens on its Compose network so the frontend nginx container can reach it.
+
+`GEMINI_API_KEY` is optional. Imports work without it; analysis uses Ollama when a configured model is reachable and returns valid output, then falls back to the deterministic Java rule engine (`RULE_BASED`).
+
+The seed script uploads `scripts/seed/initial.csv` and `scripts/seed/update.csv` through `POST /api/imports`. These synthetic fixtures demonstrate new, changed, unchanged and rejected rows; they do not use assignment data or write directly to the database. Re-running the seed is idempotent: identical completed content returns `200` without a new batch, or `409` while the same digest is active.
+
+<details>
+<summary>Stopping the stack and resetting its data</summary>
+
+`docker compose down` stops and removes the containers while retaining the named `postgres-data` volume and imported data.
+
+**Destructive reset:** `docker compose down -v` deletes the `postgres-data` volume and all imported data. To start clean, run the start and seed scripts again.
+
+</details>
+
+For container-free Windows development, see [Getting Started (Windows native development)](#getting-started-windows-native). Full run notes are in [LOCAL_RUN_GUIDE.md](LOCAL_RUN_GUIDE.md).
+
+---
 
 <a id="how-it-works"></a>
 
-## 🔄 How It Works
+## How It Works
 
 ```mermaid
 flowchart LR
@@ -153,7 +162,7 @@ flowchart LR
 
 <a id="architecture"></a>
 
-## 🏗️ Architecture
+## Architecture
 
 A modular monolith: one Spring Boot deployable with enforced inward dependencies (`adapters → application → domain`). AI providers are isolated behind an output port; no AI SDK, framework or agent runtime is added.
 
@@ -199,24 +208,34 @@ flowchart TB
 | Persistence | JPA entities/repositories/mappers, Flyway V1 schema, exact digest and upsert SQL |
 | AI adapters | Gemini/Ollama wire code, prompt construction, strict response parsing — provider code never leaks inward |
 
-<a id="engineering-highlights"></a>
+<a id="screenshots"></a>
 
-## 🧠 Engineering Highlights
+## Screenshots
 
-| Area | What is implemented |
-|---|---|
-| ⚡ Ingestion | Commons CSV 1.14.1, BOM stripped before decoding, LF/CRLF/lone CR, quoted commas and newlines, independent `PhysicalLineMap` from `getCharacterPosition()` |
-| 🧾 Validation | Five exact codes, all problems per row collected, first occurrence reserves an ID even when rejected, one persisted occurrence per problem |
-| ♻️ Idempotency | SHA-256 reservation, partial unique index on active digests, exact `23505` recovery outside the failed transaction, accepted-only upsert |
-| 🧱 Transactions | T1–T4 as separate proxied `REQUIRES_NEW` beans; T3 is the single all-or-nothing commit; T4 records `FAILED` independently |
-| 🎓 Grading | Exact `BigDecimal` calculation, `NUMERIC` columns without scale, derived on read, display rounded HALF_UP to one decimal — stored marks never rounded |
-| 🤖 Intelligence | Sequential Gemini → Ollama → rules, engine attribution, 600 s / 64-entry TTL/LRU cache, single-flight coalescing, optional cooldown |
-| 🔐 Privacy | One purpose-built aggregate DTO plus Java-approved findings per provider, PII sentinel tests on real outbound bodies, providers limited to explanation wording |
-| 📦 Delivery | Native PostgreSQL 18 vs. container/Testcontainers PostgreSQL 16, non-root images, loopback-only ports, CI on `main` |
+These are captures of the running application using deterministic synthetic demonstration data — no real student records.
+
+<table width="100%" cellspacing="0" cellpadding="0" style="border-collapse: collapse;">
+<tr>
+<td width="50%" valign="top" style="border: 1px solid #d0d7de; padding: 12px; text-align: center;"><a href="docs/screenshots/import-home.png"><img src="docs/screenshots/import-home.png" alt="Import Quality Center with the CSV upload area, validation workflow and batch lookup" width="100%" /></a><br/><sub><b>Import Quality Center</b> — Upload student results and start CSV validation.</sub></td>
+<td width="50%" valign="top" style="border: 1px solid #d0d7de; padding: 12px; text-align: center;"><a href="docs/screenshots/import-history.png"><img src="docs/screenshots/import-history.png" alt="Import History listing previous batches with outcome counts and per-batch CSV download links" width="100%" /></a><br/><sub><b>Import History</b> — Review previous imports, compare outcomes and access per-batch downloads.</sub></td>
+</tr>
+<tr>
+<td width="50%" valign="top" style="border: 1px solid #d0d7de; padding: 12px; text-align: center;"><a href="docs/screenshots/import-summary.png"><img src="docs/screenshots/import-summary.png" alt="Import Summary showing imported and rejected row counts with validation-category breakdowns" width="100%" /></a><br/><sub><b>Import Summary</b> — Review imported and rejected row counts and validation-category breakdowns.</sub></td>
+<td width="50%" valign="top" style="border: 1px solid #d0d7de; padding: 12px; text-align: center;"><a href="docs/screenshots/row-problems.png"><img src="docs/screenshots/row-problems.png" alt="Row Problems table listing validation issues by physical line, field, error code and message" width="100%" /></a><br/><sub><b>Row Problems</b> — Inspect individual validation issues by physical line, field and error code.</sub></td>
+</tr>
+<tr>
+<td width="50%" valign="top" style="border: 1px solid #d0d7de; padding: 12px; text-align: center;"><a href="docs/screenshots/intelligence-report.png"><img src="docs/screenshots/intelligence-report.png" alt="ClearGrade Intelligence report with aggregate data-quality insights, measured metrics and recommendations" width="100%" /></a><br/><sub><b>Intelligence Report</b> — Explore aggregate data-quality insights, measured metrics and recommendations.</sub></td>
+<td width="50%" valign="top" style="border: 1px solid #d0d7de; padding: 12px; text-align: center;"><a href="docs/screenshots/student-directory.png"><img src="docs/screenshots/student-directory.png" alt="Student Directory with name search, class and section filters, and a paginated student table" width="100%" /></a><br/><sub><b>Student Directory</b> — Search, filter and browse imported student records.</sub></td>
+</tr>
+<tr>
+<td width="50%" valign="top" style="border: 1px solid #d0d7de; padding: 12px; text-align: center;"><a href="docs/screenshots/find-student-report.png"><img src="docs/screenshots/find-student-report.png" alt="Find Student Report search listing matching students to open an individual academic report" width="100%" /></a><br/><sub><b>Find Student Report</b> — Find a student and open their individual academic report.</sub></td>
+<td width="50%" valign="top" style="border: 1px solid #d0d7de; padding: 12px; text-align: center;"><a href="docs/screenshots/student-report.png"><img src="docs/screenshots/student-report.png" alt="Individual Student Report showing subject marks, total, percentage and derived grade" width="100%" /></a><br/><sub><b>Individual Student Report</b> — Review student marks, totals, percentages and grades.</sub></td>
+</tr>
+</table>
 
 <a id="technical-deep-dives"></a>
 
-## 🔬 Technical Deep Dives
+## Technical Deep Dives
 
 <details>
 <summary><b>🧾 CSV ingestion and validation — how a messy file becomes explainable rows</b></summary>
@@ -242,7 +261,7 @@ flowchart LR
     D --> E
 ```
 
-**Gemini primary.** One stateless, non-streaming `POST /v1beta/interactions` (Interactions REST API) with `x-goog-api-key`, `Api-Revision: 2026-05-20`, top-level `store: false`, no `previous_interaction_id`, low thinking and a bounded output token budget. Default model `gemini-3.8-flash` (`GEMINI_MODEL`), 10 s connect and configurable 60 s read timeout. There is **no automatic Gemini POST retry**.
+**Optional Gemini provider (primary when configured).** One stateless, non-streaming `POST /v1beta/interactions` (Interactions REST API) with `x-goog-api-key`, `Api-Revision: 2026-05-20`, top-level `store: false`, no `previous_interaction_id`, low thinking and a bounded output token budget. Default model `gemini-3.8-flash` (`GEMINI_MODEL`), 10 s connect and configurable 60 s read timeout. There is **no automatic Gemini POST retry**.
 
 **Ollama local fallback.** Uses the native `/api/tags` endpoint to confirm the configured model is actually installed and reachable — a URL alone never counts as availability — then `/api/chat` with `stream: false` and a JSON-schema `format`. The optional model is `llama3.2:1b`; ClearGrade never downloads a model at startup or during image builds.
 
@@ -292,34 +311,24 @@ Totals, percentages, grades and PASS/FAIL are computed on read, not stored, and 
 
 </details>
 
-<a id="screenshots"></a>
+<a id="engineering-highlights"></a>
 
-## 📸 Screenshots
+### Engineering Highlights
 
-These are captures of the running application using deterministic synthetic demonstration data — no real student records.
-
-<table width="100%" cellspacing="0" cellpadding="0" style="border-collapse: collapse;">
-<tr>
-<td width="50%" valign="top" style="border: 1px solid #d0d7de; padding: 12px; text-align: center;"><a href="docs/screenshots/import-home.png"><img src="docs/screenshots/import-home.png" alt="Import Quality Center with the CSV upload area, validation workflow and batch lookup" width="100%" /></a><br/><sub><b>Import Quality Center</b> — Upload student results and start CSV validation.</sub></td>
-<td width="50%" valign="top" style="border: 1px solid #d0d7de; padding: 12px; text-align: center;"><a href="docs/screenshots/import-history.png"><img src="docs/screenshots/import-history.png" alt="Import History listing previous batches with outcome counts and per-batch CSV download links" width="100%" /></a><br/><sub><b>Import History</b> — Review previous imports, compare outcomes and access per-batch downloads.</sub></td>
-</tr>
-<tr>
-<td width="50%" valign="top" style="border: 1px solid #d0d7de; padding: 12px; text-align: center;"><a href="docs/screenshots/import-summary.png"><img src="docs/screenshots/import-summary.png" alt="Import Summary showing imported and rejected row counts with validation-category breakdowns" width="100%" /></a><br/><sub><b>Import Summary</b> — Review imported and rejected row counts and validation-category breakdowns.</sub></td>
-<td width="50%" valign="top" style="border: 1px solid #d0d7de; padding: 12px; text-align: center;"><a href="docs/screenshots/row-problems.png"><img src="docs/screenshots/row-problems.png" alt="Row Problems table listing validation issues by physical line, field, error code and message" width="100%" /></a><br/><sub><b>Row Problems</b> — Inspect individual validation issues by physical line, field and error code.</sub></td>
-</tr>
-<tr>
-<td width="50%" valign="top" style="border: 1px solid #d0d7de; padding: 12px; text-align: center;"><a href="docs/screenshots/intelligence-report.png"><img src="docs/screenshots/intelligence-report.png" alt="ClearGrade Intelligence report with aggregate data-quality insights, measured metrics and recommendations" width="100%" /></a><br/><sub><b>Intelligence Report</b> — Explore aggregate data-quality insights, measured metrics and recommendations.</sub></td>
-<td width="50%" valign="top" style="border: 1px solid #d0d7de; padding: 12px; text-align: center;"><a href="docs/screenshots/student-directory.png"><img src="docs/screenshots/student-directory.png" alt="Student Directory with name search, class and section filters, and a paginated student table" width="100%" /></a><br/><sub><b>Student Directory</b> — Search, filter and browse imported student records.</sub></td>
-</tr>
-<tr>
-<td width="50%" valign="top" style="border: 1px solid #d0d7de; padding: 12px; text-align: center;"><a href="docs/screenshots/find-student-report.png"><img src="docs/screenshots/find-student-report.png" alt="Find Student Report search listing matching students to open an individual academic report" width="100%" /></a><br/><sub><b>Find Student Report</b> — Find a student and open their individual academic report.</sub></td>
-<td width="50%" valign="top" style="border: 1px solid #d0d7de; padding: 12px; text-align: center;"><a href="docs/screenshots/student-report.png"><img src="docs/screenshots/student-report.png" alt="Individual Student Report showing subject marks, total, percentage and derived grade" width="100%" /></a><br/><sub><b>Individual Student Report</b> — Review student marks, totals, percentages and grades.</sub></td>
-</tr>
-</table>
+| Area | What is implemented |
+|---|---|
+| ⚡ Ingestion | Commons CSV 1.14.1, BOM stripped before decoding, LF/CRLF/lone CR, quoted commas and newlines, independent `PhysicalLineMap` from `getCharacterPosition()` |
+| 🧾 Validation | Five exact codes, all problems per row collected, first occurrence reserves an ID even when rejected, one persisted occurrence per problem |
+| ♻️ Idempotency | SHA-256 reservation, partial unique index on active digests, exact `23505` recovery outside the failed transaction, accepted-only upsert |
+| 🧱 Transactions | T1–T4 as separate proxied `REQUIRES_NEW` beans; T3 is the single all-or-nothing commit; T4 records `FAILED` independently |
+| 🎓 Grading | Exact `BigDecimal` calculation, `NUMERIC` columns without scale, derived on read, display rounded HALF_UP to one decimal — stored marks never rounded |
+| 🤖 Intelligence | Sequential Gemini → Ollama → rules, engine attribution, 600 s / 64-entry TTL/LRU cache, single-flight coalescing, optional cooldown |
+| 🔐 Privacy | One purpose-built aggregate DTO plus Java-approved findings per provider, PII sentinel tests on real outbound bodies, providers limited to explanation wording |
+| 📦 Delivery | Native PostgreSQL 18 vs. container/Testcontainers PostgreSQL 16; non-root images; native backend binds loopback, Docker backend listens on its Compose network, and published host ports bind loopback; CI on `main` |
 
 <a id="api-reference"></a>
 
-## 🔌 API Reference
+## API Reference
 
 All application endpoints live under `/api`. Management is a separate path: only `GET /actuator/health` is exposed, with `show-details: never`.
 
@@ -336,7 +345,7 @@ All application endpoints live under `/api`. Management is a separate path: only
 | `GET` | `/api/ai/status` | Safe provider/routing snapshot, no inference |
 | `POST` | `/api/imports/{id}/insights` | Explicit aggregate analysis, no request body |
 
-Reads return `200`; the common failure codes are summarised below. The two per-batch CSV endpoints stream `text/csv` attachments: a single record of persisted batch metadata and outcome counts, or one record per validation issue (line, student ID when available, field, code and message) rather than the complete original rejected rows.
+Reads return `200`; the common failure codes are summarised below. The two per-batch CSV endpoints stream `text/csv` attachments: a single record of persisted batch metadata and outcome counts, or one record per validation issue (batch id, filename, line, student ID when available, field, code and message) rather than the complete original rejected rows. The Import Report CSV exports the persisted batch summary as one record. The Row Problems CSV exports every persisted validation issue, one record per issue, and is not limited by the paginated 100-row UI page.
 
 ```powershell
 # Upload a CSV
@@ -364,23 +373,23 @@ Upload outcomes are summarized in one response shape; `imported = newCount + cha
 }
 ```
 
-Common error behaviour: `MISSING_REQUIRED_COLUMNS` / `INVALID_ENCODING` / `EMPTY_FILE` / `MALFORMED_CSV` → `400`; `INVALID_FILE_TYPE` → `415`; `FILE_TOO_LARGE` → `413`; `BATCH_PROCESSING` → `409` with `batchId`; `BATCH_NOT_FOUND` / `STUDENT_NOT_FOUND` → `404`; `BATCH_NOT_COMPLETED` → `409`; `ANALYSIS_COOLDOWN` → `429`; `AI_CONFIGURATION_ERROR` / `ANALYSIS_UNAVAILABLE` → `503`; `INTERNAL_ERROR` → `500` with a correlation id. Row-level problems are **never** HTTP errors: the batch completes successfully with non-zero rejection counters. Full shapes and query parameters are in [docs/API_CONTRACT.md](docs/API_CONTRACT.md).
+Common error behaviour: `MISSING_REQUIRED_COLUMNS` / `INVALID_ENCODING` / `EMPTY_FILE` / `MALFORMED_CSV` → `400`; `INVALID_FILE_TYPE` → `415`; `FILE_TOO_LARGE` → `413`; `BATCH_PROCESSING` → `409` with `batchId`; `BATCH_NOT_FOUND` / `STUDENT_NOT_FOUND` → `404`; `BATCH_NOT_COMPLETED` → `409`; `ANALYSIS_COOLDOWN` → `429`; `ANALYSIS_PROVIDER_FAILED` → `502`; `AI_CONFIGURATION_ERROR` / `ANALYSIS_UNAVAILABLE` → `503`; `INTERNAL_ERROR` → `500` with a correlation id. Row-level problems are **never** HTTP errors: the batch completes successfully with non-zero rejection counters. Full shapes and query parameters are in [docs/API_CONTRACT.md](docs/API_CONTRACT.md).
 
 <a id="tech-stack"></a>
 
-## 🛠️ Tech Stack
+## Tech Stack
 
 | Layer | Technologies |
 |---|---|
-| Backend | Java 21 · Spring Boot 4.1.2 · Spring Web / Data JPA / Validation / Actuator · Flyway 12 · Apache Commons CSV 1.14.1 · JUnit 5 · Mockito · Maven wrapper 3.9.14 |
-| Frontend | React 19.3 · TypeScript 5.9 · Vite 7 · Tailwind CSS 4 · React Router 7 · TanStack Query 5 · Lucide React · Vitest + Testing Library |
+| Backend | Java 21 · Spring Boot 4.1.2 · Spring Web / Data JPA / Validation / Actuator · Flyway 12.4.0 · Apache Commons CSV 1.14.1 · JUnit 5 · Mockito · Maven wrapper 3.9.14 |
+| Frontend | React 19.3.1 · TypeScript 5.9.3 · Vite 7.3.8 · Tailwind CSS 4 · React Router 7 · TanStack Query 5 · Lucide React · Vitest + Testing Library |
 | Database | PostgreSQL 18 native (Windows service) · PostgreSQL 16-alpine in Docker Compose and Testcontainers |
 | AI integration | Gemini Interactions REST (`gemini-3.8-flash`, configurable) · Ollama native chat (`llama3.2:1b`, optional) · Java rule engine · plain `HttpClient`, no AI SDK |
 | Delivery | Multi-stage non-root backend/frontend Docker images · Compose with healthchecks and named volume · GitHub Actions (`main`) · PowerShell/Unix start, test and seed scripts |
 
 <a id="getting-started-windows-native"></a>
 
-## 🚀 Getting Started (Windows native development)
+## Getting Started (Windows native development)
 
 ### Prerequisites
 
@@ -423,26 +432,17 @@ Health: <http://localhost:8080/actuator/health>. API base: <http://localhost:808
 | `GEMINI_API_KEY` | Optional | Enables Gemini as primary provider; never logged, returned or sent to the browser |
 | `GEMINI_MODEL` | Optional | Overrides the `gemini-3.8-flash` default |
 | `CLEARGRADE_AI_ENABLED` | Optional | `false` disables both AI providers; the rule engine still works |
-| `OLLAMA_BASE_URL` / `OLLAMA_MODEL` | Optional | Host Ollama endpoint/model; native defaults are `127.0.0.1:11434` / `llama3.2:1b` |
+| `CLEARGRADE_AI_OLLAMA_BASE_URL` / `CLEARGRADE_AI_OLLAMA_MODEL` | Optional | **Native** Ollama endpoint/model; defaults are `http://127.0.0.1:11434` / `llama3.2:1b` |
+| `OLLAMA_BASE_URL` / `OLLAMA_MODEL` | Docker only | `.env` names that Compose maps into the backend's `CLEARGRADE_AI_OLLAMA_*` settings |
 | `CLEARGRADE_AI_COOLDOWN_SECONDS` | Optional | Per-batch analysis cooldown; default `0` |
 | `POSTGRES_PASSWORD` / `POSTGRES_PORT` | Docker only | Compose database password and configurable loopback host port |
 | `CLEARGRADE_UPLOAD_MAX_FILE_SIZE` | Optional | Upload cap in bytes; default `10485760` (10 MiB) |
 
-### Alternative: Docker Compose workflow
-
-If you prefer containers, stop the native backend/frontend first; the [Docker Quick Start](#docker-quick-start) above is the quicker evaluator route:
-
-```powershell
-docker compose up -d --build
-# frontend http://localhost:3000 · health http://localhost:8080/actuator/health
-docker compose down   # stop containers; keep the PostgreSQL volume
-```
-
-`.\scripts\start.ps1` automates these steps, including first-run `.env` setup. Compose uses its **own** PostgreSQL 16 container, named volume and host port from `.env`; it does not touch the native database. All published ports bind to `127.0.0.1`. **`docker compose down -v` is destructive: it deletes the database volume and all imported data.** Full details: [LOCAL_RUN_GUIDE.md](LOCAL_RUN_GUIDE.md).
+See [Docker Quick Start](#docker-quick-start) for the container workflow and its data-lifecycle warning. Full details are in [LOCAL_RUN_GUIDE.md](LOCAL_RUN_GUIDE.md).
 
 <a id="performance-and-constraints"></a>
 
-## ⚡ Performance and Constraints
+## Performance and Constraints
 
 | Constraint | Behaviour |
 |---|---|
@@ -460,27 +460,27 @@ docker compose down   # stop containers; keep the PostgreSQL volume
 
 <a id="testing-and-quality"></a>
 
-## 🧪 Testing and Quality
+## Testing and Quality
 
-- **Backend:** **286 tests passed, 0 failures, 0 errors, 1 skipped** across 40 test classes — the skipped test is the opt-in live Gemini smoke test, which requires `CLEARGRADE_LIVE_GEMINI_SMOKE=true` **and** a user-supplied key. These counts match the current Surefire reports.
-- **Frontend:** **45 tests passed, 0 failures** (Vitest + Testing Library), plus TypeScript check and Vite production build.
+- **Backend:** **294 tests total — 293 passed, 0 failures, 0 errors, 1 skipped** across **41 test classes**, per the latest Surefire reports. The skipped test is the opt-in `LiveGeminiSmokeTest`, which requires `CLEARGRADE_LIVE_GEMINI_SMOKE=true` **and** a user-supplied key.
+- **Frontend:** **77 tests** defined and passing across **11 test files** (Vitest + Testing Library), plus TypeScript check and Vite production build.
 - **Integration coverage:** Testcontainers PostgreSQL 16 backs migration, persistence, T1–T4 transaction, REST API and benchmark tests. Mock HTTP servers capture real Gemini/Ollama request bytes for protocol and PII-sentinel assertions.
-- **Genuine benchmark evidence:** the current `CsvImportBenchmarkTest` Surefire report records **163 ms** for the small fixture and **5,407 ms** for the 5,000-row fixture, with exact counts **25 / 16 / 9** and **5,000 / 4,685 / 315 rejected / 348 occurrences** (fixed clock `2026-11-19`, JDK 21.0.10, `postgres:16-alpine`). These are informational observations, not acceptance thresholds.
+- **Genuine benchmark evidence:** the latest `CsvImportBenchmarkTest` Surefire report records **131 ms** for the small fixture and **3,334 ms** for the 5,000-row fixture, with exact counts **25 / 16 / 9** and **5,000 / 4,685 / 315 rejected / 348 occurrences** (JDK 21.0.10, PostgreSQL 16 / `postgres:16-alpine`). Timings are **environment-dependent observations from one run, not guaranteed performance or acceptance thresholds**; the counts are deterministic regression fixtures. Earlier runs measured 163/5,407 ms, 158/4,291 ms and 130/3,892 ms — historical observations, not current results.
 - **Verification status:** verified by automated tests are the Gemini/Ollama mock-provider contract, routing, sanitized failure telemetry, privacy-safe aggregate payloads, strict explanation validation and the offline `RULE_BASED` deterministic fallback. Historical browser runs used synthetic data; a verified valid end-to-end local Ollama report after the parser hardening is **not** claimed. A real-key browser attempt reached Gemini and received an upstream HTTP 5xx, so the chain fell through to Ollama — evidence of fallback only, **not** successful live Gemini generation. No live AI report is claimed as verified; the CI badge reports `main` only and branch verification is recorded here. No OWASP dependency-check scan is configured in CI, so a backend dependency vulnerability scan has not been verified.
 
 <a id="security-and-privacy"></a>
 
-## 🔐 Security and Privacy
+## Security and Privacy
 
 - **Local/trusted only:** no authentication by design. Do not publicly expose the application without an authentication layer and network controls.
-- **Narrow surface:** backend binds to `127.0.0.1`; Compose publishes loopback ports; only `/actuator/health` is exposed; DTOs never leak JPA entities; page size and sort fields are allowlisted.
+- **Narrow surface:** the native backend binds to `127.0.0.1`. In Docker Compose, the backend listens on its Compose network so nginx can reach it; host-published ports bind to `127.0.0.1`. Only `/actuator/health` is exposed; DTOs never leak JPA entities; page sizes and sort fields are allowlisted.
 - **Secrets:** real values live only in the git-ignored root `.env`; the key is never placed in Vite variables, Docker build arguments, images, responses or logs.
 - **PII handling:** raw CSV records, emails, dates of birth and row-message bodies are never logged; row problems carry administrator-friendly text only.
 - **AI boundary:** aggregate-only context, no write path, advisory-only output. See [docs/SECURITY.md](docs/SECURITY.md) and [docs/AI_INTELLIGENCE.md](docs/AI_INTELLIGENCE.md).
 
 <a id="project-structure"></a>
 
-## 🗂️ Project Structure
+## Project Structure
 
 ```text
 cleargrade/
@@ -492,11 +492,12 @@ cleargrade/
 │       │   ├── application/     # services, ports in/out, T1–T4 transaction beans
 │       │   └── adapters/        # in/web, in/csv, out/persistence, out/ai
 │       ├── main/resources/      # application.properties · db/migration/V1__create_core_schema.sql
-│       └── test/                # 40 test classes
+│       └── test/                # 41 test classes
 ├── frontend/
 │   ├── package.json · vite.config.ts · Dockerfile · nginx.conf
 │   └── src/                     # api, components, features, styles, types, tests
 ├── docs/
+│   ├── media/                 # Product walkthrough thumbnail
 │   ├── ARCHITECTURE.md · API_CONTRACT.md · AI_INTELLIGENCE.md
 │   ├── DATA_MODEL.md · SECURITY.md · TEST_STRATEGY.md · UX_SPEC.md
 │   └── screenshots/             # 8 synthetic-data captures
@@ -509,7 +510,7 @@ cleargrade/
 
 <a id="roadmap-and-limitations"></a>
 
-## 🗺️ Roadmap and Limitations
+## Roadmap and Limitations
 
 Implemented scope is complete; the following are **deferred or unverified**, not shipped features:
 
@@ -530,9 +531,9 @@ Current-result snapshot only — no academic history is invented. The AI cache i
 
 Java Full Stack Developer · Spring Boot · React · Data Quality Engineering
 
-[![GitHub](https://img.shields.io/badge/GitHub-soubhagya--behera-181717?style=for-the-badge&logo=github&logoColor=white)](https://github.com/soubhagya-behera)
-[![LinkedIn](https://img.shields.io/badge/LinkedIn-soubhagyakumar--java-0A66C2?style=for-the-badge&logo=linkedin&logoColor=white)](https://www.linkedin.com/in/soubhagyakumar-java)
-[![Portfolio](https://img.shields.io/badge/Portfolio-soubhagya--dev-6D4AFF?style=for-the-badge&logo=vercel&logoColor=white)](https://soubhagya-dev.vercel.app)
+[![GitHub](https://img.shields.io/badge/GitHub-soubhagya--behera-181717?style=flat-square&logo=github&logoColor=white)](https://github.com/soubhagya-behera)
+[![LinkedIn](https://img.shields.io/badge/LinkedIn-soubhagyakumar--java-0A66C2?style=flat-square&logo=linkedin&logoColor=white)](https://www.linkedin.com/in/soubhagyakumar-java)
+[![Portfolio](https://img.shields.io/badge/Portfolio-soubhagya--dev-6D4AFF?style=flat-square&logo=vercel&logoColor=white)](https://soubhagya-dev.vercel.app)
 
 ⭐ If ClearGrade helped you understand CSV ingestion, idempotency or advisory AI, consider starring the repository.
 
