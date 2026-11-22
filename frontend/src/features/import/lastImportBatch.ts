@@ -9,19 +9,21 @@ function sessionStorageOrNull(): Storage | null {
   }
 }
 
+export function parseBatchId(raw: string): number | null {
+  const trimmed = raw.trim();
+  if (!/^\d+$/.test(trimmed)) return null;
+  const id = Number(trimmed);
+  return Number.isSafeInteger(id) && id > 0 ? id : null;
+}
+
 export function readLastImportBatchId(): number | null {
   const storage = sessionStorageOrNull();
   if (!storage) return null;
   try {
     const raw = storage.getItem(LAST_IMPORT_BATCH_ID_KEY);
     if (raw === null) return null;
-    const trimmed = raw.trim();
-    if (!/^\d+$/.test(trimmed)) {
-      storage.removeItem(LAST_IMPORT_BATCH_ID_KEY);
-      return null;
-    }
-    const id = Number(trimmed);
-    if (!Number.isSafeInteger(id) || id <= 0) {
+    const id = parseBatchId(raw);
+    if (id === null) {
       storage.removeItem(LAST_IMPORT_BATCH_ID_KEY);
       return null;
     }

@@ -312,10 +312,13 @@ class RestApiIntegrationTest {
 					"an issue-free batch should return its header only");
 		}
 
-		String[] manyInvalidRows = new String[8];
+		String[] manyInvalidRows = new String[20];
 		java.util.Arrays.fill(manyInvalidRows, "=1+1,,,,,,,,,,");
-		this.mockMvc.perform(multipart("/api/imports").file(file("issues.csv", csv(manyInvalidRows))))
-				.andExpect(status().isCreated());
+		MvcResult issuesUpload = this.mockMvc.perform(multipart("/api/imports").file(file("issues.csv", csv(manyInvalidRows))))
+				.andExpect(status().isCreated()).andReturn();
+		int expectedIssues = com.jayway.jsonpath.JsonPath.read(issuesUpload.getResponse().getContentAsString(), "$.errorCount");
+		org.junit.jupiter.api.Assertions.assertTrue(expectedIssues > 100,
+				"test data must cross the 100-issue export page boundary");
 		MvcResult problemsStart = this.mockMvc.perform(get("/api/imports/2/row-problems"))
 				.andExpect(request().asyncStarted()).andReturn();
 		MvcResult problemsResult = this.mockMvc.perform(asyncDispatch(problemsStart))
@@ -325,10 +328,11 @@ class RestApiIntegrationTest {
 				.andReturn();
 		try (CSVParser parser = CSVFormat.DEFAULT.parse(new StringReader(problemsResult.getResponse().getContentAsString()))) {
 			List<org.apache.commons.csv.CSVRecord> records = parser.getRecords();
-			org.junit.jupiter.api.Assertions.assertTrue(records.size() > 50, "export should include all issues after page one");
+			org.junit.jupiter.api.Assertions.assertEquals(expectedIssues + 1, records.size(),
+					"export must include every persisted issue beyond the first 100-row page");
 			org.junit.jupiter.api.Assertions.assertEquals("Batch ID", records.get(0).get(0));
 			org.junit.jupiter.api.Assertions.assertEquals("'=1+1", records.get(1).get(3));
-			org.junit.jupiter.api.Assertions.assertEquals(8L, records.stream().skip(1).map(record -> record.get(2)).distinct().count());
+			org.junit.jupiter.api.Assertions.assertEquals(20L, records.stream().skip(1).map(record -> record.get(2)).distinct().count());
 			org.junit.jupiter.api.Assertions.assertTrue(records.stream().skip(1).filter(record -> "2".equals(record.get(2))).count() > 1,
 					"multiple validation issues for one row should remain separate records");
 		}

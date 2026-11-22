@@ -2,6 +2,7 @@ import { apiClient } from './client';
 import type { ImportHistoryEntry, ImportResponse, Page, RowError, RowErrorCode } from '../types/api';
 
 export const importKeys = {
+  all: ['import'] as const,
   batch: (id: number) => ['import', 'batch', id] as const,
   errors: (id: number, page: number, size: number, code?: RowErrorCode) =>
     ['import', 'errors', id, page, size, code ?? 'ALL'] as const,

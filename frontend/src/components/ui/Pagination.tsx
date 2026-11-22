@@ -5,9 +5,12 @@ interface PaginationProps {
   label: string;
 }
 
+const MAX_VISIBLE_PAGES = 7;
+
 export function Pagination({ page, totalPages, onPageChange, label }: PaginationProps) {
   if (totalPages <= 1) return null;
-  const pages = Array.from({ length: Math.min(totalPages, 7) }, (_, index) => index);
+  const start = Math.max(0, Math.min(page - Math.floor(MAX_VISIBLE_PAGES / 2), totalPages - MAX_VISIBLE_PAGES));
+  const pages = Array.from({ length: Math.min(MAX_VISIBLE_PAGES, totalPages) }, (_, index) => start + index);
   return (
     <nav aria-label={label} className="flex flex-wrap items-center gap-2">
       <button

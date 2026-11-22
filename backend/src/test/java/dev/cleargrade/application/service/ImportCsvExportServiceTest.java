@@ -1,13 +1,19 @@
 package dev.cleargrade.application.service;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
 import java.io.ByteArrayOutputStream;
 import java.io.StringReader;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 import dev.cleargrade.application.model.BatchSummary;
 import dev.cleargrade.application.model.PageResult;
@@ -65,5 +71,63 @@ class ImportCsvExportServiceTest {
 			assertEquals("'=BAD", issue.get(5));
 			assertEquals("'=HYPERLINK(\"example\")\r\ncontinued", issue.get(6));
 		}
+	}
+
+	@Test
+	void rowProblemsExportIncludesEveryIssueAcrossPageBoundaries() throws Exception {
+		ImportQueryService imports = mock(ImportQueryService.class);
+		when(imports.getErrors(20L, 0, 100, null)).thenReturn(PageResult.of(rowErrors(1, 100), 0, 100, 250));
+		when(imports.getErrors(20L, 1, 100, null)).thenReturn(PageResult.of(rowErrors(101, 100), 1, 100, 250));
+		when(imports.getErrors(20L, 2, 100, null)).thenReturn(PageResult.of(rowErrors(201, 50), 2, 100, 250));
+		ImportCsvExportService service = new ImportCsvExportService(imports);
+		BatchSummary batch = new BatchSummary(20L, "marks.csv", ImportStatus.COMPLETED,
+				250, 0, 0, 0, 0, 250, 250, null, null, null);
+		ByteArrayOutputStream output = new ByteArrayOutputStream();
+
+		service.writeRowProblems(batch, output);
+
+		try (CSVParser parser = CSVFormat.DEFAULT.parse(new StringReader(output.toString(StandardCharsets.UTF_8)))) {
+			List<CSVRecord> records = parser.getRecords();
+			assertEquals(251, records.size());
+			Set<String> lines = records.stream().skip(1).map(record -> record.get(2)).collect(Collectors.toSet());
+			assertEquals(250, lines.size());
+			for (int line = 1; line <= 250; line++) {
+				assertTrue(lines.contains(Integer.toString(line)), "line " + line + " is missing from the export");
+			}
+			assertEquals("1", records.get(1).get(2));
+			assertEquals("250", records.get(250).get(2));
+		}
+		verify(imports).getErrors(20L, 0, 100, null);
+		verify(imports).getErrors(20L, 1, 100, null);
+		verify(imports).getErrors(20L, 2, 100, null);
+		verifyNoMoreInteractions(imports);
+	}
+
+	@Test
+	void rowProblemsExportStopsAtExactPageBoundary() throws Exception {
+		ImportQueryService imports = mock(ImportQueryService.class);
+		when(imports.getErrors(21L, 0, 100, null)).thenReturn(PageResult.of(rowErrors(1, 100), 0, 100, 200));
+		when(imports.getErrors(21L, 1, 100, null)).thenReturn(PageResult.of(rowErrors(101, 100), 1, 100, 200));
+		ImportCsvExportService service = new ImportCsvExportService(imports);
+		BatchSummary batch = new BatchSummary(21L, "marks.csv", ImportStatus.COMPLETED,
+				200, 0, 0, 0, 0, 200, 200, null, null, null);
+		ByteArrayOutputStream output = new ByteArrayOutputStream();
+
+		service.writeRowProblems(batch, output);
+
+		try (CSVParser parser = CSVFormat.DEFAULT.parse(new StringReader(output.toString(StandardCharsets.UTF_8)))) {
+			assertEquals(201, parser.getRecords().size());
+		}
+		verify(imports).getErrors(21L, 0, 100, null);
+		verify(imports).getErrors(21L, 1, 100, null);
+		verifyNoMoreInteractions(imports);
+	}
+
+	private static List<RowErrorView> rowErrors(int firstLine, int count) {
+		List<RowErrorView> errors = new ArrayList<>();
+		for (int line = firstLine; line < firstLine + count; line++) {
+			errors.add(new RowErrorView(line, "STU" + line, "field", "INVALID_FORMAT", "problem"));
+		}
+		return errors;
 	}
 }

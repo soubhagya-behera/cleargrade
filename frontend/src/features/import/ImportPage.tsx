@@ -1,12 +1,13 @@
 import { useEffect, useRef, useState } from 'react';
-import { useMutation, useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { CheckCircle2, Loader2, SearchCheck, UploadCloud } from 'lucide-react';
 import { ApiError } from '../../api/client';
 import { getBatch, importKeys, uploadCsv } from '../../api/imports';
+import { studentKeys } from '../../api/students';
 import { ErrorState } from '../../components/ui/States';
 import { FileDropzone } from '../../components/ui/FileDropzone';
 import type { ImportResponse } from '../../types/api';
-import { clearLastImportBatchId, readLastImportBatchId, saveLastImportBatchId } from './lastImportBatch';
+import { clearLastImportBatchId, parseBatchId, readLastImportBatchId, saveLastImportBatchId } from './lastImportBatch';
 import { ImportBatchDetails } from './ImportBatchDetails';
 import { ImportHistory } from './ImportHistory';
 
@@ -35,10 +36,12 @@ export function ImportPage() {
   const [result, setResult] = useState<ImportResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [lookupId, setLookupId] = useState('');
+  const [lookupError, setLookupError] = useState<string | null>(null);
   const [searchedId, setSearchedId] = useState<number | null>(null);
   const [restoredBatchId, setRestoredBatchId] = useState<number | null>(() => readLastImportBatchId());
   const [restoreError, setRestoreError] = useState<string | null>(null);
   const uploadSucceeded = useRef(false);
+  const queryClient = useQueryClient();
 
   const upload = useMutation({
     mutationFn: (selected: File) => uploadCsv(selected),
@@ -50,6 +53,8 @@ export function ImportPage() {
       setFile(null);
       setError(null);
       if (batch.status === 'COMPLETED') saveLastImportBatchId(batch.id);
+      void queryClient.invalidateQueries({ queryKey: importKeys.all });
+      void queryClient.invalidateQueries({ queryKey: studentKeys.all });
     },
     onError: (cause: Error) => setError(friendlyError(cause)),
   });
@@ -92,6 +97,17 @@ export function ImportPage() {
     if (selected && selected.size > MAX_UPLOAD_BYTES) {
       setError('This file is larger than the 10 MiB limit. Choose a smaller file.');
     }
+  }
+
+  function search() {
+    const id = parseBatchId(lookupId);
+    if (id === null) {
+      setSearchedId(null);
+      setLookupError('Enter a positive whole-number batch id.');
+      return;
+    }
+    setLookupError(null);
+    setSearchedId(id);
   }
 
   return (
@@ -211,18 +227,19 @@ export function ImportPage() {
                 id="batch-id"
                 inputMode="numeric"
                 value={lookupId}
-                onChange={(event) => setLookupId(event.target.value)}
+                onChange={(event) => { setLookupId(event.target.value); setLookupError(null); }}
                 placeholder="e.g. 42"
                 className="cg-input min-w-0 flex-1"
               />
               <button
                 type="button"
-                onClick={() => setSearchedId(Number(lookupId))}
+                onClick={search}
                 className="cg-btn-accent w-full shrink-0 px-4 sm:w-auto"
               >
                 Look up
               </button>
             </div>
+            {lookupError && <p className="mt-3 text-xs font-semibold text-danger" role="alert">{lookupError}</p>}
             {lookup.isFetching && <p className="mt-3 text-[12px] font-medium text-ink-500">Looking up batch…</p>}
             {lookup.isError && <p className="mt-3 text-xs font-semibold text-danger">{friendlyError(lookup.error as Error)}</p>}
             {lookup.data && (
@@ -276,7 +293,7 @@ export function ImportPage() {
         </div>
       </div>
 
-      {result && <ImportBatchDetails batch={result} />}
+      {result && <ImportBatchDetails key={result.id} batch={result} />}
       </>}
     </section>
   );

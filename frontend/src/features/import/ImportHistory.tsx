@@ -48,7 +48,7 @@ export function ImportHistory() {
             <h3 id="history-detail-heading" className="text-xl font-bold tracking-tight text-navy-900">Batch {detail.data.id} · {detail.data.filename}</h3>
             <p className="mt-1 text-sm text-ink-500">Imported {new Date(detail.data.startedAt).toLocaleString()}</p>
           </div>
-          <ImportBatchDetails batch={detail.data} />
+          <ImportBatchDetails key={detail.data.id} batch={detail.data} />
         </>}
       </section>
     );
