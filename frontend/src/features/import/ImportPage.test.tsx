@@ -14,10 +14,10 @@ vi.mock('../../api/ai', () => ({
 
 vi.mock('../../api/imports', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../../api/imports')>();
-  return { ...actual, uploadCsv: vi.fn(), getBatch: vi.fn(), getBatchErrors: vi.fn() };
+  return { ...actual, uploadCsv: vi.fn(), getBatch: vi.fn(), getBatchErrors: vi.fn(), getImportHistory: vi.fn() };
 });
 
-const { uploadCsv, getBatch, getBatchErrors } = await import('../../api/imports');
+const { uploadCsv, getBatch, getBatchErrors, getImportHistory } = await import('../../api/imports');
 const { getAiStatus } = await import('../../api/ai');
 
 const STORAGE_KEY = LAST_IMPORT_BATCH_ID_KEY;
@@ -41,6 +41,8 @@ beforeEach(() => {
   vi.mocked(getBatch).mockResolvedValue(batch);
   vi.mocked(getBatchErrors).mockReset();
   vi.mocked(getBatchErrors).mockResolvedValue(errors);
+  vi.mocked(getImportHistory).mockReset();
+  vi.mocked(getImportHistory).mockResolvedValue({ content: [], page: 0, size: 10, totalElements: 0, totalPages: 0 });
   vi.mocked(getAiStatus).mockReset();
   vi.mocked(getAiStatus).mockResolvedValue({
     enabled: true, geminiConfigured: false, geminiModel: '', ollamaConfigured: false,
@@ -53,6 +55,28 @@ beforeEach(() => {
 });
 
 describe('ImportPage', () => {
+  it('uses a contextual page heading without duplicating Import History', async () => {
+    renderWithProviders(<ImportPage />);
+
+    expect(screen.getByRole('heading', { level: 2, name: 'Import student results' })).toBeInTheDocument();
+    expect(screen.getByText('Bring in a CSV, validate every row, and review the results before moving on.')).toBeInTheDocument();
+    expect(screen.getByText((_, element) => element?.tagName === 'P'
+      && (element.textContent ?? '').includes('Data quality')
+      && (element.textContent ?? '').includes('File intake'))).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Import History' }));
+    expect(await screen.findByText('No imports yet')).toBeInTheDocument();
+    expect(screen.getAllByRole('heading', { name: 'Import History' })).toHaveLength(1);
+    expect(screen.getByText('Review previous CSV imports and open a batch to see its summary and row problems.')).toBeInTheDocument();
+    expect(screen.getByText((_, element) => element?.tagName === 'P'
+      && (element.textContent ?? '').includes('Data quality')
+      && (element.textContent ?? '').includes('Import History'))).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Import CSV' }));
+    expect(screen.getByRole('heading', { level: 2, name: 'Import student results' })).toBeInTheDocument();
+    expect(screen.getByText('Upload a results file')).toBeInTheDocument();
+  });
+
   it('uploads a CSV and renders the real summary and row problems with physical lines', async () => {
     let resolveUpload!: (value: ImportResponse) => void;
     vi.mocked(uploadCsv).mockImplementation(() => new Promise<ImportResponse>((resolve) => { resolveUpload = resolve; }));

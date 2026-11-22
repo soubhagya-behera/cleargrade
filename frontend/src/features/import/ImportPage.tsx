@@ -97,12 +97,14 @@ export function ImportPage() {
   return (
     <section aria-labelledby="page-heading">
       <header className="mb-5 sm:mb-6">
-        <p className="cg-eyebrow text-[11px] font-bold uppercase text-lake-700">Data quality <span aria-hidden="true" className="px-1.5 text-line-strong">/</span> File intake</p>
+        <p className="cg-eyebrow text-[11px] font-bold uppercase text-lake-700">Data quality <span aria-hidden="true" className="px-1.5 text-line-strong">/</span> {tab === 'history' ? 'Import History' : 'File intake'}</p>
         <h2 id="page-heading" className="mt-2 text-[2rem] font-bold leading-[1.08] tracking-[-0.025em] text-navy-900 sm:text-[2.5rem]">
-          Import student results
+          {tab === 'history' ? 'Import History' : 'Import student results'}
         </h2>
         <p className="mt-2 max-w-2xl text-sm leading-relaxed text-ink-700 sm:text-[15px]">
-          Bring in a CSV, validate every row, and review the results before moving on.
+          {tab === 'history'
+            ? 'Review previous CSV imports and open a batch to see its summary and row problems.'
+            : 'Bring in a CSV, validate every row, and review the results before moving on.'}
         </p>
         <span aria-hidden="true" className="mt-3 block h-1 w-10 bg-sun-500" />
       </header>

@@ -54,11 +54,9 @@ export function ImportHistory() {
   }
 
   return (
-    <section aria-labelledby="history-heading" className="space-y-4">
+    <section aria-labelledby="page-heading" className="space-y-4">
       <header>
-        <h3 id="history-heading" className="text-2xl font-bold tracking-tight text-navy-900">Import History</h3>
-        <p className="mt-1 text-sm text-ink-500">Review previous CSV imports and open a batch to see its summary and row problems.</p>
-        {history.data && <p className="mt-2 text-sm font-semibold text-navy-900" aria-live="polite">
+        {history.data && <p className="text-sm font-semibold text-navy-900" aria-live="polite">
           {history.data.totalElements} {history.data.totalElements === 1 ? 'batch' : 'batches'}
         </p>}
       </header>
