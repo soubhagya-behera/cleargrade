@@ -168,6 +168,7 @@
   .cg-btn-accent,
   .cg-btn-secondary {
     @apply inline-flex min-h-12 items-center justify-center gap-2.5 rounded-xl font-bold tracking-wide;
+    cursor: pointer;
     transition:
       background-color var(--duration-transition-btn) ease,
       border-color var(--duration-transition-btn) ease,
@@ -238,10 +239,15 @@
 
   .cg-btn-ghost {
     @apply inline-flex min-h-10 items-center justify-center gap-1 rounded-lg px-3 text-sm font-medium text-ink-700 transition-colors;
+    cursor: pointer;
   }
 
   .cg-btn-ghost:hover:not(:disabled) {
     color: var(--color-navy-900);
+  }
+
+  .cg-btn-ghost:disabled {
+    cursor: not-allowed;
   }
 
   .cg-input {
@@ -250,6 +256,11 @@
       border-color var(--duration-transition-btn) ease,
       box-shadow var(--duration-transition-btn) ease,
       background-color var(--duration-transition-btn) ease;
+  }
+
+  input.cg-input,
+  textarea.cg-input {
+    cursor: text;
   }
 
   .cg-input:hover:not(:disabled) {
@@ -354,6 +365,7 @@
 
   .cg-dropzone {
     @apply relative rounded-2xl px-5 py-7 text-center sm:px-7 sm:py-10;
+    cursor: pointer;
     border: 1.5px dashed var(--color-line-strong);
     background-color: var(--color-surface);
     background-image: radial-gradient(140% 150% at 50% 0%, rgba(128, 180, 227, 0.06) 0%, rgba(128, 180, 227, 0) 70%);
@@ -381,6 +393,10 @@
     box-shadow:
       0 0 0 3px rgba(128, 180, 227, 0.3),
       0 8px 24px rgba(44, 106, 161, 0.1);
+  }
+
+  .cg-dropzone.is-disabled {
+    cursor: not-allowed;
   }
 
   .cg-dropzone-icon {

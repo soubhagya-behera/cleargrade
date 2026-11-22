@@ -27,7 +27,7 @@ export function FileDropzone({ onFile, disabled = false, maxBytes }: FileDropzon
           setDragging(false);
           if (!disabled) select(event.dataTransfer.files[0]);
         }}
-        className={`cg-dropzone ${dragging && !disabled ? 'is-dragging' : ''} ${disabled ? 'opacity-60' : ''}`}
+        className={`cg-dropzone ${dragging && !disabled ? 'is-dragging' : ''} ${disabled ? 'is-disabled opacity-60' : ''}`}
       >
         <span className="cg-dropzone-icon">
           <FileUp aria-hidden="true" className="size-6" />

@@ -16,7 +16,7 @@ export function Sidebar({ open, onClose }: SidebarProps) {
           type="button"
           aria-label="Close navigation"
           onClick={onClose}
-          className="fixed inset-0 z-30 bg-navy-950/50 backdrop-blur-[2px] lg:hidden"
+          className="fixed inset-0 z-30 cursor-pointer bg-navy-950/50 backdrop-blur-[2px] lg:hidden"
         />
       )}
 
@@ -41,7 +41,7 @@ export function Sidebar({ open, onClose }: SidebarProps) {
             type="button"
             onClick={onClose}
             aria-label="Close navigation"
-            className="rounded-xl p-2 text-slate-400 transition-colors hover:bg-white/10 hover:text-white lg:hidden"
+            className="cursor-pointer rounded-xl p-2 text-slate-400 transition-colors hover:bg-white/10 hover:text-white lg:hidden"
           >
             <X aria-hidden="true" className="size-5" />
           </button>
