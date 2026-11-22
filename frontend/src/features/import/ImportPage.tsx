@@ -89,21 +89,21 @@ export function ImportPage() {
 
   return (
     <section aria-labelledby="page-heading">
-      <header className="mb-7 border-b border-line pb-6 sm:mb-8 sm:pb-7">
-        <p className="cg-eyebrow text-[11px] font-bold uppercase text-lake-700">Import Quality Center <span aria-hidden="true" className="px-1.5 text-line-strong">/</span> Data quality · File intake</p>
-        <h2 id="page-heading" className="mt-3 text-[2rem] font-bold leading-[1.08] tracking-[-0.025em] text-navy-900 sm:text-[2.75rem]">
+      <header className="mb-5 sm:mb-6">
+        <p className="cg-eyebrow text-[11px] font-bold uppercase text-lake-700">Data quality <span aria-hidden="true" className="px-1.5 text-line-strong">/</span> File intake</p>
+        <h2 id="page-heading" className="mt-2 text-[2rem] font-bold leading-[1.08] tracking-[-0.025em] text-navy-900 sm:text-[2.5rem]">
           Import student results
         </h2>
-        <p className="mt-3 max-w-2xl text-sm leading-relaxed text-ink-700 sm:text-[15px]">
+        <p className="mt-2 max-w-2xl text-sm leading-relaxed text-ink-700 sm:text-[15px]">
           Bring in a CSV, validate every row, and review the results before moving on.
         </p>
-        <span aria-hidden="true" className="mt-5 block h-1 w-10 bg-sun-500" />
+        <span aria-hidden="true" className="mt-3 block h-1 w-10 bg-sun-500" />
       </header>
 
       <div className="grid grid-cols-1 items-start gap-5 xl:grid-cols-12 xl:gap-6">
-        <section aria-labelledby="upload-heading" className="cg-card cg-rise-1 relative overflow-hidden p-4 pt-5 sm:p-6 sm:pt-7 xl:col-span-8">
+        <section aria-labelledby="upload-heading" className="cg-card cg-rise-1 relative overflow-hidden p-4 pt-5 sm:p-5 sm:pt-6 xl:col-span-8">
           <span aria-hidden="true" className="absolute inset-x-0 top-0 h-1.5 bg-lake-500" />
-          <div className="mb-5">
+          <div className="mb-3">
             <h3 id="upload-heading" className="text-lg font-bold tracking-tight text-navy-900">Upload a results file</h3>
             <p className="mt-1 text-[13px] leading-relaxed text-ink-500">Choose a CSV from your device or drop it into the upload area.</p>
           </div>
@@ -116,19 +116,19 @@ export function ImportPage() {
             maxBytes={MAX_UPLOAD_BYTES}
           />
 
-          <div className="mt-5">
+          <div className="mt-3">
             <p className="cg-eyebrow text-[10px] font-bold uppercase text-lake-700">Required columns</p>
-            <ul className="mt-2 flex flex-wrap gap-1.5" aria-label="Required CSV columns">
+            <ul className="mt-1.5 flex flex-wrap gap-1" aria-label="Required CSV columns">
               {CSV_COLUMNS.map((column) => (
-                <li key={column} className="rounded-md border border-line bg-canvas px-2 py-1 font-mono text-[11px] font-medium text-navy-800">
+                <li key={column} className="rounded-md border border-line bg-canvas px-1.5 py-0.5 font-mono text-[11px] font-medium text-navy-800">
                   {column}
                 </li>
               ))}
-              <li className="rounded-md border border-line bg-canvas px-2 py-1 text-[11px] font-semibold text-navy-800">and five subject marks</li>
+              <li className="rounded-md border border-line bg-canvas px-1.5 py-0.5 text-[11px] font-semibold text-navy-800">5 subject marks</li>
             </ul>
           </div>
 
-          <div className="mt-5 flex flex-col gap-4 border-t border-line pt-5 sm:flex-row sm:items-center sm:justify-between">
+          <div className="mt-4 flex flex-col gap-3 border-t border-line pt-4 sm:flex-row sm:items-center sm:justify-between">
             <div className="min-w-0">
               <p className="text-[13px] leading-snug text-ink-500">Valid rows import; problem rows appear below.</p>
               {result && (
@@ -166,8 +166,8 @@ export function ImportPage() {
           {error && <div className="mt-4"><ErrorState message={error} /></div>}
         </section>
 
-        <div className="grid min-w-0 gap-5 xl:col-span-4 xl:grid-cols-1">
-          <aside aria-labelledby="lookup-heading" className="cg-card cg-rise-2 min-w-0 p-5 sm:p-6">
+        <div className="grid min-w-0 gap-4 xl:col-span-4 xl:grid-cols-1">
+          <aside aria-labelledby="lookup-heading" className="cg-card cg-rise-2 min-w-0 p-4 sm:p-5">
             <div className="flex items-start gap-3">
               <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-lake-100 text-lake-700">
                 <SearchCheck aria-hidden="true" className="size-5" />
@@ -177,10 +177,10 @@ export function ImportPage() {
                 <h3 id="lookup-heading" className="mt-0.5 text-base font-bold tracking-tight text-navy-900">Check an earlier import</h3>
               </div>
             </div>
-            <p className="mt-4 text-[13px] leading-relaxed text-ink-500">
+            <p className="mt-3 text-[13px] leading-relaxed text-ink-500">
               Enter a batch id to review a previous upload&apos;s status and row counts.
             </p>
-            <label htmlFor="batch-id" className="cg-label mt-5">Batch id</label>
+            <label htmlFor="batch-id" className="cg-label mt-3">Batch id</label>
             <div className="mt-2 flex flex-col gap-2 sm:flex-row">
               <input
                 id="batch-id"
@@ -220,11 +220,11 @@ export function ImportPage() {
             )}
           </aside>
 
-          <aside aria-labelledby="next-heading" className="cg-card cg-rise-3 p-5 sm:p-6">
+          <aside aria-labelledby="next-heading" className="cg-card cg-rise-3 p-4 sm:p-5">
             <p className="cg-eyebrow text-[10px] font-bold uppercase text-lake-700">Import workflow</p>
             <h3 id="next-heading" className="mt-1 text-base font-bold tracking-tight text-navy-900">What happens next</h3>
             <p className="mt-1 text-[13px] leading-relaxed text-ink-500">A clear, reviewable import process.</p>
-            <ol className="mt-5 space-y-4">
+            <ol className="mt-4 space-y-3">
               <li className="flex items-start gap-3">
                 <span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-navy-900 text-[11px] font-bold tabular-nums text-white">01</span>
                 <div>

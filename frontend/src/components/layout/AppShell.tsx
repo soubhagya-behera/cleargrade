@@ -7,6 +7,7 @@ import { Topbar } from './Topbar';
 export function AppShell() {
   const [navigationOpen, setNavigationOpen] = useState(false);
   const { pathname } = useLocation();
+  const isImportPage = pathname === '/import';
 
   return (
     <div className="cg-shell-glow min-h-screen bg-canvas">
@@ -20,7 +21,7 @@ export function AppShell() {
         <div className="no-print">
           <Topbar title={pageTitleFor(pathname)} onOpenNavigation={() => setNavigationOpen(true)} />
         </div>
-        <main id="main-content" className="mx-auto w-full max-w-[1340px] px-4 py-6 sm:px-8 sm:py-10 lg:py-14">
+        <main id="main-content" className={`mx-auto w-full max-w-[1340px] px-4 py-6 sm:px-8 ${isImportPage ? 'sm:py-6 lg:py-8' : 'sm:py-10 lg:py-14'}`}>
           <div key={pathname} className="cg-page-enter">
             <Outlet />
           </div>

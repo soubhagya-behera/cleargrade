@@ -71,10 +71,10 @@ export function FileDropzone({ onFile, disabled = false, maxBytes, file = null, 
             <span className="cg-dropzone-icon">
               <FileCheck2 aria-hidden="true" className="size-6" />
             </span>
-            <p className="mt-4 text-[11px] font-bold uppercase tracking-[0.14em] text-lake-700">File ready</p>
+            <p className="mt-2 text-[11px] font-bold uppercase tracking-[0.14em] text-lake-700">File ready</p>
             <p className="mt-1.5 max-w-full truncate px-2 text-[15px] font-bold text-navy-950">{file.name}</p>
             <p className="mt-1 text-[12px] font-medium tabular-nums text-ink-500">{formatSize(file.size)}</p>
-            <div className="mt-4 flex flex-wrap items-center justify-center gap-2">
+            <div className="mt-3 flex flex-wrap items-center justify-center gap-2">
               <button
                 type="button"
                 disabled={disabled}
@@ -99,7 +99,7 @@ export function FileDropzone({ onFile, disabled = false, maxBytes, file = null, 
             <span className="cg-dropzone-icon">
               <FileSpreadsheet aria-hidden="true" className="size-6" />
             </span>
-            <p className="mt-4 text-[15px] font-semibold leading-snug text-navy-950">
+            <p className="mt-2 text-[15px] font-semibold leading-snug text-navy-950">
               {dragging ? 'Release to import' : 'Drag and drop a CSV file here'}
             </p>
             <p className="mt-1 text-[13px] leading-relaxed text-ink-500">
@@ -109,14 +109,14 @@ export function FileDropzone({ onFile, disabled = false, maxBytes, file = null, 
               type="button"
               disabled={disabled}
               onClick={() => inputRef.current?.click()}
-              className="cg-btn-accent mt-4 px-5.5"
+              className="cg-btn-accent mt-3 px-5.5"
             >
               Choose file
             </button>
           </>
         )}
       </div>
-      <p className="mt-3 text-center text-[12px] font-medium text-ink-500">
+      <p className="mt-2 text-center text-[11px] font-medium text-ink-500">
         CSV only · UTF-8 · up to {maxLabel}
       </p>
     </div>

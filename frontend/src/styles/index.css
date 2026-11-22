@@ -364,7 +364,7 @@
   }
 
   .cg-dropzone {
-    @apply relative flex min-h-[14rem] flex-col items-center justify-center overflow-hidden rounded-2xl px-5 py-7 text-center sm:min-h-[14.5rem] sm:px-8 sm:py-8;
+    @apply relative flex min-h-[11.5rem] flex-col items-center justify-center overflow-hidden rounded-2xl px-4 py-4 text-center sm:min-h-[11.75rem] sm:px-6 sm:py-4;
     cursor: pointer;
     border: 1.5px dashed var(--color-line-strong);
     background-color: var(--color-lake-050);
@@ -414,7 +414,7 @@
   }
 
   .cg-dropzone-icon {
-    @apply flex h-14 w-14 items-center justify-center rounded-xl bg-white text-lake-700 sm:h-15 sm:w-15;
+    @apply flex h-12 w-12 items-center justify-center rounded-xl bg-white text-lake-700;
     border: 1px solid var(--color-line);
     transition:
       background-color var(--duration-transition-drop) ease,
