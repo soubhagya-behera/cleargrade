@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useMutation, useQueries, useQuery } from '@tanstack/react-query';
-import { ListFilter, SearchCheck } from 'lucide-react';
+import { CheckCircle2, ListFilter, Loader2, SearchCheck, UploadCloud } from 'lucide-react';
 import { ApiError } from '../../api/client';
 import { getBatch, getBatchErrors, importKeys, uploadCsv } from '../../api/imports';
 import { DataQualitySummary } from '../../components/ui/DataQualitySummary';
@@ -15,6 +15,7 @@ import type { ImportResponse, RowErrorCode } from '../../types/api';
 const MAX_UPLOAD_BYTES = 10 * 1024 * 1024;
 const PAGE_SIZE = 50;
 const CODES: RowErrorCode[] = ['MISSING_REQUIRED', 'INVALID_FORMAT', 'OUT_OF_RANGE', 'DUPLICATE_ID', 'WRONG_FIELD_COUNT'];
+const CSV_COLUMNS = ['student_id', 'full_name', 'email', 'date_of_birth', 'grade_level', 'section'];
 
 function friendlyError(error: Error): string {
   if (!(error instanceof ApiError)) return 'The import could not be completed. Please retry.';
@@ -88,69 +89,166 @@ export function ImportPage() {
 
   return (
     <section aria-labelledby="page-heading">
-      <header className="mb-6">
-        <p className="cg-eyebrow text-[11px] font-bold uppercase text-lake-700">Data quality</p>
-        <h2 id="page-heading" className="cg-page-title cg-page-title-plain">Import student results</h2>
-        <p className="mt-2 max-w-2xl text-sm leading-relaxed text-ink-700 sm:text-[15px]">
-          Valid rows are imported; problem rows are listed below with their physical line numbers.
+      <header className="mb-7 border-b border-line pb-6 sm:mb-8 sm:pb-7">
+        <p className="cg-eyebrow text-[11px] font-bold uppercase text-lake-700">Import Quality Center <span aria-hidden="true" className="px-1.5 text-line-strong">/</span> Data quality · File intake</p>
+        <h2 id="page-heading" className="mt-3 text-[2rem] font-bold leading-[1.08] tracking-[-0.025em] text-navy-900 sm:text-[2.75rem]">
+          Import student results
+        </h2>
+        <p className="mt-3 max-w-2xl text-sm leading-relaxed text-ink-700 sm:text-[15px]">
+          Bring in a CSV, validate every row, and review the results before moving on.
         </p>
+        <span aria-hidden="true" className="mt-5 block h-1 w-10 bg-sun-500" />
       </header>
 
-      <div className="grid grid-cols-1 items-start gap-6 lg:grid-cols-[minmax(0,1fr)_360px]">
-        <section className="cg-card cg-rise-1 p-4 sm:p-6">
-          <FileDropzone onFile={choose} disabled={upload.isPending} maxBytes={MAX_UPLOAD_BYTES} />
-          <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-3 border-t border-line pt-4">
+      <div className="grid grid-cols-1 items-start gap-5 xl:grid-cols-12 xl:gap-6">
+        <section aria-labelledby="upload-heading" className="cg-card cg-rise-1 relative overflow-hidden p-4 pt-5 sm:p-6 sm:pt-7 xl:col-span-8">
+          <span aria-hidden="true" className="absolute inset-x-0 top-0 h-1.5 bg-lake-500" />
+          <div className="mb-5">
+            <h3 id="upload-heading" className="text-lg font-bold tracking-tight text-navy-900">Upload a results file</h3>
+            <p className="mt-1 text-[13px] leading-relaxed text-ink-500">Choose a CSV from your device or drop it into the upload area.</p>
+          </div>
+
+          <FileDropzone
+            file={file}
+            onFile={choose}
+            onRemove={() => choose(null)}
+            disabled={upload.isPending}
+            maxBytes={MAX_UPLOAD_BYTES}
+          />
+
+          <div className="mt-5">
+            <p className="cg-eyebrow text-[10px] font-bold uppercase text-lake-700">Required columns</p>
+            <ul className="mt-2 flex flex-wrap gap-1.5" aria-label="Required CSV columns">
+              {CSV_COLUMNS.map((column) => (
+                <li key={column} className="rounded-md border border-line bg-canvas px-2 py-1 font-mono text-[11px] font-medium text-navy-800">
+                  {column}
+                </li>
+              ))}
+              <li className="rounded-md border border-line bg-canvas px-2 py-1 text-[11px] font-semibold text-navy-800">and five subject marks</li>
+            </ul>
+          </div>
+
+          <div className="mt-5 flex flex-col gap-4 border-t border-line pt-5 sm:flex-row sm:items-center sm:justify-between">
+            <div className="min-w-0">
+              <p className="text-[13px] leading-snug text-ink-500">Valid rows import; problem rows appear below.</p>
+              {result && (
+                result.status === 'COMPLETED' ? (
+                  <p className="mt-1 inline-flex items-center gap-1.5 text-[12px] font-semibold text-success" aria-live="polite">
+                    <CheckCircle2 aria-hidden="true" className="size-3.5" />
+                    Import complete — review the summary below.
+                  </p>
+                ) : (
+                  <p className="mt-1 text-[12px] font-semibold text-lake-700" aria-live="polite">
+                    Batch {result.id} · {result.status}
+                  </p>
+                )
+              )}
+            </div>
             <button
               type="button"
               disabled={!file || upload.isPending}
               onClick={() => file && upload.mutate(file)}
-              className="cg-btn-primary"
+              className="cg-btn-primary w-full shrink-0 sm:w-auto"
             >
-              {upload.isPending ? 'Uploading and importing…' : 'Upload and import'}
+              {upload.isPending ? (
+                <>
+                  <Loader2 aria-hidden="true" className="size-4 animate-spin" />
+                  Uploading and importing…
+                </>
+              ) : (
+                <>
+                  <UploadCloud aria-hidden="true" className="size-4.5" />
+                  Upload and import
+                </>
+              )}
             </button>
-            {file && (
-              <span className="min-w-0 max-w-full truncate rounded-lg bg-lake-050 px-3 py-1.5 text-[13px] font-semibold text-navy-900 ring-1 ring-inset ring-lake-500/30">
-                {file.name} · {Math.round(file.size / 1024)} KiB
-              </span>
-            )}
-            <p className="text-[13px] leading-snug text-ink-500">
-              Valid rows import; problem rows appear below.
-            </p>
           </div>
           {error && <div className="mt-4"><ErrorState message={error} /></div>}
         </section>
 
-        <aside className="cg-card cg-rise-2 p-4 text-sm sm:p-6">
-          <div className="flex items-center gap-3">
-            <span className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-lake-100 text-lake-700">
-              <SearchCheck aria-hidden="true" className="size-5" />
-            </span>
-            <h3 className="text-base font-bold tracking-tight text-navy-900">Check an earlier import</h3>
-          </div>
-          <label htmlFor="batch-id" className="cg-label mt-5">Batch id</label>
-          <div className="mt-2 flex gap-2">
-            <input
-              id="batch-id"
-              inputMode="numeric"
-              value={lookupId}
-              onChange={(event) => setLookupId(event.target.value)}
-              className="cg-input flex-1"
-            />
-            <button
-              type="button"
-              onClick={() => setSearchedId(Number(lookupId))}
-              className="cg-btn-accent px-4.5"
-            >
-              Look up
-            </button>
-          </div>
-          {lookup.isError && <p className="mt-3 text-xs font-semibold text-danger">{friendlyError(lookup.error as Error)}</p>}
-          {lookup.data && (
-            <p className="mt-4 rounded-xl bg-lake-050 px-4 py-3 text-sm leading-relaxed text-navy-900" aria-live="polite">
-              Batch {lookup.data.id}: {lookup.data.status} · {lookup.data.rowsRead ?? 0} rows read · {lookup.data.imported ?? 0} imported
+        <div className="grid min-w-0 gap-5 xl:col-span-4 xl:grid-cols-1">
+          <aside aria-labelledby="lookup-heading" className="cg-card cg-rise-2 min-w-0 p-5 sm:p-6">
+            <div className="flex items-start gap-3">
+              <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-lake-100 text-lake-700">
+                <SearchCheck aria-hidden="true" className="size-5" />
+              </span>
+              <div className="min-w-0">
+                <p className="cg-eyebrow text-[10px] font-bold uppercase text-lake-700">Batch lookup</p>
+                <h3 id="lookup-heading" className="mt-0.5 text-base font-bold tracking-tight text-navy-900">Check an earlier import</h3>
+              </div>
+            </div>
+            <p className="mt-4 text-[13px] leading-relaxed text-ink-500">
+              Enter a batch id to review a previous upload&apos;s status and row counts.
             </p>
-          )}
-        </aside>
+            <label htmlFor="batch-id" className="cg-label mt-5">Batch id</label>
+            <div className="mt-2 flex flex-col gap-2 sm:flex-row">
+              <input
+                id="batch-id"
+                inputMode="numeric"
+                value={lookupId}
+                onChange={(event) => setLookupId(event.target.value)}
+                placeholder="e.g. 42"
+                className="cg-input min-w-0 flex-1"
+              />
+              <button
+                type="button"
+                onClick={() => setSearchedId(Number(lookupId))}
+                className="cg-btn-accent w-full shrink-0 px-4 sm:w-auto"
+              >
+                Look up
+              </button>
+            </div>
+            {lookup.isFetching && <p className="mt-3 text-[12px] font-medium text-ink-500">Looking up batch…</p>}
+            {lookup.isError && <p className="mt-3 text-xs font-semibold text-danger">{friendlyError(lookup.error as Error)}</p>}
+            {lookup.data && (
+              <div className="mt-4 rounded-xl border border-lake-500/25 bg-lake-050 p-4" aria-live="polite">
+                <div className="flex items-center justify-between gap-2">
+                  <p className="text-sm font-bold text-navy-900">Batch {lookup.data.id}</p>
+                  <span className="cg-tag">{lookup.data.status}</span>
+                </div>
+                <dl className="mt-3 grid grid-cols-2 gap-3 text-[12px]">
+                  <div>
+                    <dt className="font-semibold text-ink-500">Rows read</dt>
+                    <dd className="mt-0.5 text-sm font-bold tabular-nums text-navy-900">{lookup.data.rowsRead ?? 0}</dd>
+                  </div>
+                  <div>
+                    <dt className="font-semibold text-ink-500">Imported</dt>
+                    <dd className="mt-0.5 text-sm font-bold tabular-nums text-navy-900">{lookup.data.imported ?? 0}</dd>
+                  </div>
+                </dl>
+              </div>
+            )}
+          </aside>
+
+          <aside aria-labelledby="next-heading" className="cg-card cg-rise-3 p-5 sm:p-6">
+            <p className="cg-eyebrow text-[10px] font-bold uppercase text-lake-700">Import workflow</p>
+            <h3 id="next-heading" className="mt-1 text-base font-bold tracking-tight text-navy-900">What happens next</h3>
+            <p className="mt-1 text-[13px] leading-relaxed text-ink-500">A clear, reviewable import process.</p>
+            <ol className="mt-5 space-y-4">
+              <li className="flex items-start gap-3">
+                <span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-navy-900 text-[11px] font-bold tabular-nums text-white">01</span>
+                <div>
+                  <h4 className="text-[13px] font-bold text-navy-900">Validate the file</h4>
+                  <p className="mt-0.5 text-[12px] leading-relaxed text-ink-500">Check its structure and each row.</p>
+                </div>
+              </li>
+              <li className="flex items-start gap-3">
+                <span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-lake-500 text-[11px] font-bold tabular-nums text-navy-950">02</span>
+                <div>
+                  <h4 className="text-[13px] font-bold text-navy-900">Import valid records</h4>
+                  <p className="mt-0.5 text-[12px] leading-relaxed text-ink-500">Only accepted rows are saved.</p>
+                </div>
+              </li>
+              <li className="flex items-start gap-3">
+                <span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-sun-500 text-[11px] font-bold tabular-nums text-navy-950">03</span>
+                <div>
+                  <h4 className="text-[13px] font-bold text-navy-900">Review the outcome</h4>
+                  <p className="mt-0.5 text-[12px] leading-relaxed text-ink-500">Inspect row issues and the import summary.</p>
+                </div>
+              </li>
+            </ol>
+          </aside>
+        </div>
       </div>
 
       {result && (
