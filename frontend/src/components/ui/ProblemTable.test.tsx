@@ -24,6 +24,7 @@ describe('ProblemTable responsive presentation', () => {
     expect(screen.getAllByText('INVALID_FORMAT')).toHaveLength(1);
     expect(screen.getAllByText('WRONG_FIELD_COUNT')).toHaveLength(1);
     expect(screen.getAllByText('MISSING_REQUIRED')).toHaveLength(1);
+    expect(screen.getByText('Not a valid email address').closest('dd')).toContainElement(screen.getByText('INVALID_FORMAT'));
     for (const line of [5, 14, 22]) {
       expect(screen.getByText(String(line))).toBeInTheDocument();
     }
@@ -44,6 +45,7 @@ describe('ProblemTable responsive presentation', () => {
     expect(document.querySelectorAll('tbody tr')).toHaveLength(errors.length);
     expect(screen.getByText('Not a valid email address')).toBeInTheDocument();
     expect(screen.getByText('INVALID_FORMAT')).toBeInTheDocument();
+    expect(screen.getByText('Not a valid email address').closest('td')).toContainElement(screen.getByText('INVALID_FORMAT'));
     expect(screen.getByText('(whole row)')).toBeInTheDocument();
   });
 

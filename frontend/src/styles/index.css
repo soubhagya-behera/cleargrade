@@ -310,7 +310,7 @@
   }
 
   .cg-stat-value {
-    @apply mt-1.5 text-3xl font-bold tracking-tight tabular-nums text-navy-900 sm:text-[2.25rem];
+    @apply mt-0 text-[1.875rem] font-bold tracking-tight tabular-nums text-navy-900 sm:text-[2rem];
   }
 
   .cg-pill-sun {
@@ -487,15 +487,6 @@
     min-width: 0;
     overflow-wrap: anywhere;
     word-break: break-word;
-  }
-
-  .cg-summary-strong {
-    display: inline-block;
-    transition: transform 200ms ease;
-  }
-
-  .cg-summary-strong:hover {
-    transform: scale(1.02);
   }
 
   .cg-shell-glow {

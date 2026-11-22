@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useMutation, useQueries, useQuery } from '@tanstack/react-query';
-import { CheckCircle2, ListFilter, Loader2, SearchCheck, UploadCloud } from 'lucide-react';
+import { CheckCircle2, Loader2, SearchCheck, UploadCloud } from 'lucide-react';
 import { ApiError } from '../../api/client';
 import { getBatch, getBatchErrors, importKeys, uploadCsv } from '../../api/imports';
 import { DataQualitySummary } from '../../components/ui/DataQualitySummary';
@@ -252,22 +252,17 @@ export function ImportPage() {
       </div>
 
       {result && (
-        <div className="mt-8 space-y-5" aria-live="polite">
+        <div className="mt-6 space-y-5" aria-live="polite">
           <DataQualitySummary batch={result} breakdown={breakdown} />
           <div className="cg-stat-row">
-            <StatCard label="Rows read" value={result.rowsRead ?? 0} reveal="1" />
-            <StatCard label="Imported" value={result.imported ?? 0} hint={`${result.newCount ?? 0} new · ${result.changedCount ?? 0} changed · ${result.unchangedCount ?? 0} unchanged`} tone="success" reveal="2" />
-            <StatCard label="Rows rejected" value={result.rejected ?? 0} tone="danger" reveal="3" />
+            <StatCard label="Rows read" value={result.rowsRead ?? 0} />
+            <StatCard label="Imported" value={result.imported ?? 0} hint={`${result.newCount ?? 0} new · ${result.changedCount ?? 0} changed · ${result.unchangedCount ?? 0} unchanged`} tone="success" />
+            <StatCard label="Rows rejected" value={result.rejected ?? 0} hint={`${result.errorCount ?? 0} individual problems`} tone="danger" />
           </div>
 
-          <section aria-labelledby="problems-heading">
-            <div className="mb-4 flex flex-wrap items-center justify-between gap-4">
-              <div className="flex items-center gap-4">
-                <span className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-lake-100 text-lake-700 shadow-[0_0_0_4px_rgba(128,180,227,0.16)]">
-                  <ListFilter aria-hidden="true" className="size-5" />
-                </span>
-                <h3 id="problems-heading" className="text-lg font-bold tracking-tight text-navy-900">Row problems</h3>
-              </div>
+          <section aria-labelledby="problems-heading" className="border-t border-line pt-5">
+            <div className="mb-3 flex flex-wrap items-center justify-between gap-3 border-b border-line pb-3">
+              <h3 id="problems-heading" className="text-xl font-bold tracking-tight text-navy-900">Row problems</h3>
               <label className="flex items-center gap-2 text-xs font-medium text-ink-500" htmlFor="code-filter">
                 Filter by code
                 <select
