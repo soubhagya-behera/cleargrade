@@ -41,9 +41,9 @@ import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import org.springframework.web.context.WebApplicationContext;
-import org.testcontainers.containers.PostgreSQLContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
+import org.testcontainers.postgresql.PostgreSQLContainer;
 import org.testcontainers.utility.DockerImageName;
 
 /** Real HTTP-to-database verification of the documented /api contract. */
@@ -59,10 +59,13 @@ class RestApiIntegrationTest {
 	private static final Instant NOW = Instant.parse("2026-11-19T00:00:00Z");
 
 	@Container
-	static final PostgreSQLContainer<?> POSTGRES = new PostgreSQLContainer<>(DockerImageName.parse("postgres:16-alpine"))
-			.withDatabaseName("cleargrade_rest_api_test")
-			.withUsername("cleargrade_test")
-			.withPassword("cleargrade_test");
+	static final PostgreSQLContainer POSTGRES = new PostgreSQLContainer(DockerImageName.parse("postgres:16-alpine"));
+
+	static {
+		POSTGRES.withDatabaseName("cleargrade_rest_api_test");
+		POSTGRES.withUsername("cleargrade_test");
+		POSTGRES.withPassword("cleargrade_test");
+	}
 
 	@Autowired
 	private WebApplicationContext webContext;
@@ -167,7 +170,7 @@ class RestApiIntegrationTest {
 		byte[] large = new byte[2048];
 		java.util.Arrays.fill(large, (byte) 'a');
 		this.mockMvc.perform(multipart("/api/imports").file(file("large.csv", large)))
-				.andExpect(status().isPayloadTooLarge())
+				.andExpect(status().isContentTooLarge())
 				.andExpect(jsonPath("$.code").value("FILE_TOO_LARGE"));
 	}
 
