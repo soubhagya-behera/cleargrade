@@ -11,6 +11,7 @@ export interface StudentQuery {
 }
 
 export const studentKeys = {
+  all: ['students'] as const,
   list: (query: StudentQuery) => ['students', query] as const,
   report: (studentId: string) => ['students', 'report', studentId] as const,
 };

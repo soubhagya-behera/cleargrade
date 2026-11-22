@@ -3,7 +3,6 @@ package dev.cleargrade.application.service;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -12,7 +11,6 @@ import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
-import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -31,9 +29,9 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
-import org.testcontainers.containers.PostgreSQLContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
+import org.testcontainers.postgresql.PostgreSQLContainer;
 import org.testcontainers.utility.DockerImageName;
 
 import dev.cleargrade.application.exception.DigestConflictException;
@@ -41,8 +39,6 @@ import dev.cleargrade.application.exception.DuplicateDigestException;
 import dev.cleargrade.application.model.BatchImportResult;
 import dev.cleargrade.application.model.BatchReservation;
 import dev.cleargrade.application.model.BatchSubmission;
-import dev.cleargrade.application.model.DigestMatch;
-import dev.cleargrade.application.port.out.ImportBatchOutputPort;
 import dev.cleargrade.domain.DomainValidationException;
 import dev.cleargrade.domain.batch.ImportCounts;
 import dev.cleargrade.domain.batch.ImportStatus;
@@ -69,10 +65,13 @@ class ApplicationTransactionIntegrationTest {
 	private static final String MARK = "85.123456789012345678901234567890123456";
 
 	@Container
-	static final PostgreSQLContainer<?> POSTGRES = new PostgreSQLContainer<>(DockerImageName.parse("postgres:16-alpine"))
-			.withDatabaseName("cleargrade_app_test")
-			.withUsername("cleargrade_test")
-			.withPassword("cleargrade_test");
+	static final PostgreSQLContainer POSTGRES = new PostgreSQLContainer(DockerImageName.parse("postgres:16-alpine"));
+
+	static {
+		POSTGRES.withDatabaseName("cleargrade_app_test");
+		POSTGRES.withUsername("cleargrade_test");
+		POSTGRES.withPassword("cleargrade_test");
+	}
 
 	@Autowired
 	private ApplicationContext applicationContext;
@@ -85,15 +84,11 @@ class ApplicationTransactionIntegrationTest {
 	@Autowired
 	private BatchReservationTx reservationTx;
 	@Autowired
-	private BatchDigestLookupTx digestLookupTx;
-	@Autowired
 	private BatchProcessingTransitionTx processingTransitionTx;
 	@Autowired
 	private BatchFinalisationTx finalisationTx;
 	@Autowired
 	private BatchFailureTx failureTx;
-	@Autowired
-	private ImportBatchOutputPort batchPort;
 
 	@DynamicPropertySource
 	static void datasource(DynamicPropertyRegistry registry) {

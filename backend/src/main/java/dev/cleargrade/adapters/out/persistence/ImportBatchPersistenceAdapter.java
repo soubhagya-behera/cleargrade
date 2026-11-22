@@ -14,11 +14,14 @@ import dev.cleargrade.application.exception.DuplicateDigestException;
 import dev.cleargrade.application.model.BatchReservation;
 import dev.cleargrade.application.model.BatchSummary;
 import dev.cleargrade.application.model.DigestMatch;
+import dev.cleargrade.application.model.PageResult;
 import dev.cleargrade.application.port.out.ImportBatchOutputPort;
 import dev.cleargrade.application.port.out.ImportBatchQueryPort;
 import dev.cleargrade.domain.batch.ImportCounts;
 import dev.cleargrade.domain.batch.ImportStatus;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
 
@@ -100,6 +103,17 @@ public class ImportBatchPersistenceAdapter implements ImportBatchOutputPort, Imp
 				instant(row, "started_at"),
 				instant(row, "finished_at"),
 				(Long) row.getObject("duration_ms")), batchId).stream().findFirst();
+	}
+
+	@Override
+	public PageResult<BatchSummary> findPage(int page, int size) {
+		Page<ImportBatchEntity> result = this.repository.findAllByOrderByStartedAtDescIdDesc(PageRequest.of(page, size));
+		List<BatchSummary> content = result.getContent().stream().map(entity -> new BatchSummary(
+				entity.getId(), entity.getFilename(), entity.getStatus(), entity.getRowsRead(), entity.getImportedCount(),
+				entity.getNewCount(), entity.getChangedCount(), entity.getUnchangedCount(), entity.getRejectedCount(),
+				entity.getErrorCount(), entity.getStartedAt(), entity.getFinishedAt(), entity.getDurationMs())).toList();
+		return new PageResult<>(content, result.getNumber(), result.getSize(),
+				result.getTotalElements(), result.getTotalPages());
 	}
 
 	@Override

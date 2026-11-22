@@ -4,8 +4,12 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.request;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.asyncDispatch;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 
+import java.io.StringReader;
 import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
 import java.time.Clock;
@@ -28,8 +32,11 @@ import dev.cleargrade.domain.student.Student;
 import dev.cleargrade.domain.student.StudentId;
 import dev.cleargrade.domain.student.Subject;
 import dev.cleargrade.domain.student.SubjectMarks;
+import org.apache.commons.csv.CSVFormat;
+import org.apache.commons.csv.CSVParser;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
@@ -41,9 +48,9 @@ import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import org.springframework.web.context.WebApplicationContext;
-import org.testcontainers.containers.PostgreSQLContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
+import org.testcontainers.postgresql.PostgreSQLContainer;
 import org.testcontainers.utility.DockerImageName;
 
 /** Real HTTP-to-database verification of the documented /api contract. */
@@ -59,10 +66,13 @@ class RestApiIntegrationTest {
 	private static final Instant NOW = Instant.parse("2026-11-19T00:00:00Z");
 
 	@Container
-	static final PostgreSQLContainer<?> POSTGRES = new PostgreSQLContainer<>(DockerImageName.parse("postgres:16-alpine"))
-			.withDatabaseName("cleargrade_rest_api_test")
-			.withUsername("cleargrade_test")
-			.withPassword("cleargrade_test");
+	static final PostgreSQLContainer POSTGRES = new PostgreSQLContainer(DockerImageName.parse("postgres:16-alpine"));
+
+	static {
+		POSTGRES.withDatabaseName("cleargrade_rest_api_test");
+		POSTGRES.withUsername("cleargrade_test");
+		POSTGRES.withPassword("cleargrade_test");
+	}
 
 	@Autowired
 	private WebApplicationContext webContext;
@@ -167,7 +177,7 @@ class RestApiIntegrationTest {
 		byte[] large = new byte[2048];
 		java.util.Arrays.fill(large, (byte) 'a');
 		this.mockMvc.perform(multipart("/api/imports").file(file("large.csv", large)))
-				.andExpect(status().isPayloadTooLarge())
+				.andExpect(status().isContentTooLarge())
 				.andExpect(jsonPath("$.code").value("FILE_TOO_LARGE"));
 	}
 
@@ -204,6 +214,59 @@ class RestApiIntegrationTest {
 	}
 
 	@Test
+	void importHistoryReturnsEmptyPageWithServerTotal() throws Exception {
+		this.mockMvc.perform(get("/api/imports"))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.content.length()").value(0))
+				.andExpect(jsonPath("$.page").value(0))
+				.andExpect(jsonPath("$.size").value(10))
+				.andExpect(jsonPath("$.totalElements").value(0))
+				.andExpect(jsonPath("$.totalPages").value(0));
+	}
+
+	@Test
+	void importHistoryReturnsPersistedMetadataNewestFirstAndPaginates() throws Exception {
+		this.mockMvc.perform(multipart("/api/imports").file(file("first.csv", csv(VALID_ONE))))
+				.andExpect(status().isCreated());
+		byte[] second = csv("STU003,Bad Email,invalid,2001-01-01,9,A,80,80,80,80,80", VALID_TWO);
+		this.mockMvc.perform(multipart("/api/imports").file(file("second.csv", second)))
+				.andExpect(status().isCreated());
+
+		this.mockMvc.perform(get("/api/imports").param("size", "1"))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.content.length()").value(1))
+				.andExpect(jsonPath("$.content[0].id").value(2))
+				.andExpect(jsonPath("$.content[0].filename").value("second.csv"))
+				.andExpect(jsonPath("$.content[0].rowsRead").value(2))
+				.andExpect(jsonPath("$.content[0].newCount").value(1))
+				.andExpect(jsonPath("$.content[0].changedCount").value(0))
+				.andExpect(jsonPath("$.content[0].unchangedCount").value(0))
+				.andExpect(jsonPath("$.content[0].rejected").value(1))
+				.andExpect(jsonPath("$.content[0].status").value("COMPLETED"))
+				.andExpect(jsonPath("$.content[0].startedAt").exists())
+				.andExpect(jsonPath("$.totalElements").value(2))
+				.andExpect(jsonPath("$.totalPages").value(2));
+		this.mockMvc.perform(get("/api/imports").param("page", "1").param("size", "1"))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.content[0].id").value(1))
+				.andExpect(jsonPath("$.content[0].filename").value("first.csv"))
+				.andExpect(jsonPath("$.totalElements").value(2));
+	}
+
+	@Test
+	void importHistoryValidatesPagination() throws Exception {
+		this.mockMvc.perform(get("/api/imports").param("page", "-1"))
+				.andExpect(status().isBadRequest())
+				.andExpect(jsonPath("$.code").value("INVALID_PARAMETER"));
+		this.mockMvc.perform(get("/api/imports").param("size", "0"))
+				.andExpect(status().isBadRequest())
+				.andExpect(jsonPath("$.code").value("INVALID_PARAMETER"));
+		this.mockMvc.perform(get("/api/imports").param("size", "101"))
+				.andExpect(status().isBadRequest())
+				.andExpect(jsonPath("$.code").value("INVALID_PARAMETER"));
+	}
+
+	@Test
 	void pagedErrorsReturnPhysicalLinesAndValidateParameters() throws Exception {
 		byte[] body = csv("STU001,Bad,not-an-email,2001-01-01,9,A,101,80,80,80,80",
 				"STU002,Alice Smith,alice@example.com,2001-01-01,9,A,80,80,80,80,80");
@@ -224,6 +287,57 @@ class RestApiIntegrationTest {
 				.andExpect(jsonPath("$.code").value("INVALID_PARAMETER"));
 		this.mockMvc.perform(get("/api/imports/999/errors"))
 				.andExpect(status().isNotFound());
+	}
+
+	@Test
+	void batchCsvExportsStreamPersistedSummaryAndAllProblemsAcrossPages() throws Exception {
+		this.mockMvc.perform(multipart("/api/imports").file(file("marks,\"sample.csv", csv(VALID_ONE))))
+				.andExpect(status().isCreated());
+		MvcResult reportStart = this.mockMvc.perform(get("/api/imports/1/report"))
+				.andExpect(request().asyncStarted()).andReturn();
+		this.mockMvc.perform(asyncDispatch(reportStart))
+				.andExpect(status().isOk())
+				.andExpect(content().contentType("text/csv;charset=UTF-8"))
+				.andExpect(header().string("Content-Disposition", org.hamcrest.Matchers.containsString("cleargrade-import-1-report.csv")))
+				.andExpect(content().string(org.hamcrest.Matchers.containsString("Total Imported")))
+				.andExpect(content().string(org.hamcrest.Matchers.containsString("\"marks,\"\"sample.csv\"")))
+				.andExpect(content().string(org.hamcrest.Matchers.containsString(",0,1,1,1,0,0,0,0")));
+		MvcResult emptyProblemsStart = this.mockMvc.perform(get("/api/imports/1/row-problems"))
+				.andExpect(request().asyncStarted()).andReturn();
+		MvcResult emptyProblemsResult = this.mockMvc.perform(asyncDispatch(emptyProblemsStart))
+				.andExpect(status().isOk()).andReturn();
+		try (CSVParser parser = CSVFormat.DEFAULT.parse(
+				new StringReader(emptyProblemsResult.getResponse().getContentAsString()))) {
+			org.junit.jupiter.api.Assertions.assertEquals(1, parser.getRecords().size(),
+					"an issue-free batch should return its header only");
+		}
+
+		String[] manyInvalidRows = new String[20];
+		java.util.Arrays.fill(manyInvalidRows, "=1+1,,,,,,,,,,");
+		MvcResult issuesUpload = this.mockMvc.perform(multipart("/api/imports").file(file("issues.csv", csv(manyInvalidRows))))
+				.andExpect(status().isCreated()).andReturn();
+		int expectedIssues = com.jayway.jsonpath.JsonPath.read(issuesUpload.getResponse().getContentAsString(), "$.errorCount");
+		org.junit.jupiter.api.Assertions.assertTrue(expectedIssues > 100,
+				"test data must cross the 100-issue export page boundary");
+		MvcResult problemsStart = this.mockMvc.perform(get("/api/imports/2/row-problems"))
+				.andExpect(request().asyncStarted()).andReturn();
+		MvcResult problemsResult = this.mockMvc.perform(asyncDispatch(problemsStart))
+				.andExpect(status().isOk())
+				.andExpect(content().contentType("text/csv;charset=UTF-8"))
+				.andExpect(header().string("Content-Disposition", org.hamcrest.Matchers.containsString("cleargrade-import-2-row-problems.csv")))
+				.andReturn();
+		try (CSVParser parser = CSVFormat.DEFAULT.parse(new StringReader(problemsResult.getResponse().getContentAsString()))) {
+			List<org.apache.commons.csv.CSVRecord> records = parser.getRecords();
+			org.junit.jupiter.api.Assertions.assertEquals(expectedIssues + 1, records.size(),
+					"export must include every persisted issue beyond the first 100-row page");
+			org.junit.jupiter.api.Assertions.assertEquals("Batch ID", records.get(0).get(0));
+			org.junit.jupiter.api.Assertions.assertEquals("'=1+1", records.get(1).get(3));
+			org.junit.jupiter.api.Assertions.assertEquals(20L, records.stream().skip(1).map(record -> record.get(2)).distinct().count());
+			org.junit.jupiter.api.Assertions.assertTrue(records.stream().skip(1).filter(record -> "2".equals(record.get(2))).count() > 1,
+					"multiple validation issues for one row should remain separate records");
+		}
+		this.mockMvc.perform(get("/api/imports/999/report")).andExpect(status().isNotFound());
+		this.mockMvc.perform(get("/api/imports/999/row-problems")).andExpect(status().isNotFound());
 	}
 
 	@Test

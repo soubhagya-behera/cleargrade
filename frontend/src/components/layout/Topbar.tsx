@@ -24,7 +24,7 @@ export function Topbar({ title, onOpenNavigation }: TopbarProps) {
               onClick={onOpenNavigation}
               aria-label="Open navigation"
               aria-controls="cleargrade-sidebar"
-              className="rounded-xl p-2.5 text-ink-700 transition-colors hover:bg-lake-050 hover:text-navy-900 focus-visible:bg-lake-050 lg:hidden"
+              className="cursor-pointer rounded-xl p-2.5 text-ink-700 transition-colors hover:bg-lake-050 hover:text-navy-900 focus-visible:bg-lake-050 lg:hidden"
             >
               <Menu aria-hidden="true" className="size-4.5" />
           </button>

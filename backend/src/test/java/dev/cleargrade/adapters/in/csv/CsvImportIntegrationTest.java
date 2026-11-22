@@ -43,9 +43,9 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
-import org.testcontainers.containers.PostgreSQLContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
+import org.testcontainers.postgresql.PostgreSQLContainer;
 import org.testcontainers.utility.DockerImageName;
 
 /** End-to-end import flow against real PostgreSQL: T1-T4, idempotency and failure semantics. */
@@ -60,10 +60,13 @@ class CsvImportIntegrationTest {
 	private static final String VALID_TWO = "STU002,Bob Jones,bob@example.com,2002-02-02,10,B,70,70,70,70,70";
 
 	@Container
-	static final PostgreSQLContainer<?> POSTGRES = new PostgreSQLContainer<>(DockerImageName.parse("postgres:16-alpine"))
-			.withDatabaseName("cleargrade_csv_import_test")
-			.withUsername("cleargrade_test")
-			.withPassword("cleargrade_test");
+	static final PostgreSQLContainer POSTGRES = new PostgreSQLContainer(DockerImageName.parse("postgres:16-alpine"));
+
+	static {
+		POSTGRES.withDatabaseName("cleargrade_csv_import_test");
+		POSTGRES.withUsername("cleargrade_test");
+		POSTGRES.withPassword("cleargrade_test");
+	}
 
 	@Autowired
 	private ImportApplicationService applicationService;

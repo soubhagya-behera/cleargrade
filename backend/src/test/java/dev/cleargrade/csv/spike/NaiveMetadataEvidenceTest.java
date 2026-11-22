@@ -45,9 +45,7 @@ class NaiveMetadataEvidenceTest {
 	private static List<Long> currentLines() throws IOException {
 		List<Long> values = new ArrayList<>();
 		try (CSVParser parser = CSVParser.parse(Files.readString(FIXTURE, StandardCharsets.UTF_8), CSVFormat.DEFAULT)) {
-			for (CSVRecord record : parser) {
-				values.add(parser.getCurrentLineNumber());
-			}
+			parser.forEach(record -> values.add(parser.getCurrentLineNumber()));
 		}
 		return values;
 	}

@@ -45,4 +45,18 @@ describe('api client', () => {
     expect(fetchMock.mock.calls[0][1].method).toBe('POST');
     expect(fetchMock.mock.calls[0][1].body).toBeInstanceOf(FormData);
   });
+
+  it('downloads CSV blobs and decodes the UTF-8 attachment filename', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(new Response('a,b\r\n1,2\r\n', {
+      status: 200,
+      headers: { 'Content-Type': 'text/csv;charset=UTF-8', 'Content-Disposition': "attachment; filename*=UTF-8''cleargrade-import-7-report.csv" },
+    }));
+    vi.stubGlobal('fetch', fetchMock);
+    const client = createApiClient('/api');
+
+    const result = await client.download('/imports/7/report');
+    expect(fetchMock.mock.calls[0][1].headers).toEqual({ Accept: 'text/csv, application/json' });
+    expect(await result.blob.text()).toBe('a,b\r\n1,2\r\n');
+    expect(result.filename).toBe('cleargrade-import-7-report.csv');
+  });
 });

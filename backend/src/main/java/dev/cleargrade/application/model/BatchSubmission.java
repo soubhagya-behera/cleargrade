@@ -2,7 +2,6 @@ package dev.cleargrade.application.model;
 
 import java.util.List;
 
-import dev.cleargrade.application.model.BatchReservation;
 import dev.cleargrade.domain.batch.RowError;
 import dev.cleargrade.domain.student.Student;
 

@@ -18,7 +18,6 @@ import dev.cleargrade.adapters.out.ai.InsightResponseParser;
 import dev.cleargrade.application.config.InsightProperties;
 import dev.cleargrade.application.exception.InsightProviderException;
 import dev.cleargrade.application.model.ApprovedInsightFinding;
-import dev.cleargrade.application.model.ImportInsightFinding;
 import dev.cleargrade.application.model.ImportInsightReport;
 import dev.cleargrade.application.model.ImportQualityContext;
 import dev.cleargrade.application.model.InsightEvidenceMetric;
