@@ -71,7 +71,7 @@ For a container-free Windows setup (JDK 21, Node.js 22+ and a native PostgreSQL 
 
 School administrators receive inconsistent CSV exports of student results. A single malformed cell can silently corrupt a record, and a rejected row reported only as "row failed" gives no clue how to fix the source file. ClearGrade makes the import **traceable, deterministic and explainable** — then optionally interprets the measured import quality with an advisory AI copilot.
 
-In one request: upload a CSV, validate every row, import valid students into a searchable directory, report each rejected row with its **physical file line, field, error code and readable message**, compute grades from fixed backend rules, and — only on an explicit click — summarise data quality with a privacy-safe analysis.
+In one request: upload a CSV, validate every row, import valid students into a searchable directory, report each rejected row with its **physical file line, field, error code and readable message**, compute grades from fixed backend rules, and — only on an explicit click — summarise data quality with a privacy-safe analysis. A server-paginated import history lets you revisit any batch, review its summary and problems and download per-batch CSV reports.
 
 | Problem | ClearGrade approach |
 |---|---|
@@ -91,15 +91,23 @@ In one request: upload a CSV, validate every row, import valid students into a s
 
 ### 🧾 Robust CSV ingestion
 
-Apache Commons CSV 1.14.1 with an explicit format: UTF-8 with or without BOM, LF/CRLF/lone CR, quoted commas and embedded newlines, reordered or extra columns. A parser-derived physical line map keeps every reported problem pinned to the real file line, header = 1.
+Apache Commons CSV 1.14.1 with an explicit format: UTF-8 with or without BOM, LF/CRLF/lone CR, quoted commas and embedded newlines, reordered or extra columns. A parser-derived physical line map keeps every reported problem pinned to the real file line, header = 1. Only valid rows are imported; each completed batch stores row counts and a validation-category breakdown shown in the Import Summary and Import Report CSV.
 
 ### 🔍 Explainable rejection reports
 
-Five exact row-level error codes. Every applicable problem on a row is collected — one persisted occurrence per issue — with physical line, raw identifier, field and a message an administrator can act on. Rejected rows are counted separately from problem occurrences.
+Five exact row-level error codes. Every applicable problem on a rejected row is collected — one persisted occurrence per issue — with physical line, raw identifier, field and a message an administrator can act on. Rejected rows are counted separately from problem occurrences and can be paged through in Row Problems.
 
 ### ♻️ Idempotent, traceable imports
 
-A SHA-256 digest of the original bytes plus a PostgreSQL partial unique index reserve active content. Repeats return `200` with `deduplicated: true`; concurrent active uploads return `409`; a `FAILED` batch can be retried. Accepted students retain `first_seen_batch_id` and split into new / changed / unchanged counters.
+A SHA-256 digest of the original bytes plus a PostgreSQL partial unique index reserve active content. Re-uploading an identical completed file is idempotent: it returns `200` with `deduplicated: true` and creates no new batch; concurrent active uploads return `409`; a `FAILED` batch can be retried. Accepted students retain `first_seen_batch_id` and split into new / changed / unchanged counters.
+
+### 🕘 Import History
+
+A server-paginated, newest-first list of batches. Open any batch to review its persisted summary and row problems; when you return to the Import Quality Center in the same browser session, the last import is restored automatically.
+
+### ⬇️ Per-batch CSV downloads
+
+Two read-only exports are available per batch. The **Import Report CSV** has one summary record of persisted batch metadata and outcome counts. The **Row Problems CSV** has one record per persisted validation issue — line number, student ID when available, field, error code and message — so multiple issues from one rejected row appear as separate records. These exports describe the problems, not the rejected source: the complete original rejected CSV rows are not reconstructed or included.
 
 ### 🤖 ClearGrade Intelligence
 
@@ -111,7 +119,7 @@ A framework-free `GradingPolicy` computes exact percentages with `BigDecimal`: A
 
 ### 📇 Searchable directory and student report
 
-Server-side search over student ID and name, optional grade/section filters, allowlisted sorting and bounded pagination. The student report shows marks, total, derived grade and PASS state with loading, empty, not-found and error states handled in the UI.
+Server-side search over student ID and name, optional grade/section filters, allowlisted sorting and bounded pagination. Use **Find Student Report** to locate a student and open their individual academic report, which shows marks, total, derived percentage, grade and PASS state with loading, empty, not-found and error states handled in the UI.
 
 ### 🧱 Transactional correctness
 
@@ -140,7 +148,7 @@ flowchart LR
 1. The administrator uploads one CSV through `/import`. The backend computes SHA-256 from the original bytes and reserves the batch before parsing.
 2. The CSV adapter normalises headers and maps structural shape; `CsvRowValidator` applies domain rules and collects **every** error occurrence on a row.
 3. In one atomic transaction, accepted rows are upserted, row errors are stored, counts are written and the batch becomes `COMPLETED`. A fatal file error rolls back data and marks the batch `FAILED` separately.
-4. The Import Quality Center shows rows read, new/changed/unchanged, rejected rows and problem occurrences; valid students appear in the searchable directory and individual report.
+4. The Import Quality Center shows rows read, new/changed/unchanged, rejected rows and problem occurrences; valid students appear in the searchable directory and individual report. Each batch also appears in a newest-first, server-paginated history where its summary, problems and CSV exports remain available.
 5. Only on an explicit action does ClearGrade Intelligence interpret the **aggregate** counters. Import itself never calls an AI provider.
 
 <a id="architecture"></a>
@@ -152,7 +160,7 @@ A modular monolith: one Spring Boot deployable with enforced inward dependencies
 ```mermaid
 flowchart TB
     subgraph Client["Browser · React 19 SPA"]
-        UI[Import · Directory · Report · Intelligence panel]
+        UI[Import · History · Directory · Report · Intelligence panel]
     end
     subgraph Server["Spring Boot 4.1.2 · modular monolith"]
         REST[REST adapters + DTOs]
@@ -183,7 +191,7 @@ flowchart TB
 
 | Component | Responsibility |
 |---|---|
-| React SPA | Four screens, typed API client, server state via TanStack Query, responsive layout |
+| React SPA | Import, history, directory and report screens plus the intelligence panel, typed API client, server state via TanStack Query, responsive layout |
 | REST adapters | Multipart upload, DTO mapping, status codes, paginated reads, safe error envelope |
 | CSV adapter | BOM/line-ending handling, header mapping, quoted fields, physical-line map; no business rules |
 | Application layer | Use-case orchestration, ports, validation, routing, cache, transaction boundaries |
@@ -292,20 +300,20 @@ These are captures of the running application using deterministic synthetic demo
 
 <table width="100%" cellspacing="0" cellpadding="0" style="border-collapse: collapse;">
 <tr>
-<td width="50%" valign="top" style="border: 1px solid #d0d7de; padding: 12px; text-align: center;"><a href="docs/screenshots/import-home-page.png"><img src="docs/screenshots/import-home-page.png" alt="Import Quality Center upload page with CSV drop zone and batch lookup" width="100%" /></a><br/><sub><b>Import Quality Center</b> — Upload student results and start validation.</sub></td>
-<td width="50%" valign="top" style="border: 1px solid #d0d7de; padding: 12px; text-align: center;"><a href="docs/screenshots/import-summary.png"><img src="docs/screenshots/import-summary.png" alt="Import summary with row counts, error breakdown and quality metric cards" width="100%" /></a><br/><sub><b>Import Summary</b> — Review row counts, error totals and quality metric cards.</sub></td>
+<td width="50%" valign="top" style="border: 1px solid #d0d7de; padding: 12px; text-align: center;"><a href="docs/screenshots/import-home.png"><img src="docs/screenshots/import-home.png" alt="Import Quality Center with the CSV upload area, validation workflow and batch lookup" width="100%" /></a><br/><sub><b>Import Quality Center</b> — Upload student results and start CSV validation.</sub></td>
+<td width="50%" valign="top" style="border: 1px solid #d0d7de; padding: 12px; text-align: center;"><a href="docs/screenshots/import-history.png"><img src="docs/screenshots/import-history.png" alt="Import History listing previous batches with outcome counts and per-batch CSV download links" width="100%" /></a><br/><sub><b>Import History</b> — Review previous imports, compare outcomes and access per-batch downloads.</sub></td>
 </tr>
 <tr>
-<td width="50%" valign="top" style="border: 1px solid #d0d7de; padding: 12px; text-align: center;"><a href="docs/screenshots/row-problems.png"><img src="docs/screenshots/row-problems.png" alt="Row problems table listing rejected rows with physical line numbers and error codes" width="100%" /></a><br/><sub><b>Row Problems</b> — Inspect rejected rows by physical line, field and error code.</sub></td>
-<td width="50%" valign="top" style="border: 1px solid #d0d7de; padding: 12px; text-align: center;"><a href="docs/screenshots/intelligence-report.png"><img src="docs/screenshots/intelligence-report.png" alt="ClearGrade intelligence report with at-a-glance metrics and issue cards" width="100%" /></a><br/><sub><b>Intelligence Report</b> — Explore the aggregate quality report and at-a-glance metrics.</sub></td>
+<td width="50%" valign="top" style="border: 1px solid #d0d7de; padding: 12px; text-align: center;"><a href="docs/screenshots/import-summary.png"><img src="docs/screenshots/import-summary.png" alt="Import Summary showing imported and rejected row counts with validation-category breakdowns" width="100%" /></a><br/><sub><b>Import Summary</b> — Review imported and rejected row counts and validation-category breakdowns.</sub></td>
+<td width="50%" valign="top" style="border: 1px solid #d0d7de; padding: 12px; text-align: center;"><a href="docs/screenshots/row-problems.png"><img src="docs/screenshots/row-problems.png" alt="Row Problems table listing validation issues by physical line, field, error code and message" width="100%" /></a><br/><sub><b>Row Problems</b> — Inspect individual validation issues by physical line, field and error code.</sub></td>
 </tr>
 <tr>
-<td width="50%" valign="top" style="border: 1px solid #d0d7de; padding: 12px; text-align: center;"><a href="docs/screenshots/intelligence-outcome.png"><img src="docs/screenshots/intelligence-outcome.png" alt="Intelligence issue cards with severity, counts and how-to-fix guidance" width="100%" /></a><br/><sub><b>Intelligence Outcome</b> — Understand why rows failed and how to fix each issue.</sub></td>
-<td width="50%" valign="top" style="border: 1px solid #d0d7de; padding: 12px; text-align: center;"><a href="docs/screenshots/student-directory.png"><img src="docs/screenshots/student-directory.png" alt="Student directory with search, class and section filters, and a student table" width="100%" /></a><br/><sub><b>Student Directory</b> — Search, filter, sort and page through student records.</sub></td>
+<td width="50%" valign="top" style="border: 1px solid #d0d7de; padding: 12px; text-align: center;"><a href="docs/screenshots/intelligence-report.png"><img src="docs/screenshots/intelligence-report.png" alt="ClearGrade Intelligence report with aggregate data-quality insights, measured metrics and recommendations" width="100%" /></a><br/><sub><b>Intelligence Report</b> — Explore aggregate data-quality insights, measured metrics and recommendations.</sub></td>
+<td width="50%" valign="top" style="border: 1px solid #d0d7de; padding: 12px; text-align: center;"><a href="docs/screenshots/student-directory.png"><img src="docs/screenshots/student-directory.png" alt="Student Directory with name search, class and section filters, and a paginated student table" width="100%" /></a><br/><sub><b>Student Directory</b> — Search, filter and browse imported student records.</sub></td>
 </tr>
 <tr>
-<td width="50%" valign="top" style="border: 1px solid #d0d7de; padding: 12px; text-align: center;"><a href="docs/screenshots/student-report.png"><img src="docs/screenshots/student-report.png" alt="Student report finder showing search results for a student name" width="100%" /></a><br/><sub><b>Student Report Finder</b> — Search by student name or ID to open a full report.</sub></td>
-<td width="50%" valign="top" style="border: 1px solid #d0d7de; padding: 12px; text-align: center;"><a href="docs/screenshots/individual-report.png"><img src="docs/screenshots/individual-report.png" alt="Individual student report showing overall result, grade and subject marks" width="100%" /></a><br/><sub><b>Individual Report</b> — View one student's marks, result and grade.</sub></td>
+<td width="50%" valign="top" style="border: 1px solid #d0d7de; padding: 12px; text-align: center;"><a href="docs/screenshots/find-student-report.png"><img src="docs/screenshots/find-student-report.png" alt="Find Student Report search listing matching students to open an individual academic report" width="100%" /></a><br/><sub><b>Find Student Report</b> — Find a student and open their individual academic report.</sub></td>
+<td width="50%" valign="top" style="border: 1px solid #d0d7de; padding: 12px; text-align: center;"><a href="docs/screenshots/student-report.png"><img src="docs/screenshots/student-report.png" alt="Individual Student Report showing subject marks, total, percentage and derived grade" width="100%" /></a><br/><sub><b>Individual Student Report</b> — Review student marks, totals, percentages and grades.</sub></td>
 </tr>
 </table>
 
@@ -318,14 +326,17 @@ All application endpoints live under `/api`. Management is a separate path: only
 | Method | Endpoint | Purpose |
 |---|---|---|
 | `POST` | `/api/imports` | Upload CSV (multipart field `file`); `201` new or `200` deduplicated |
+| `GET` | `/api/imports` | Server-paginated history (`page`, `size`), newest first |
 | `GET` | `/api/imports/{id}` | Batch summary |
 | `GET` | `/api/imports/{id}/errors` | Paged row problems (`page`, `size`, `code`) |
+| `GET` | `/api/imports/{id}/report` | Import Report CSV: one summary record |
+| `GET` | `/api/imports/{id}/row-problems` | Row Problems CSV: one record per issue |
 | `GET` | `/api/students` | Paged directory (`query`, `grade`, `section`, `sort`) |
 | `GET` | `/api/students/{studentId}` | Student report with derived grading |
 | `GET` | `/api/ai/status` | Safe provider/routing snapshot, no inference |
 | `POST` | `/api/imports/{id}/insights` | Explicit aggregate analysis, no request body |
 
-Reads return `200`; the common failure codes are summarised below.
+Reads return `200`; the common failure codes are summarised below. The two per-batch CSV endpoints stream `text/csv` attachments: a single record of persisted batch metadata and outcome counts, or one record per validation issue (line, student ID when available, field, code and message) rather than the complete original rejected rows.
 
 ```powershell
 # Upload a CSV
@@ -442,7 +453,7 @@ docker compose down   # stop containers; keep the PostgreSQL volume
 | Request behaviour | Explicit trigger only; single-flight coalescing; optional cooldown; no automatic Gemini POST retry |
 | Model limits | Low thinking, bounded output tokens; the 1 B Ollama model has produced malformed explanation wording in testing, which strict validation rejects before the fallback chain continues |
 | Database | Native PostgreSQL 18 vs. container/Testcontainers PostgreSQL 16; Flyway V1 owns schema, Hibernate validates only |
-| Application scope | Current-result snapshot only; no term/year, no batch-list endpoint; no authentication |
+| Application scope | Current-result snapshot only; no term/year; server-paginated batch history (max 100 per page); no authentication |
 
 > [!IMPORTANT]
 > Gemini-generated interpretation is advisory, not independently verified fact. AI receives aggregate counters only and cannot change data. Keep the application on loopback/trusted networks.
@@ -503,9 +514,8 @@ cleargrade/
 Implemented scope is complete; the following are **deferred or unverified**, not shipped features:
 
 - Authentication and multi-tenancy before any non-local deployment.
-- A batch-history/list endpoint backed by the existing `import_batch` table.
 - A persistent, privacy-safe per-batch insight cache that survives restarts.
-- Deferred UI extras: error-CSV download, per-subject mark bars and printable report.
+- Deferred UI extras: per-subject mark bars and a printable report.
 - A recovery sweep for stale `RECEIVED` batches after an interrupted startup.
 - Live Gemini verification with a user-supplied key; browser E2E automation in CI.
 - The exact pragmatic email grammar boundary remains an explicit owner decision.
