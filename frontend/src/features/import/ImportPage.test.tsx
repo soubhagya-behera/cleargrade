@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { fireEvent, screen, waitFor } from '@testing-library/react';
 import { ApiError } from '../../api/client';
 import { ImportPage } from './ImportPage';
+import { LAST_IMPORT_BATCH_ID_KEY } from './lastImportBatch';
 import { renderWithProviders } from '../../test/render';
 import type { ImportResponse, Page, RowError } from '../../types/api';
 
@@ -16,8 +17,10 @@ vi.mock('../../api/imports', async (importOriginal) => {
   return { ...actual, uploadCsv: vi.fn(), getBatch: vi.fn(), getBatchErrors: vi.fn() };
 });
 
-const { uploadCsv, getBatchErrors } = await import('../../api/imports');
+const { uploadCsv, getBatch, getBatchErrors } = await import('../../api/imports');
 const { getAiStatus } = await import('../../api/ai');
+
+const STORAGE_KEY = LAST_IMPORT_BATCH_ID_KEY;
 
 const batch: ImportResponse = {
   id: 7, filename: 'marks.csv', status: 'COMPLETED', rowsRead: 25, imported: 16,
@@ -32,7 +35,10 @@ const errors: Page<RowError> = {
 };
 
 beforeEach(() => {
+  window.sessionStorage.clear();
   vi.mocked(uploadCsv).mockReset();
+  vi.mocked(getBatch).mockReset();
+  vi.mocked(getBatch).mockResolvedValue(batch);
   vi.mocked(getBatchErrors).mockReset();
   vi.mocked(getBatchErrors).mockResolvedValue(errors);
   vi.mocked(getAiStatus).mockReset();
@@ -104,5 +110,147 @@ describe('ImportPage', () => {
     fireEvent.change(screen.getByLabelText('Batch id'), { target: { value: '999' } });
     fireEvent.click(screen.getByRole('button', { name: 'Look up' }));
     await waitFor(() => expect(screen.getByText(/import batch was not found/i)).toBeInTheDocument());
+  });
+
+  it('saves only the completed batch id after a successful upload', async () => {
+    vi.mocked(uploadCsv).mockResolvedValue(batch);
+    renderWithProviders(<ImportPage />);
+    fireEvent.change(screen.getByLabelText('Choose CSV file'), { target: { files: [new File(['csv'], 'marks.csv', { type: 'text/csv' })] } });
+    fireEvent.click(screen.getByRole('button', { name: 'Upload and import' }));
+
+    expect(await screen.findByText(/Import complete/)).toBeInTheDocument();
+    expect(window.sessionStorage.getItem(STORAGE_KEY)).toBe('7');
+  });
+
+  it('clears the selected file after a successful upload', async () => {
+    vi.mocked(uploadCsv).mockResolvedValue(batch);
+    renderWithProviders(<ImportPage />);
+    fireEvent.change(screen.getByLabelText('Choose CSV file'), { target: { files: [new File(['csv'], 'marks.csv', { type: 'text/csv' })] } });
+    expect(screen.getByText('marks.csv')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Upload and import' }));
+
+    expect(await screen.findByText(/Import complete/)).toBeInTheDocument();
+    expect(screen.queryByText('File ready')).not.toBeInTheDocument();
+    expect(screen.queryByText('marks.csv')).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Upload and import' })).toBeDisabled();
+  });
+
+  it('restores the previous batch after navigating away and returning', async () => {
+    vi.mocked(uploadCsv).mockResolvedValue(batch);
+    const first = renderWithProviders(<ImportPage />);
+    fireEvent.change(screen.getByLabelText('Choose CSV file'), { target: { files: [new File(['csv'], 'marks.csv', { type: 'text/csv' })] } });
+    fireEvent.click(screen.getByRole('button', { name: 'Upload and import' }));
+    await screen.findByText(/Import complete/);
+    first.unmount();
+
+    renderWithProviders(<ImportPage />);
+
+    expect(await screen.findByText((_, element) =>
+      element?.tagName === 'P' && (element.textContent ?? '').includes('We read 25 rows'))).toBeInTheDocument();
+    expect(getBatch).toHaveBeenCalledWith(7, expect.anything());
+  });
+
+  it('restores the stored batch through the existing batch API on remount', async () => {
+    window.sessionStorage.setItem(STORAGE_KEY, '7');
+    renderWithProviders(<ImportPage />);
+
+    expect(await screen.findByText((_, element) =>
+      element?.tagName === 'P' && (element.textContent ?? '').includes('We read 25 rows'))).toBeInTheDocument();
+    expect(getBatch).toHaveBeenCalledWith(7, expect.anything());
+  });
+
+  it('restores the summary, stat cards, row problems and intelligence panel', async () => {
+    window.sessionStorage.setItem(STORAGE_KEY, '7');
+    renderWithProviders(<ImportPage />);
+
+    expect(await screen.findByText((_, element) =>
+      element?.tagName === 'P' && (element.textContent ?? '').includes('We read 25 rows'))).toBeInTheDocument();
+    expect(screen.getByText((_, element) =>
+      element?.tagName === 'P' && (element.textContent ?? '').includes('16 were imported'))).toBeInTheDocument();
+    expect(screen.getByText((_, element) =>
+      element?.tagName === 'P' && (element.textContent ?? '').includes('9 rows were rejected'))).toBeInTheDocument();
+    expect(await screen.findByText('Not a valid email address')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Row problems' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Import quality report' })).toBeInTheDocument();
+  });
+
+  it('ignores an invalid stored batch id without requesting the API', async () => {
+    window.sessionStorage.setItem(STORAGE_KEY, 'not-a-number');
+    renderWithProviders(<ImportPage />);
+
+    await waitFor(() => expect(getBatch).not.toHaveBeenCalled());
+    expect(window.sessionStorage.getItem(STORAGE_KEY)).toBeNull();
+  });
+
+  it('removes a stale stored batch id when the API returns not found', async () => {
+    window.sessionStorage.setItem(STORAGE_KEY, '999');
+    vi.mocked(getBatch).mockRejectedValueOnce(new ApiError(404, 'BATCH_NOT_FOUND', 'missing'));
+    renderWithProviders(<ImportPage />);
+
+    await waitFor(() => expect(window.sessionStorage.getItem(STORAGE_KEY)).toBeNull());
+    expect(screen.queryByText(/could not be restored/)).not.toBeInTheDocument();
+  });
+
+  it('keeps the stored batch id after a temporary network failure', async () => {
+    window.sessionStorage.setItem(STORAGE_KEY, '7');
+    vi.mocked(getBatch).mockRejectedValueOnce(new ApiError(0, 'NETWORK_ERROR', 'offline'));
+    renderWithProviders(<ImportPage />);
+
+    expect(await screen.findByText(/could not be restored/)).toBeInTheDocument();
+    expect(window.sessionStorage.getItem(STORAGE_KEY)).toBe('7');
+  });
+
+  it('keeps the previous completed result when a new upload fails', async () => {
+    vi.mocked(uploadCsv).mockResolvedValueOnce(batch);
+    renderWithProviders(<ImportPage />);
+    const input = screen.getByLabelText('Choose CSV file');
+    fireEvent.change(input, { target: { files: [new File(['csv'], 'marks.csv', { type: 'text/csv' })] } });
+    fireEvent.click(screen.getByRole('button', { name: 'Upload and import' }));
+    await screen.findByText(/Import complete/);
+
+    vi.mocked(uploadCsv).mockRejectedValueOnce(new ApiError(413, 'FILE_TOO_LARGE', 'too large'));
+    fireEvent.change(input, { target: { files: [new File(['csv'], 'next.csv', { type: 'text/csv' })] } });
+    fireEvent.click(screen.getByRole('button', { name: 'Upload and import' }));
+
+    expect(await screen.findByText(/larger than the 10 MiB limit/)).toBeInTheDocument();
+    expect(screen.getByText((_, element) =>
+      element?.tagName === 'P' && (element.textContent ?? '').includes('We read 25 rows'))).toBeInTheDocument();
+    expect(window.sessionStorage.getItem(STORAGE_KEY)).toBe('7');
+  });
+
+  it('does not let a slow restoration overwrite a newer successful upload', async () => {
+    window.sessionStorage.setItem(STORAGE_KEY, '7');
+    let resolveRestore!: (value: ImportResponse) => void;
+    vi.mocked(getBatch).mockImplementation(() => new Promise<ImportResponse>((resolve) => { resolveRestore = resolve; }));
+    const newer: ImportResponse = { ...batch, id: 8, rowsRead: 30, imported: 20, rejected: 10 };
+    vi.mocked(uploadCsv).mockResolvedValue(newer);
+    renderWithProviders(<ImportPage />);
+    await waitFor(() => expect(getBatch).toHaveBeenCalled());
+
+    fireEvent.change(screen.getByLabelText('Choose CSV file'), { target: { files: [new File(['csv'], 'marks.csv', { type: 'text/csv' })] } });
+    fireEvent.click(screen.getByRole('button', { name: 'Upload and import' }));
+    expect(await screen.findByText((_, element) =>
+      element?.tagName === 'P' && (element.textContent ?? '').includes('We read 30 rows'))).toBeInTheDocument();
+
+    resolveRestore(batch);
+    await waitFor(() => expect(screen.queryByText((_, element) =>
+      element?.tagName === 'P' && (element.textContent ?? '').includes('We read 25 rows'))).not.toBeInTheDocument());
+    expect(window.sessionStorage.getItem(STORAGE_KEY)).toBe('8');
+  });
+
+  it('never stores file contents or student details in session storage', async () => {
+    vi.mocked(uploadCsv).mockResolvedValue(batch);
+    renderWithProviders(<ImportPage />);
+    const csv = 'student_id,full_name\nSTU001,Jane Doe';
+    fireEvent.change(screen.getByLabelText('Choose CSV file'), { target: { files: [new File([csv], 'marks.csv', { type: 'text/csv' })] } });
+    fireEvent.click(screen.getByRole('button', { name: 'Upload and import' }));
+    await screen.findByText(/Import complete/);
+
+    const values = Array.from({ length: window.sessionStorage.length }, (_, index) =>
+      window.sessionStorage.getItem(window.sessionStorage.key(index)!));
+    expect(values).toEqual(['7']);
+    expect(values.join(' ')).not.toContain('STU001');
+    expect(values.join(' ')).not.toContain('Jane Doe');
+    expect(values.join(' ')).not.toContain('marks.csv');
   });
 });

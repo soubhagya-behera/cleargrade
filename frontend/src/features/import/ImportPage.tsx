@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useMutation, useQueries, useQuery } from '@tanstack/react-query';
 import { CheckCircle2, Loader2, SearchCheck, UploadCloud } from 'lucide-react';
 import { ApiError } from '../../api/client';
@@ -11,6 +11,7 @@ import { Pagination } from '../../components/ui/Pagination';
 import { ProblemTable } from '../../components/ui/ProblemTable';
 import { StatCard } from '../../components/ui/StatCard';
 import type { ImportResponse, RowErrorCode } from '../../types/api';
+import { clearLastImportBatchId, readLastImportBatchId, saveLastImportBatchId } from './lastImportBatch';
 
 const MAX_UPLOAD_BYTES = 10 * 1024 * 1024;
 const PAGE_SIZE = 50;
@@ -41,17 +42,49 @@ export function ImportPage() {
   const [code, setCode] = useState<RowErrorCode | ''>('');
   const [lookupId, setLookupId] = useState('');
   const [searchedId, setSearchedId] = useState<number | null>(null);
+  const [restoredBatchId, setRestoredBatchId] = useState<number | null>(() => readLastImportBatchId());
+  const [restoreError, setRestoreError] = useState<string | null>(null);
+  const uploadSucceeded = useRef(false);
 
   const upload = useMutation({
     mutationFn: (selected: File) => uploadCsv(selected),
     onSuccess: (batch) => {
+      uploadSucceeded.current = true;
+      setRestoredBatchId(null);
+      setRestoreError(null);
       setResult(batch);
+      setFile(null);
       setError(null);
       setPage(0);
       setCode('');
+      if (batch.status === 'COMPLETED') saveLastImportBatchId(batch.id);
     },
     onError: (cause: Error) => setError(friendlyError(cause)),
   });
+
+  const restoration = useQuery({
+    queryKey: importKeys.batch(restoredBatchId ?? 0),
+    queryFn: ({ signal }) => getBatch(restoredBatchId!, signal),
+    enabled: restoredBatchId !== null,
+    retry: false,
+  });
+
+  useEffect(() => {
+    if (!restoration.data || uploadSucceeded.current) return;
+    setResult(restoration.data);
+  }, [restoration.data]);
+
+  useEffect(() => {
+    if (!restoration.isError) return;
+    const cause = restoration.error;
+    if (cause instanceof ApiError && cause.status === 404) {
+      clearLastImportBatchId();
+      setRestoredBatchId(null);
+      setRestoreError(null);
+      return;
+    }
+    setRestoreError('The last import could not be restored. You can still upload a new file.');
+  }, [restoration.isError, restoration.error]);
 
   const problems = useQuery({
     queryKey: importKeys.errors(result?.id ?? 0, page, PAGE_SIZE, code || undefined),
@@ -115,6 +148,13 @@ export function ImportPage() {
             disabled={upload.isPending}
             maxBytes={MAX_UPLOAD_BYTES}
           />
+
+          {restoredBatchId !== null && restoration.isFetching && (
+            <p className="mt-3 text-[12px] font-medium text-ink-500" role="status">Restoring your last import…</p>
+          )}
+          {restoreError && (
+            <p className="mt-3 text-[12px] font-semibold text-danger" role="status">{restoreError}</p>
+          )}
 
           <div className="mt-3">
             <p className="cg-eyebrow text-[10px] font-bold uppercase text-lake-700">Required columns</p>
