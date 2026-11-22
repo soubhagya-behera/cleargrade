@@ -4,8 +4,12 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.request;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.asyncDispatch;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 
+import java.io.StringReader;
 import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
 import java.time.Clock;
@@ -28,8 +32,11 @@ import dev.cleargrade.domain.student.Student;
 import dev.cleargrade.domain.student.StudentId;
 import dev.cleargrade.domain.student.Subject;
 import dev.cleargrade.domain.student.SubjectMarks;
+import org.apache.commons.csv.CSVFormat;
+import org.apache.commons.csv.CSVParser;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
@@ -280,6 +287,53 @@ class RestApiIntegrationTest {
 				.andExpect(jsonPath("$.code").value("INVALID_PARAMETER"));
 		this.mockMvc.perform(get("/api/imports/999/errors"))
 				.andExpect(status().isNotFound());
+	}
+
+	@Test
+	void batchCsvExportsStreamPersistedSummaryAndAllProblemsAcrossPages() throws Exception {
+		this.mockMvc.perform(multipart("/api/imports").file(file("marks,\"sample.csv", csv(VALID_ONE))))
+				.andExpect(status().isCreated());
+		MvcResult reportStart = this.mockMvc.perform(get("/api/imports/1/report"))
+				.andExpect(request().asyncStarted()).andReturn();
+		this.mockMvc.perform(asyncDispatch(reportStart))
+				.andExpect(status().isOk())
+				.andExpect(content().contentType("text/csv;charset=UTF-8"))
+				.andExpect(header().string("Content-Disposition", org.hamcrest.Matchers.containsString("cleargrade-import-1-report.csv")))
+				.andExpect(content().string(org.hamcrest.Matchers.containsString("Total Imported")))
+				.andExpect(content().string(org.hamcrest.Matchers.containsString("\"marks,\"\"sample.csv\"")))
+				.andExpect(content().string(org.hamcrest.Matchers.containsString(",0,1,1,1,0,0,0,0")));
+		MvcResult emptyProblemsStart = this.mockMvc.perform(get("/api/imports/1/row-problems"))
+				.andExpect(request().asyncStarted()).andReturn();
+		MvcResult emptyProblemsResult = this.mockMvc.perform(asyncDispatch(emptyProblemsStart))
+				.andExpect(status().isOk()).andReturn();
+		try (CSVParser parser = CSVFormat.DEFAULT.parse(
+				new StringReader(emptyProblemsResult.getResponse().getContentAsString()))) {
+			org.junit.jupiter.api.Assertions.assertEquals(1, parser.getRecords().size(),
+					"an issue-free batch should return its header only");
+		}
+
+		String[] manyInvalidRows = new String[8];
+		java.util.Arrays.fill(manyInvalidRows, "=1+1,,,,,,,,,,");
+		this.mockMvc.perform(multipart("/api/imports").file(file("issues.csv", csv(manyInvalidRows))))
+				.andExpect(status().isCreated());
+		MvcResult problemsStart = this.mockMvc.perform(get("/api/imports/2/row-problems"))
+				.andExpect(request().asyncStarted()).andReturn();
+		MvcResult problemsResult = this.mockMvc.perform(asyncDispatch(problemsStart))
+				.andExpect(status().isOk())
+				.andExpect(content().contentType("text/csv;charset=UTF-8"))
+				.andExpect(header().string("Content-Disposition", org.hamcrest.Matchers.containsString("cleargrade-import-2-row-problems.csv")))
+				.andReturn();
+		try (CSVParser parser = CSVFormat.DEFAULT.parse(new StringReader(problemsResult.getResponse().getContentAsString()))) {
+			List<org.apache.commons.csv.CSVRecord> records = parser.getRecords();
+			org.junit.jupiter.api.Assertions.assertTrue(records.size() > 50, "export should include all issues after page one");
+			org.junit.jupiter.api.Assertions.assertEquals("Batch ID", records.get(0).get(0));
+			org.junit.jupiter.api.Assertions.assertEquals("'=1+1", records.get(1).get(3));
+			org.junit.jupiter.api.Assertions.assertEquals(8L, records.stream().skip(1).map(record -> record.get(2)).distinct().count());
+			org.junit.jupiter.api.Assertions.assertTrue(records.stream().skip(1).filter(record -> "2".equals(record.get(2))).count() > 1,
+					"multiple validation issues for one row should remain separate records");
+		}
+		this.mockMvc.perform(get("/api/imports/999/report")).andExpect(status().isNotFound());
+		this.mockMvc.perform(get("/api/imports/999/row-problems")).andExpect(status().isNotFound());
 	}
 
 	@Test

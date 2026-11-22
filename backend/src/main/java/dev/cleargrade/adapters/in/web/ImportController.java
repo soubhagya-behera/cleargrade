@@ -20,10 +20,14 @@ import dev.cleargrade.application.exception.FileTooLargeException;
 import dev.cleargrade.application.exception.InvalidEncodingException;
 import dev.cleargrade.application.exception.InvalidFileTypeException;
 import dev.cleargrade.application.model.BatchImportResult;
+import dev.cleargrade.application.model.BatchSummary;
 import dev.cleargrade.application.service.ImportApplicationService;
+import dev.cleargrade.application.service.ImportCsvExportService;
 import dev.cleargrade.application.service.ImportQueryService;
 import dev.cleargrade.domain.batch.ImportStatus;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.ContentDisposition;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.util.unit.DataSize;
@@ -34,6 +38,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
+import org.springframework.web.servlet.mvc.method.annotation.StreamingResponseBody;
 
 /** Upload and batch-read API. Routes only to application services; no persistence types are exposed. */
 @RestController
@@ -45,12 +50,15 @@ public class ImportController {
 	private static final int MAX_FILENAME_LENGTH = 255;
 
 	private final ImportApplicationService applicationService;
+	private final ImportCsvExportService csvExportService;
 	private final ImportQueryService queryService;
 	private final long maxFileSizeBytes;
 
-	public ImportController(ImportApplicationService applicationService, ImportQueryService queryService,
+	public ImportController(ImportApplicationService applicationService, ImportCsvExportService csvExportService,
+			ImportQueryService queryService,
 			@Value("${cleargrade.upload.max-file-size}") DataSize maxFileSize) {
 		this.applicationService = applicationService;
+		this.csvExportService = csvExportService;
 		this.queryService = queryService;
 		this.maxFileSizeBytes = maxFileSize.toBytes();
 	}
@@ -92,6 +100,30 @@ public class ImportController {
 			@RequestParam(defaultValue = "50") int size,
 			@RequestParam(required = false) String code) {
 		return PageResponse.from(this.queryService.getErrors(id, page, size, code), RowErrorResponse::from);
+	}
+
+	@GetMapping(path = "/{id}/report", produces = "text/csv")
+	public ResponseEntity<StreamingResponseBody> report(@PathVariable long id) {
+		BatchSummary batch = this.queryService.getBatch(id);
+		String filename = "cleargrade-import-" + batch.id() + "-report.csv";
+		StreamingResponseBody body = output -> this.csvExportService.writeReport(batch, output);
+		return csvDownload(filename, body);
+	}
+
+	@GetMapping(path = "/{id}/row-problems", produces = "text/csv")
+	public ResponseEntity<StreamingResponseBody> rowProblems(@PathVariable long id) {
+		BatchSummary batch = this.queryService.getBatch(id);
+		String filename = "cleargrade-import-" + batch.id() + "-row-problems.csv";
+		StreamingResponseBody body = output -> this.csvExportService.writeRowProblems(batch, output);
+		return csvDownload(filename, body);
+	}
+
+	private static ResponseEntity<StreamingResponseBody> csvDownload(String filename, StreamingResponseBody body) {
+		return ResponseEntity.ok()
+				.contentType(MediaType.parseMediaType("text/csv;charset=UTF-8"))
+				.header(HttpHeaders.CONTENT_DISPOSITION,
+						ContentDisposition.attachment().filename(filename, StandardCharsets.UTF_8).build().toString())
+				.body(body);
 	}
 
 	private void validate(MultipartFile file) {

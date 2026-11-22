@@ -5,6 +5,7 @@ import { getBatch, getImportHistory, importKeys } from '../../api/imports';
 import { ErrorState, SkeletonTable } from '../../components/ui/States';
 import { Pagination } from '../../components/ui/Pagination';
 import type { ImportHistoryEntry } from '../../types/api';
+import { BatchDownloadMenu } from './BatchDownloadMenu';
 import { ImportBatchDetails } from './ImportBatchDetails';
 
 const PAGE_SIZE = 10;
@@ -85,10 +86,13 @@ export function ImportHistory() {
                 <td className="cg-table-cell tabular-nums">{value(batch.unchangedCount)}</td>
                 <td className="cg-table-cell tabular-nums">{value(batch.rejected)}</td>
                 <td className="cg-table-cell"><span className={`cg-tag ${statusStyle(batch.status)}`}>{batch.status}</span></td>
-                <td className="cg-table-cell"><button type="button" onClick={() => setSelectedId(batch.id)}
-                  className="cg-btn-secondary !min-h-9 !px-3" aria-label={`View details for batch ${batch.id}`}>
-                  <Eye aria-hidden="true" className="size-4" /> View
-                </button></td>
+                <td className="cg-table-cell"><div className="flex items-center gap-2">
+                  <button type="button" onClick={() => setSelectedId(batch.id)}
+                    className="cg-btn-secondary !min-h-9 !px-3" aria-label={`View details for batch ${batch.id}`}>
+                    <Eye aria-hidden="true" className="size-4" /> View
+                  </button>
+                  <BatchDownloadMenu batch={batch} />
+                </div></td>
               </tr>)}
             </tbody>
           </table>

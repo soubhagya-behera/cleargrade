@@ -20,6 +20,14 @@ export function getImportHistory(page: number, size: number, signal?: AbortSigna
   return apiClient.get<Page<ImportHistoryEntry>>('/imports', { page, size }, signal);
 }
 
+export function getBatchReportCsv(id: number, signal?: AbortSignal) {
+  return apiClient.download(`/imports/${id}/report`, signal);
+}
+
+export function getBatchRowProblemsCsv(id: number, signal?: AbortSignal) {
+  return apiClient.download(`/imports/${id}/row-problems`, signal);
+}
+
 export function getBatchErrors(
   id: number,
   page: number,
