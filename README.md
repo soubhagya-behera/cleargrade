@@ -52,7 +52,7 @@ The fastest way to evaluate ClearGrade. Requirements: **Docker Desktop with Dock
 Then open <http://localhost:3000>.
 
 - `start.ps1` builds and starts PostgreSQL 16, the backend and the frontend through Docker Compose, then waits for the backend health check. If the root `.env` is absent, the script creates it from `.env.example` (git-ignored) and generates a local PostgreSQL password — there is nothing secret to supply for this path.
-- `GEMINI_API_KEY` is optional. Without it, imports still work and analysis falls back to the deterministic Java rule engine (`RULE_BASED`).
+- `GEMINI_API_KEY` is optional. Without it, imports still work. Analysis can use Ollama if a host instance is reachable and returns valid output; otherwise, ClearGrade falls back to the deterministic Java rule engine (`RULE_BASED`).
 - `seed.ps1` uploads the two synthetic fixtures, `scripts/seed/initial.csv` and `scripts/seed/update.csv`, through the real HTTP import API (`POST /api/imports`). Together they demonstrate new, changed, unchanged and rejected rows; no original assignment data is used and no rows are written directly to the database.
 - Re-running the seed is idempotent: identical completed file content is deduplicated (`200`, no new batch) or returns `409` while an identical digest is still active.
 
